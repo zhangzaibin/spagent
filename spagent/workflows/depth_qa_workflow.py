@@ -67,8 +67,11 @@ class DepthQAWorkflow:
         else:
             # 这里可以替换为真实的深度估计客户端
             try:
-                from external_experts.Depth_AnythingV2.depth_client import OpenPIClient
-                self.depth_client = OpenPIClient("http://localhost:5000")
+                from external_experts.Depth_AnythingV2.depth_client import DepthClient
+                self.depth_client = DepthClient("http://localhost:5000")
+                # from external_experts.Depth_AnythingV2._service import DepthClient
+                # checkpoint_path = 'spagent/external_experts/Depth_AnythingV2/checkpoints/depth_anything_v2_vitb.pth'
+                # client = DepthClient(use_mock=use_mock_depth, encoder='vitb', checkpoint_path=checkpoint_path, server_url="http://localhost:5000")
                 logger.info("使用真实深度估计服务")
             except ImportError:
                 logger.error("无法导入真实深度估计客户端")
