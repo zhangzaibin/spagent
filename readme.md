@@ -8,5 +8,7 @@ This repo aims to integrate **agentic skills** into spatial intelligence.
 
 
 # TODO
+- [x] Depth anything v2
+- [ ] SAM2
 - [ ] add workflow example
 - [ ] add evaluation script
