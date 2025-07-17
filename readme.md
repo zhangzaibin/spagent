@@ -7,6 +7,12 @@ This repo aims to integrate **agentic skills** into spatial intelligence.
 - api_example ：我提供了一个我们做具身智能的api部署代码，在部署external expert也可以使用这个示例的方法，这样可以将不同expert包装成相似的api接口。
 
 
+# Install
+```
+pip install -r requirements.txt
+pip install "httpx[socks]"
+```
+
 # workflow
 ![workflow](assets/image.png)
 
