@@ -57,7 +57,7 @@ class DepthQAWorkflow:
         if use_mock_depth:
             # 动态导入mock服务
             try:
-                from tmp.mock_depth_service import MockOpenPIClient
+                from external_experts.Depth_AnythingV2.mock_depth_service import MockOpenPIClient
                 self.depth_client = MockOpenPIClient()
                 logger.info("使用Mock深度估计服务")
             except ImportError:

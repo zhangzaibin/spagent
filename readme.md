@@ -26,10 +26,34 @@ This module orchestrates the complete spatial intelligence workflows:
 - Defines end-to-end workflows for spatial reasoning tasks
 - Handles data flow between different expert models and LLM components
 
-# Install
+### 4. Examples (`spagent/examples/`)
+启动示例脚本的入口，每个脚本就是一个使用教程，比如现在要使用depth_workflow
 ```
+cd spagent
+python examples/depth_workflow_example_usage.py
+```
+
+# Quick Start
+
+## Prepare OpenAI API
+```
+export OPENAI_API_KEY="you api key here (我之前给过)"
+export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/" 
+```
+
+
+## Install
+```
+# 安装的包很少，主要是一些api的服务
 pip install -r requirements.txt
 pip install "httpx[socks]"
+```
+
+## Run
+```
+# depth workflow
+cd spagent
+python examples/depth_workflow_example_usage.py
 ```
 
 # Workflow
@@ -45,9 +69,8 @@ pip install "httpx[socks]"
 - [ ] Additional model support
 
 ## Workflows
-- [ ] Add workflow examples
-    - [ ] Depth estimation workflow
+- [x] Add workflow examples
+    - [x] Depth estimation workflow
     - [ ] Object detection workflow
-    - [ ] Multi-modal reasoning workflow
 - [ ] Add evaluation scripts
-- [ ] Add workflow documentation
+- [ ] Add documentation
