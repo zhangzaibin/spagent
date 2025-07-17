@@ -190,7 +190,7 @@ if __name__ == '__main__':
     logger.info("正在启动服务器...")
     
     # 加载默认模型
-    checkpoint_path = 'checkpoints/depth_anything_v2_vitb.pth'
+    checkpoint_path = 'spagent/external_experts/Depth_AnythingV2/checkpoints/depth_anything_v2_vitb.pth'
     logger.info(f"正在从 {checkpoint_path} 加载模型")
     
     if not os.path.exists(checkpoint_path):

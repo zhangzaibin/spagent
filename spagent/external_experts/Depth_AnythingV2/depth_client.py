@@ -12,7 +12,7 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class OpenPIClient:
+class DepthClient:
     def __init__(self, server_url):
         """
         初始化客户端
@@ -105,7 +105,7 @@ class OpenPIClient:
                 
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
-                output_filename = f"depth_{input_filename}"
+                output_filename = f"outputs/depth_{input_filename}"
                 if not output_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
                     output_filename += '.png'
                 
@@ -116,7 +116,8 @@ class OpenPIClient:
                 return {
                     'depth_array': depth_array,
                     'shape': result['shape'],
-                    'output_path': output_filename
+                    'output_path': output_filename,
+                    'success': True
                 }
             else:
                 logger.error(f"服务器返回错误: {result.get('error')}")
@@ -132,7 +133,7 @@ def main():
     SERVER_URL = "http://localhost:5000"
     
     # 创建客户端
-    client = OpenPIClient(SERVER_URL)
+    client = DepthClient(SERVER_URL)
     
     # 1. 健康检查
     logger.info("\n=== 执行健康检查 ===")
@@ -160,7 +161,7 @@ def main():
     
     # 3. 处理实际图片
     logger.info("\n=== 处理图片 ===")
-    image_path = "/home/ubuntu/projects/VLMEvalKit/data/BLINK/0a1e41153f247f60533dbea180e06cfbba7538415209f91f93fdd648065757a4.jpg"
+    image_path = "assets/example.png"
     result = client.infer(image_path)
     
     if result:
