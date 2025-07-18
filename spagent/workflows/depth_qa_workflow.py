@@ -143,7 +143,6 @@ class DepthQAWorkflow:
             model="gpt-4o-mini",
             temperature=0.7
         )
-        import pdb; pdb.set_trace()
         
         # 2. 检查是否需要深度工具
         if self.needs_depth_tool(initial_response):
