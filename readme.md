@@ -57,7 +57,7 @@ python examples/depth_workflow_example_usage.py
 ```
 
 # Workflow
-![workflow](assets/image.png)
+https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoSt4rx2gqIc6lXmnTf
 
 # TODO
 ## External Experts
