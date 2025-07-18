@@ -10,7 +10,7 @@
 - SAM2.1-Large: [https://github.com/ultralytics/assets/releases/download/v8.3.0/sam2.1_l.pt]
 
 ### 使用说明
-0.assets文件夹中存放了测试图片和视频
+0. assets文件夹中存放了测试图片和视频
 
 1. 首先启动服务器：
 ```bash
