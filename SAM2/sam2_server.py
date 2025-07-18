@@ -166,9 +166,7 @@ def infer():
         if 'box' in data:
             prompts['box'] = data['box']  # [x1, y1, x2, y2]
             
-        if 'text' in data:
-            prompts['text'] = data['text']
-        
+
         # 运行推理
         logger.info("正在进行分割...")
         results = model.predict(
@@ -252,8 +250,6 @@ def infer_video():
         if 'box' in data:
             prompts['box'] = data['box']
             
-        if 'text' in data:
-            prompts['text'] = data['text']
         
         # 处理视频
         logger.info("开始处理视频...")
