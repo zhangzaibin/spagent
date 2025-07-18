@@ -13,7 +13,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from workflows.depth_qa_workflow import DepthQAWorkflow
-import pdb; pdb.set_trace()
 
 def example_depth_questions():
     """深度相关问题的示例"""

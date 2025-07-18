@@ -68,7 +68,7 @@ class DepthQAWorkflow:
             # 这里可以替换为真实的深度估计客户端
             try:
                 from external_experts.Depth_AnythingV2.depth_client import OpenPIClient
-                self.depth_client = OpenPIClient("http://localhost:5000")
+                self.depth_client = OpenPIClient("http://0.0.0.0:5000")
                 logger.info("使用真实深度估计服务")
             except ImportError:
                 logger.error("无法导入真实深度估计客户端")
@@ -140,6 +140,7 @@ class DepthQAWorkflow:
             model="gpt-4o-mini",
             temperature=0.7
         )
+        import pdb; pdb.set_trace()
         
         # 2. 检查是否需要深度工具
         if self.needs_depth_tool(initial_response):
