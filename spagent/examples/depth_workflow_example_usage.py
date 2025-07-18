@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from workflows.depth_qa_workflow import DepthQAWorkflow
+# import pdb; pdb.set_trace()
 
 def example_depth_questions():
     """深度相关问题的示例"""
@@ -53,14 +54,14 @@ def main():
     print("=" * 50)
     
     # 创建工作流实例（使用mock深度估计）
-    workflow = DepthQAWorkflow(use_mock_depth=True)
+    workflow = DepthQAWorkflow(use_mock_depth=False)
     
     # 检查工作流健康状态
     # health = workflow.health_check()
     # print(f"工作流健康状态: {health['overall_status']}")
     
     # 示例图像路径（请替换为实际路径）
-    image_path = "/Users/zzb/Documents/code/spagent/assets/example.png"
+    image_path = "assets/example.png"
     
     # 检查图像是否存在
     if not os.path.exists(image_path):

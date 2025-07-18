@@ -1,2 +1,4 @@
 tmp
-checkpoints
+checkpoints/
+__pycache__/
+*.pyc
