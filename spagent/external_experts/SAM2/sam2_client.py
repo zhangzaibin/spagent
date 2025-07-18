@@ -63,7 +63,6 @@ class SAM2Client:
                 - point_coords: 点击坐标列表 [[x1, y1], [x2, y2], ...]
                 - point_labels: 点标签列表 [1, 1, 0, ...] (1表示前景，0表示背景)
                 - box: 框选坐标 [x1, y1, x2, y2]
-                - text: 文本描述
             
         Returns:
             推理结果，如果失败则返回None
@@ -282,23 +281,23 @@ def main():
         logger.error("图片处理失败")
     
     # 4. 处理视频示例
-    # logger.info("\n=== 处理视频示例 ===")
-    # video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
-    # prompts = {
-    #     'point_coords': [[100, 100]],  # 第一帧的点击坐标
-    #     'point_labels': [1]  # 1表示前景点
-    # }
-    # result = client.infer_video(video_path, prompts)
+    logger.info("\n=== 处理视频示例 ===")
+    video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
+    prompts = {
+        'point_coords': [[100, 100]],  # 第一帧的点击坐标
+        'point_labels': [1]  # 1表示前景点
+    }
+    result = client.infer_video(video_path, prompts)
     
-    # if result:
-    #     logger.info("视频处理成功！")
-    #     logger.info(f"- 输入视频: {video_path}")
-    #     logger.info(f"- 输出视频: {result['output_path']}")
-    #     logger.info(f"- 总帧数: {result['frames']}")
-    #     logger.info(f"- FPS: {result['fps']}")
-    #     logger.info(f"- 分辨率: {result['size']}")
-    # else:
-    #     logger.error("视频处理失败")
+    if result:
+        logger.info("视频处理成功！")
+        logger.info(f"- 输入视频: {video_path}")
+        logger.info(f"- 输出视频: {result['output_path']}")
+        logger.info(f"- 总帧数: {result['frames']}")
+        logger.info(f"- FPS: {result['fps']}")
+        logger.info(f"- 分辨率: {result['size']}")
+    else:
+        logger.error("视频处理失败")
 
 if __name__ == '__main__':
     main() 
