@@ -76,6 +76,8 @@ class DepthQAWorkflow:
             except ImportError:
                 logger.error("无法导入真实深度估计客户端")
                 raise
+        
+
 
     def call_depth_estimation(self, image_path: str) -> Optional[Dict[str, Any]]:
         """
@@ -116,8 +118,7 @@ class DepthQAWorkflow:
         """
         # 简单的关键词检测
         depth_keywords = [
-            "depth", "distance", "3d", "spatial", "foreground", "background",
-            "closer", "farther", "depth map", "depth estimation"
+            "<Tool>: Depth Estimation", "<Tool>: depth estimation", "<Tool>: depth"
         ]
         
         response_lower = response.lower()
@@ -135,11 +136,24 @@ class DepthQAWorkflow:
             完整的工作流结果
         """
         logger.info("开始执行深度估计QA工作流")
+
+        prompt_template = f"""
+        The question is: {question}
+
+        Now, please answer this question. You have access to external tools: None; Depth Estimation. You may choose to use this tool to gather additional information that can help you answer the question.
+
+        Your response should follow the format below:
+
+        <Tool>:
+        <Tool Reason>:
+        <Answer>:
+
+            """
         
         # 1. VLLM先回答
         initial_response = gpt_single_image_inference(
             image_path=image_path,
-            prompt=question,
+            prompt=prompt_template,
             model="gpt-4o-mini",
             temperature=0.7
         )
@@ -153,7 +167,7 @@ class DepthQAWorkflow:
                 # 3. 重新给VLLM回答，同时传入原图和深度图
                 final_response = gpt_multiple_images_inference(
                     image_paths=[image_path, depth_result['output_path']],
-                    prompt=f"{question}\n\nThe first image is the original image, and the second image is the depth map. Please provide a detailed answer using both the original image and depth information.",
+                    prompt=f"{question}\n\nThe first image is the original image, and the second image is the depth map. Your previous response to this question is: {initial_response}. Please provide a answer based on these information. Your response should follow the format below: <Reason>: <Answer>:",
                     model="gpt-4o-mini",
                     temperature=0.7
                 )
