@@ -85,4 +85,7 @@ The workflow uses a simple approach to determine when to call external experts:
 - Add support for SAM2 object detection
 - Implement multi-modal reasoning workflows
 - Add support for video input
-- Integrate additional spatial intelligence experts 
+- Integrate additional spatial intelligence experts
+
+## SAM2 QA Workflow
+This workflow is like the Depth QA Workflow.
