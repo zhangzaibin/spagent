@@ -81,34 +81,6 @@ def main():
     print("\n=== Example completed ===")
     print("Note: Currently using mock depth estimation service, depth maps are simulated")
 
-def create_test_image():
-    """创建一个简单的测试图像（如果assets目录不存在）"""
-    import cv2
-    import numpy as np
-    
-    # 创建assets目录
-    assets_dir = Path("assets")
-    assets_dir.mkdir(exist_ok=True)
-    
-    # 创建一个简单的测试图像
-    test_image = np.random.randint(0, 255, (300, 400, 3), dtype=np.uint8)
-    
-    # 添加一些简单的几何形状
-    cv2.rectangle(test_image, (50, 50), (150, 150), (255, 0, 0), -1)
-    cv2.circle(test_image, (300, 100), 50, (0, 255, 0), -1)
-    cv2.putText(test_image, "Test Image", (50, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-    
-    # 保存图像
-    test_image_path = assets_dir / "image.png"
-    cv2.imwrite(str(test_image_path), test_image)
-    
-    print(f"创建测试图像: {test_image_path}")
-    return str(test_image_path)
 
 if __name__ == "__main__":
-    # 如果assets/image.png不存在，创建一个测试图像
-    if not os.path.exists("assets/image.png"):
-        print("Example image not found, creating test image...")
-        create_test_image()
-    
     main() 

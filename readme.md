@@ -54,7 +54,23 @@ pip install "httpx[socks]"
 # depth workflow
 cd spagent
 python examples/depth_workflow_example_usage.py
+
 ```
+
+# Evaluation
+
+## prepare BLINK dataset
+- `dataset/`
+  - `BLINK/`
+  - `blink_data.jsonl`
+
+
+## Evaluate gpt-4o-mini on BLINK
+```
+python spagent/examples/straight_evaluation_gpt.py
+```
+
+
 
 # Workflow
 https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoSt4rx2gqIc6lXmnTf
@@ -63,14 +79,18 @@ https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoS
 ## External Experts
 - [x] Depth-AnythingV2
 - [ ] SAM2
+- [ ] MoonDream2
 
 ## VLLM Models
-- [x] GPT inference functions
-- [ ] Additional model support
+- [x] GPT
+- [ ] QwenVL
 
 ## Workflows
 - [x] Add workflow examples
     - [x] Depth estimation workflow
-    - [ ] Object detection workflow
-- [ ] Add evaluation scripts
+    - [ ] SAM2 workflow
+    - [ ] Moondream2 workflow
+- [x] Add evaluation scripts
+    - [x] gpt
+    - [ ] depth workflow
 - [ ] Add documentation
