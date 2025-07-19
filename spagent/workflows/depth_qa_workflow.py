@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
+from workflows.depth_qa_prompts import get_complete_prompt, get_follow_up_prompt
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -116,9 +117,13 @@ class DepthQAWorkflow:
         Returns:
             是否需要深度工具
         """
-        # 简单的关键词检测
+        # 检查是否包含tool_call标签
+        if "<tool_call>" in response.lower():
+            return True
+            
+        # 检查是否明确提到深度估计工具
         depth_keywords = [
-            "<Tool>: Depth Estimation", "<Tool>: depth estimation", "<Tool>: depth"
+            "depth_estimation_tool", "depth estimation", "depth map", "3d spatial", "spatial relationships"
         ]
         
         response_lower = response.lower()
@@ -137,23 +142,13 @@ class DepthQAWorkflow:
         """
         logger.info("开始执行深度估计QA工作流")
 
-        prompt_template = f"""
-        The question is: {question}
-
-        Now, please answer this question. You have access to external tools: None; Depth Estimation. You may choose to use this tool to gather additional information that can help you answer the question.
-
-        Your response should follow the format below:
-
-        <Tool>:
-        <Tool Reason>:
-        <Answer>:
-
-            """
+        # 使用新的prompt模板
+        complete_prompt = get_complete_prompt(question)
         
         # 1. VLLM先回答
         initial_response = gpt_single_image_inference(
             image_path=image_path,
-            prompt=prompt_template,
+            prompt=complete_prompt,
             model="gpt-4o-mini",
             temperature=0.7
         )
@@ -165,12 +160,15 @@ class DepthQAWorkflow:
             
             if depth_result and depth_result.get('output_path'):
                 # 3. 重新给VLLM回答，同时传入原图和深度图
+                follow_up_prompt = get_follow_up_prompt(question, initial_response)
+                
                 final_response = gpt_multiple_images_inference(
                     image_paths=[image_path, depth_result['output_path']],
-                    prompt=f"{question}\n\nThe first image is the original image, and the second image is the depth map. Your previous response to this question is: {initial_response}. Please provide a answer based on these information. Your response should follow the format below: <Reason>: <Answer>:",
+                    prompt=follow_up_prompt,
                     model="gpt-4o-mini",
                     temperature=0.7
                 )
+                print(f"follow_up_response: {final_response}")
             else:
                 logger.warning("深度估计失败，使用原始回答")
                 depth_result = None
