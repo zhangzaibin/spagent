@@ -9,11 +9,78 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
-from workflows.depth_qa_prompts import get_complete_prompt, get_follow_up_prompt
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DEPTH_ESTIMATION_SYSTEM_PROMPT = """You are a helpful assistant.
+
+# Tools
+You may call one or more functions to assist with the user query.
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{"type":"function","function":{"name":"depth_estimation_tool","description":"Generate a depth map for the input image to analyze the 3D spatial relationships and depth distribution of objects in the scene.","parameters":{"type":"object","properties":{"image_path":{"type":"string","description":"The path to the input image for depth estimation."}},"required":["image_path"]}}}
+</tools>
+
+# How to call a tool
+Return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": <function-name>, "arguments": <args-json-object>}
+</tool_call>
+
+**Example**:  
+<tool_call>  
+{"name": "depth_estimation_tool", "arguments": {"image_path": "input_image.jpg"}}  
+</tool_call>"""
+
+
+# 用户prompt模板
+def get_user_prompt(question: str) -> str:
+    """
+    生成用户prompt
+    
+    Args:
+        question: 用户问题
+        
+    Returns:
+        格式化的用户prompt
+    """
+    return f"\nThink first, call **depth_estimation_tool** if needed, then answer. Format strictly as: <think>...</think> <tool_call>...</tool_call> (if tools needed) <answer>...</answer>\n\nQuestion: {question}"
+
+# 后续分析prompt模板
+def get_follow_up_prompt(question: str, initial_response: str) -> str:
+    """
+    生成后续分析prompt（当需要深度图时）
+    
+    Args:
+        question: 原始问题
+        initial_response: VLLM的初始回答
+        
+    Returns:
+        格式化的后续分析prompt
+    """
+    return f"""Based on the original image and the depth map, please provide a comprehensive answer to the question: {question}
+
+Your previous response was: {initial_response}
+
+Please analyze both the original image and the depth map to provide a detailed answer about the spatial relationships, depth distribution, and 3D structure of objects in the scene.
+
+Format your response as: <analysis>...</analysis> <answer>...</answer>"""
+
+# 完整的prompt组合
+def get_complete_prompt(question: str) -> str:
+    """
+    获取完整的prompt（系统指令 + 用户指令）
+    
+    Args:
+        question: 用户问题
+        
+    Returns:
+        完整的prompt字符串
+    """
+    return DEPTH_ESTIMATION_SYSTEM_PROMPT + get_user_prompt(question)
+
 
 class SimpleMockClient:
     """简单的Mock客户端，用于测试"""
