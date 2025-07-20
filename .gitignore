@@ -3,3 +3,4 @@ checkpoints/
 dataset/
 __pycache__/
 *.pyc
+outputs/*

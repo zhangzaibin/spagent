@@ -20,7 +20,16 @@ DEPTH_ESTIMATION_SYSTEM_PROMPT = """You are a helpful assistant.
 You may call one or more functions to assist with the user query.
 You are provided with function signatures within <tools></tools> XML tags:
 <tools>
-{"type":"function","function":{"name":"depth_estimation_tool","description":"Generate a depth map for the input image to analyze the 3D spatial relationships and depth distribution of objects in the scene.","parameters":{"type":"object","properties":{"image_path":{"type":"string","description":"The path to the input image for depth estimation."}},"required":["image_path"]}}}
+{"type":"function",
+ "function":{
+ "name":"depth_estimation_tool",
+ "description":"Generate a depth map for the input image to analyze the 3D spatial relationships and depth distribution of objects in the scene.",
+ "parameters":{
+     "type":"object",
+     "properties":{"image_path":{"type":"string","description":"The path to the input image for depth estimation."}
+   },
+ "required":["image_path"]}
+}}
 </tools>
 
 # How to call a tool

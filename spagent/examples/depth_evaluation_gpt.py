@@ -2,21 +2,28 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import time
 from tqdm import tqdm
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
-from vllm_models.gpt import gpt_single_image_inference
+from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
 from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results
+from workflows.depth_qa_workflow import DepthQAWorkflow
+
 
 def evaluate_single_sample(
     sample: Dict[str, Any], 
     image_base_path: str,
-    model: str = "gpt-4o-mini"
+    model: str = "gpt-4o-mini",
+    workflow: DepthQAWorkflow = None
 ) -> Dict[str, Any]:
     """评估单个样本
     
@@ -24,6 +31,7 @@ def evaluate_single_sample(
         sample: 数据样本
         image_base_path: 图像基础路径
         model: 使用的模型
+        workflow: 深度QA工作流实例
         
     Returns:
         评估结果字典
@@ -36,7 +44,7 @@ def evaluate_single_sample(
             "success": False,
             "error": "No image found"
         }
-    
+
     # 构建完整图像路径
     image_path = os.path.join(image_base_path, image_paths[0])
     if not os.path.exists(image_path):
@@ -45,7 +53,7 @@ def evaluate_single_sample(
             "success": False,
             "error": f"Image not found: {image_path}"
         }
-    
+
     # 提取问题和答案
     conversation = sample.get("conversations", [])
     if not conversation:
@@ -54,7 +62,7 @@ def evaluate_single_sample(
             "success": False,
             "error": "No conversation found"
         }
-    
+
     question, ground_truth = extract_question_and_answer(conversation)
     if not question or not ground_truth:
         return {
@@ -62,21 +70,26 @@ def evaluate_single_sample(
             "success": False,
             "error": "Question or answer not found"
         }
-    
+
     try:
         # 使用GPT进行推理
         start_time = time.time()
-        prediction = gpt_single_image_inference(
-            image_path=image_path,
-            prompt=question,
-            model=model,
-            temperature=0.0,  # 使用确定性输出
-            max_tokens=10  # 限制输出长度
-        )
+        # prediction = gpt_single_image_inference(
+        #     image_path=image_path,
+        #     prompt=question,
+        #     model=model,
+        #     temperature=0.0,  # 使用确定性输出
+        #     max_tokens=10  # 限制输出长度
+        # )
+
+        # depth 推理
+        result = workflow.run_workflow(image_path, question)
+        prediction = result.get('answer', '')
+
         inference_time = time.time() - start_time
         
         # 标准化答案
-        _, normalized_prediction = normalize_answer(prediction)
+        analysis, normalized_prediction = normalize_answer(prediction)
         _, normalized_ground_truth = normalize_answer(ground_truth)
         
         # 检查是否正确
@@ -87,7 +100,7 @@ def evaluate_single_sample(
             "success": True,
             "question": question,
             "ground_truth": ground_truth,
-            "prediction": prediction,
+            "analysis": analysis,
             "normalized_prediction": normalized_prediction,
             "normalized_ground_truth": normalized_ground_truth,
             "is_correct": is_correct,
@@ -121,20 +134,25 @@ def evaluate_blink_dataset(
     """
     print(f"Loading data from {data_path}")
     data = load_blink_data(data_path)
-    
+
     if max_samples:
         data = data[:max_samples]
         print(f"Using first {max_samples} samples for evaluation")
-    
+
     print(f"Evaluating {len(data)} samples with {model}")
-    
+
+    workflow = DepthQAWorkflow(use_mock_depth=False)
+
     results = []
     correct_count = 0
     total_time = 0
-    
+
     # 使用tqdm显示进度
     for sample in tqdm(data, desc="Evaluating"):
-        result = evaluate_single_sample(sample, image_base_path, model)
+        result = evaluate_single_sample(sample, image_base_path, model, workflow=workflow)
+        # result = workflow.run_workflow(image_path, question)
+
+
         results.append(result)
         
         if result["success"]:
@@ -192,7 +210,7 @@ def main():
     
     # 评估参数
     model = "gpt-4o-mini"
-    max_samples = 35  # 设置为数字可以限制评估样本数（用于测试）
+    max_samples = 50  # 设置为数字可以限制评估样本数（用于测试）
     
     # 执行评估
     results = evaluate_blink_dataset(
