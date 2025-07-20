@@ -35,10 +35,17 @@ python examples/depth_workflow_example_usage.py
 
 # Quick Start
 
-## Prepare OpenAI API
+## Prepare API
 ```
+# Prepare OPENAI API
 export OPENAI_API_KEY="you api key here (我之前给过)"
 export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/" 
+
+# Prepare QWEN API
+export DASHSCOPE_API_KEY=sk-bfe5209fcf5143abaa529c4150ea752b
+# 也可以去https://bailian.console.aliyun.com注册申请api，新人有免费额度
+# 测试QWEN API
+python spagent/vllm_models/qwen.py
 ```
 
 
@@ -60,9 +67,14 @@ python examples/depth_workflow_example_usage.py
 # Evaluation
 
 ## prepare BLINK dataset
-- `dataset/`
-  - `BLINK/`
-  - `blink_data.jsonl`
+```
+dataset/
+├── blink_data.jsonl          # BLINK数据集文件
+└── BLINK/                    # 图像文件夹
+    ├── 02bf928316cf55ddda3d9e938b89f7624db742364c4dd89eb4e3fddb55f51f9a.jpg
+    ├── ebb9c1c41b0fe3ff0d65cfc4ef3e2d26e4aefba3be654213a2aeab56d6546443.jpg
+    └── ...
+```
 
 
 ## Evaluate gpt-4o-mini on BLINK
@@ -81,16 +93,17 @@ https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoS
 - [ ] SAM2
 - [ ] MoonDream2
 
-## VLLM Models
+## Models
 - [x] GPT
-- [ ] QwenVL
+- [x] QwenVL
+- [ ] Local vllm deployment
 
 ## Workflows
 - [x] Add workflow examples
     - [x] Depth estimation workflow
-    - [ ] SAM2 workflow
+    - [x] SAM2 workflow
     - [ ] Moondream2 workflow
 - [x] Add evaluation scripts
     - [x] gpt
-    - [ ] depth workflow
+    - [x] depth workflow
 - [ ] Add documentation
