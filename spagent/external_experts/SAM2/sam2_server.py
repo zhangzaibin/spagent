@@ -145,7 +145,7 @@ def infer():
             prompts['labels'] = data.get('point_labels', [1] * len(data['point_coords']))
         
         if 'box' in data:
-            prompts['box'] = data['box']  # [x1, y1, x2, y2]
+            prompts['bboxes'] = data['box']  # [x1, y1, x2, y2]
             
 
         # 运行推理
@@ -276,9 +276,9 @@ def infer_video():
 
 if __name__ == '__main__':
     logger.info("正在启动服务器...")
-    model_path = '/media/rbh/2TB/pretrained_weight/sam2.1_t.pt'
+    model_path = '/media/rbh/2TB/pretrained_weight/sam2.1_b.pt'
     # 加载默认模型
-    if not load_model(model_type='sam2.1_t', model_path=model_path):
+    if not load_model(model_type='sam2.1_b', model_path=model_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     

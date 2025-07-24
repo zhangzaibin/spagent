@@ -89,3 +89,5 @@ The workflow uses a simple approach to determine when to call external experts:
 
 ## SAM2 QA Workflow
 This workflow is like the Depth QA Workflow.
+- 添加了qwen2.5-vl的接口，给SAM2提供prompt
+- 因为输入给qwen2.5-vl的prompt的问题，导致输出的格式不是很统一，这块有点小问题，同时qwen2.5-vl(32B)的grounding能力不是很好
