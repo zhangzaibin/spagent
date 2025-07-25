@@ -2,8 +2,13 @@ from openai import OpenAI
 import base64
 from pathlib import Path
 from typing import List, Optional, Union
+import os
 
-client = OpenAI()
+# client = OpenAI()
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url=os.getenv("OPENAI_BASE_URL")
+)
 
 def encode_image(image_path: str) -> str:
     """将图像文件编码为base64字符串
