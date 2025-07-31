@@ -90,7 +90,8 @@ https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoS
 # TODO
 ## External Experts
 - [x] Depth-AnythingV2
-- [ ] SAM2
+- [x] SAM2
+- [x] Supervision
 - [ ] MoonDream2
 
 ## Models
