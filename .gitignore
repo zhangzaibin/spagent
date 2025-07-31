@@ -4,3 +4,8 @@ dataset/
 __pycache__/
 *.pyc
 outputs/*
+*.pt
+*.mp4
+*.jpg
+output/
+.vscode
