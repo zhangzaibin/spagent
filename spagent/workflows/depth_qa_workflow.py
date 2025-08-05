@@ -204,8 +204,64 @@ class DepthQAWorkflow:
         
         response_lower = response.lower()
         return any(keyword in response_lower for keyword in depth_keywords)
+    
+    def run_video_workflow(self, video_path: str, question: str) -> Dict[str, Any]:
+        """
+        运行完整的深度估计QA工作流
+        
+        Args:
+            image_path: 输入图像路径
+            question: 用户问题
+            
+        Returns:
+            完整的工作流结果
+        """
+        logger.info("开始执行深度估计QA工作流")
 
-    def run_workflow(self, image_path: str, question: str) -> Dict[str, Any]:
+        # 使用新的prompt模板
+        complete_prompt = get_complete_prompt(question)
+        
+        # 1. VLLM先回答
+        initial_response = gpt_multiple_images_inference(
+            image_path=video_path,
+            prompt=complete_prompt,
+            model="gpt-4o-mini",
+            temperature=0.7
+        )
+        
+        # 2. 检查是否需要深度工具
+        if self.needs_depth_tool(initial_response):
+            logger.info("VLLM需要深度工具，调用深度估计")
+            depth_result = self.call_depth_estimation(video_path)
+            
+            if depth_result and depth_result.get('output_path'):
+                # 3. 重新给VLLM回答，同时传入原图和深度图
+                follow_up_prompt = get_follow_up_prompt(question, initial_response)
+                
+                final_response = gpt_multiple_images_inference(
+                    image_paths=[video_path, depth_result['output_path']],
+                    prompt=follow_up_prompt,
+                    model="gpt-4o-mini",
+                    temperature=0.7
+                )
+                print(f"follow_up_response: {final_response}")
+            else:
+                logger.warning("深度估计失败，使用原始回答")
+                depth_result = None
+                final_response = initial_response
+        else:
+            logger.info("VLLM不需要深度工具")
+            depth_result = None
+            final_response = initial_response
+        
+        # 4. 生成输出
+        return {
+            "answer": final_response,
+            "depth_used": depth_result is not None,
+            "depth_result": depth_result
+        }
+
+    def run_image_workflow(self, image_path: str, question: str) -> Dict[str, Any]:
         """
         运行完整的深度估计QA工作流
         

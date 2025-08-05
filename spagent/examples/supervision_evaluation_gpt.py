@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Tuple, Optional
 import time
 from tqdm import tqdm
 import logging
+import cv2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,13 +17,13 @@ sys.path.append(str(project_root))
 
 from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
 from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
-from workflows.depth_qa_workflow import DepthQAWorkflow
+from workflows.supervision_qa_workflow import SVQAWorkflow
 
 def evaluate_single_sample(
     sample: Dict[str, Any], 
     image_base_path: str,
     model: str = "gpt-4o-mini",
-    workflow: DepthQAWorkflow = None
+    workflow: SVQAWorkflow = None
 ) -> Dict[str, Any]:
     """评估单个样本
     
@@ -30,7 +31,7 @@ def evaluate_single_sample(
         sample: 数据样本
         image_base_path: 图像基础路径
         model: 使用的模型
-        workflow: 深度QA工作流实例
+        workflow: Supervision QA工作流实例
         
     Returns:
         评估结果字典
@@ -50,8 +51,8 @@ def evaluate_single_sample(
         #     max_tokens=10  # 限制输出长度
         # )
 
-        # depth 推理
-        result = workflow.run_image_workflow(json_result["path"], json_result["question"])
+        # supervision 推理
+        result = workflow.run_workflow(json_result["path"], json_result["question"])
         prediction = result.get('answer', '')
 
         inference_time = time.time() - start_time
@@ -120,7 +121,7 @@ def evaluate_blink_dataset(
 
     print(f"Evaluating {len(data)} samples with {model}")
 
-    workflow = DepthQAWorkflow(use_mock_depth=False)
+    workflow = SVQAWorkflow(use_mock_sv=False)
 
     results = []
     correct_count = 0
@@ -189,7 +190,7 @@ def main():
     
     # 评估参数
     model = "gpt-4o-mini"
-    max_samples = None  # 设置为数字可以限制评估样本数（用于测试）
+    max_samples = 2  # 设置为数字可以限制评估样本数（用于测试）
     
     # 执行评估
     results = evaluate_blink_dataset(
