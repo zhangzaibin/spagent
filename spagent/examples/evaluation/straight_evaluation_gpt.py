@@ -9,11 +9,11 @@ import cv2
 import numpy as np
 
 # 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from vllm_models.gpt import gpt_multiple_images_inference, gpt_single_image_inference
-from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results
+from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
 
 def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
     """从视频中提取帧
@@ -72,49 +72,19 @@ def evaluate_single_video(
         评估结果字典
     """
     # 提取视频路径
-    video_paths = sample.get("video", [])
-    if not video_paths:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No video found"
-        }
-    
-    # 构建完整视频路径
-    video_path = os.path.join(video_base_path, video_paths[0])
-    if not os.path.exists(video_path):
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": f"Video not found: {video_path}"
-        }
-    
-    # 提取问题和答案
-    conversation = sample.get("conversations", [])
-    if not conversation:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No conversation found"
-        }
-    
-    question, ground_truth = extract_question_and_answer(conversation)
-    if not question or not ground_truth:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "Question or answer not found"
-        }
+    is_valid, result = validate_sample_paths(sample, video_base_path, "video")
+    if not is_valid:
+        return result
     
     try:
         # 提取视频帧
-        frame_paths = extract_video_frames(video_path, target_fps)
+        frame_paths = extract_video_frames(result["path"], target_fps)
         
         # 使用GPT进行推理，一次性输入所有帧
         start_time = time.time()
         prediction = gpt_multiple_images_inference(
             image_paths=frame_paths,
-            prompt=f"Based on these {len(frame_paths)} frames from a video (sampled at {target_fps} fps), please answer: {question}",
+            prompt=f"Based on these {len(frame_paths)} frames from a video (sampled at {target_fps} fps), please answer: {result['question']}",
             model=model,
             temperature=0.0,
             max_tokens=50
@@ -123,16 +93,27 @@ def evaluate_single_video(
         
         # 标准化答案
         _, normalized_prediction = normalize_answer(prediction)
-        _, normalized_ground_truth = normalize_answer(ground_truth)
+        _, normalized_ground_truth = normalize_answer(result["ground_truth"])
         
         # 检查是否正确
         is_correct = normalized_prediction == normalized_ground_truth
         
+        # 如果错误，保存到TSV文件
+        if not is_correct:
+            error_data = {
+                'question': result["question"],
+                'path': result["path"],
+                'analysis': prediction,  # 使用prediction作为analysis
+                'normalized_prediction': normalized_prediction,
+                'normalized_ground_truth': normalized_ground_truth
+            }
+            save_error_to_tsv(error_data)
+        
         return {
             "id": sample.get("id", "unknown"),
             "success": True,
-            "question": question,
-            "ground_truth": ground_truth,
+            "question": result["question"],
+            "ground_truth": result["ground_truth"],
             "prediction": prediction,
             "normalized_prediction": normalized_prediction,
             "normalized_ground_truth": normalized_ground_truth,
@@ -177,47 +158,16 @@ def evaluate_single_sample(
     Returns:
         评估结果字典
     """
-    # 提取图像路径
-    image_paths = sample.get("image", [])
-    if not image_paths:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No image found"
-        }
-    
-    # 构建完整图像路径
-    image_path = os.path.join(image_base_path, image_paths[0])
-    if not os.path.exists(image_path):
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": f"Image not found: {image_path}"
-        }
-    
-    # 提取问题和答案
-    conversation = sample.get("conversations", [])
-    if not conversation:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No conversation found"
-        }
-    
-    question, ground_truth = extract_question_and_answer(conversation)
-    if not question or not ground_truth:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "Question or answer not found"
-        }
+    is_valid, result = validate_sample_paths(sample, image_base_path, "image")
+    if not is_valid:
+        return result
     
     try:
         # 使用GPT进行推理
         start_time = time.time()
         prediction = gpt_single_image_inference(
-            image_path=image_path,
-            prompt=question,
+            image_path=result["path"],
+            prompt=result["question"],
             model=model,
             temperature=0.0,  # 使用确定性输出
             max_tokens=10  # 限制输出长度
@@ -226,16 +176,27 @@ def evaluate_single_sample(
         
         # 标准化答案
         _, normalized_prediction = normalize_answer(prediction)
-        _, normalized_ground_truth = normalize_answer(ground_truth)
+        _, normalized_ground_truth = normalize_answer(result["ground_truth"])
         
         # 检查是否正确
         is_correct = normalized_prediction == normalized_ground_truth
         
+        # 如果错误，保存到TSV文件
+        if not is_correct:
+            error_data = {
+                'question': result["question"],
+                'path': result["path"],
+                'analysis': prediction,  # 使用prediction作为analysis
+                'normalized_prediction': normalized_prediction,
+                'normalized_ground_truth': normalized_ground_truth
+            }
+            save_error_to_tsv(error_data)
+        
         return {
             "id": sample.get("id", "unknown"),
             "success": True,
-            "question": question,
-            "ground_truth": ground_truth,
+            "question": result["question"],
+            "ground_truth": result["ground_truth"],
             "prediction": prediction,
             "normalized_prediction": normalized_prediction,
             "normalized_ground_truth": normalized_ground_truth,
@@ -352,8 +313,8 @@ def evaluate_blink_dataset(
 def main():
     """主函数"""
     # 配置路径
-    # data_path = "dataset/blink_data.jsonl"
-    data_path = "dataset/VSI-Bench.jsonl"
+    data_path = "dataset/blink_data.jsonl"
+    # data_path = "dataset/VSI-Bench.jsonl"
 
     image_base_path = "dataset"  # 图像文件的基础路径
     

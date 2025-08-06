@@ -1,5 +1,7 @@
 from typing import List, Dict, Any, Tuple
 import json
+import os
+import csv
 
 def load_blink_data(data_path: str) -> List[Dict[str, Any]]:
     """加载BLINK数据集
@@ -16,6 +18,63 @@ def load_blink_data(data_path: str) -> List[Dict[str, Any]]:
             if line.strip():
                 data.append(json.loads(line))
     return data
+
+def validate_sample_paths(
+    sample: Dict[str, Any],
+    base_path: str,
+    required_field: str = "image"
+) -> Tuple[bool, Dict[str, Any]]:
+    """验证样本路径和对话
+    
+    Args:
+        sample: 数据样本
+        base_path: 基础路径
+        required_field: 需要验证的字段名称（"image" 或 "video"）
+        
+    Returns:
+        (是否有效, 错误信息字典)
+    """
+    # 提取路径
+    paths = sample.get(required_field, [])
+    if not paths:
+        return False, {
+            "id": sample.get("id", "unknown"),
+            "success": False,
+            "error": f"No {required_field} found"
+        }
+    
+    # 构建完整路径
+    full_path = os.path.join(base_path, paths[0])
+    if not os.path.exists(full_path):
+        return False, {
+            "id": sample.get("id", "unknown"),
+            "success": False,
+            "error": f"{required_field.capitalize()} not found: {full_path}"
+        }
+    
+    # 提取问题和答案
+    conversation = sample.get("conversations", [])
+    if not conversation:
+        return False, {
+            "id": sample.get("id", "unknown"),
+            "success": False,
+            "error": "No conversation found"
+        }
+    
+    question, ground_truth = extract_question_and_answer(conversation)
+    if not question or not ground_truth:
+        return False, {
+            "id": sample.get("id", "unknown"),
+            "success": False,
+            "error": "Question or answer not found"
+        }
+    
+    # 返回验证成功和路径信息
+    return True, {
+        "path": full_path,
+        "question": question,
+        "ground_truth": ground_truth
+    }
 
 def extract_question_and_answer(conversation: List[Dict[str, str]]) -> Tuple[str, str]:
     """从对话中提取问题和答案
@@ -118,3 +177,29 @@ def print_evaluation_results(results: Dict[str, Any]):
             print(f"ID: {failed['id']}, Error: {failed['error']}")
         if len(results['failed_samples_details']) > 5:
             print(f"... and {len(results['failed_samples_details']) - 5} more")
+
+
+def save_error_to_tsv(error_data: Dict[str, Any], tsv_file: str = "error_analysis.tsv"):
+    """保存错误信息到TSV文件
+    
+    Args:
+        error_data: 包含错误信息的字典
+        tsv_file: TSV文件名
+    """
+    file_exists = os.path.exists(tsv_file)
+    
+    with open(tsv_file, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f, delimiter='\t')
+        
+        # 如果文件不存在，写入表头
+        if not file_exists:
+            writer.writerow(['question', 'path', 'analysis', 'normalized_prediction', 'normalized_ground_truth'])
+        
+        # 写入错误数据
+        writer.writerow([
+            error_data.get('question', ''),
+            error_data.get('path', ''),
+            error_data.get('analysis', ''),
+            error_data.get('normalized_prediction', ''),
+            error_data.get('normalized_ground_truth', '')
+        ])

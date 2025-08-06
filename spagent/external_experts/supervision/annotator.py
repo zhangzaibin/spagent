@@ -25,6 +25,18 @@ class Annotator:
         }
 
     def __call__(self, video_or_image_path, task, model, target_path=None):
+        # 检查输入是否为numpy数组（来自server的情况）
+        if isinstance(video_or_image_path, np.ndarray):
+            # 直接使用numpy数组，不需要设置target_path
+            self.model = model
+            if task in self.image_tasks:
+                annotated_image = self.image_annotate(video_or_image_path, task)
+                self.model = None
+                return annotated_image
+            else:
+                raise ValueError(f"任务 '{task}' 不支持numpy数组输入")
+        
+        # 原有的文件路径处理逻辑
         if target_path == None:
             target_dir, target_name = os.path.split(video_or_image_path)
             target_path = os.path.join(target_dir, 'output', target_name)
