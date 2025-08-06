@@ -103,7 +103,7 @@ https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoS
 - [x] Add workflow examples
     - [x] Depth estimation workflow
     - [x] SAM2 workflow
-    - [ ] Moondream2 workflow
+    - [x] supervision workflow
 - [x] Add evaluation scripts
     - [x] gpt
     - [x] depth workflow
