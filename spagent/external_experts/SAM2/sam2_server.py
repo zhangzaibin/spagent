@@ -284,4 +284,4 @@ if __name__ == '__main__':
     
     logger.info("模型加载成功，正在启动服务器...")
     # 启动Flask服务器
-    app.run(host='127.0.0.1', port=5000, debug=False) 
+    app.run(host='0.0.0.0', port=5000, debug=False) 
