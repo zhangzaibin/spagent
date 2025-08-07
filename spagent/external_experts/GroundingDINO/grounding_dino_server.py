@@ -338,7 +338,7 @@ if __name__ == '__main__':
     logger.info("正在启动Grounding DINO服务器...")
     
     # 加载模型
-    model_path = "/home/liming/projects/weights/groundingdino_swinb_cogcoor.pth"  # 使用默认路径，或指定实际路径
+    model_path = "spagent/external_experts/GroundingDINO/checkpoints/groundingdino_swinb_cogcoor.pth"  # 使用默认路径，或指定实际路径
     if not load_grounding_dino_model(model_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)

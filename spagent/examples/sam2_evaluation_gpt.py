@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
 from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
-from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results
+from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
 from workflows.sam2_qa_workflow import SAM2QAWorkflow
 
 
@@ -36,45 +36,14 @@ def evaluate_single_sample(
     Returns:
         评估结果字典
     """
-    # 提取图像路径
-    image_paths = sample.get("image", [])
-    if not image_paths:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No image found"
-        }
-
-    # 构建完整图像路径
-    image_path = os.path.join(image_base_path, image_paths[0])
-    if not os.path.exists(image_path):
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": f"Image not found: {image_path}"
-        }
-
-    # 提取问题和答案
-    conversation = sample.get("conversations", [])
-    if not conversation:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "No conversation found"
-        }
-
-    question, ground_truth = extract_question_and_answer(conversation)
-    if not question or not ground_truth:
-        return {
-            "id": sample.get("id", "unknown"),
-            "success": False,
-            "error": "Question or answer not found"
-        }
+    is_valid, json_result = validate_sample_paths(sample, image_base_path, "image")
+    if not is_valid:
+        return json_result
 
     try:
         # 使用SAM2工作流进行推理
         start_time = time.time()
-        result = workflow.run_workflow(image_path, question)
+        result = workflow.run_workflow(json_result["path"], json_result["question"])
         prediction = result.get('answer', '')
         inference_time = time.time() - start_time
         
@@ -88,16 +57,27 @@ def evaluate_single_sample(
         
         # 标准化答案
         analysis, normalized_prediction = normalize_answer(prediction)
-        _, normalized_ground_truth = normalize_answer(ground_truth)
+        _, normalized_ground_truth = normalize_answer(json_result["ground_truth"])
         
         # 检查是否正确
         is_correct = normalized_prediction == normalized_ground_truth
-        
+
+        # 如果错误，保存到TSV文件
+        if not is_correct:
+            error_data = {
+                'question': json_result["question"],
+                'path': json_result["path"],
+                'analysis': prediction,  # 使用prediction作为analysis
+                'normalized_prediction': normalized_prediction,
+                'normalized_ground_truth': normalized_ground_truth
+            }
+            save_error_to_tsv(error_data, tsv_file=f"{sample['data_source']}_{sample['task']}.tsv")
+
         return {
             "id": sample.get("id", "unknown"),
             "success": True,
-            "question": question,
-            "ground_truth": ground_truth,
+            "question": json_result["question"],
+            "ground_truth": json_result["ground_truth"],
             "analysis": analysis,
             "normalized_prediction": normalized_prediction,
             "normalized_ground_truth": normalized_ground_truth,
@@ -144,7 +124,7 @@ def evaluate_blink_dataset(
     print(f"Evaluating {len(data)} samples with {model}")
     print(f"Using {'mock' if use_mock_sam else 'real'} SAM2 service")
 
-    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam)
+    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam, use_dino=False)
 
     results = []
     correct_count = 0
@@ -211,7 +191,7 @@ def evaluate_blink_dataset(
 def main():
     """主函数"""
     # 配置路径
-    data_path = "datasets/blink_data.jsonl"
+    data_path = "dataset/blink_data.jsonl"
     image_base_path = "dataset"  # 图像文件的基础路径
     
     # 检查文件是否存在
@@ -225,7 +205,7 @@ def main():
     
     # 评估参数
     model = "gpt-4o-mini"
-    max_samples = 10  # 设置为数字可以限制评估样本数（用于测试）
+    max_samples = 20  # 设置为数字可以限制评估样本数（用于测试）
     use_mock_sam = False  # 使用mock SAM2服务进行测试
     
     # 执行评估

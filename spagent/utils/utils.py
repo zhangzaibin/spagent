@@ -3,6 +3,7 @@ import json
 import os
 import csv
 
+
 def load_blink_data(data_path: str) -> List[Dict[str, Any]]:
     """加载BLINK数据集
     
@@ -203,3 +204,114 @@ def save_error_to_tsv(error_data: Dict[str, Any], tsv_file: str = "error_analysi
             error_data.get('normalized_prediction', ''),
             error_data.get('normalized_ground_truth', '')
         ])
+
+def extract_objects_from_response(response: str) -> list:
+    """
+    从回答中提取<object></object>标签包含的物体列表
+    
+    Args:
+        response: VLLM的回答文本
+        
+    Returns:
+        提取的物体列表
+    """
+    import logging
+    import re
+    
+    logger = logging.getLogger(__name__)
+    objects = []
+    try:
+        # 查找所有带编号的object标签对
+        pattern = r'<object_\d+>(.*?)</object_\d+>'
+        matches = re.findall(pattern, response)
+        
+        # 清理并添加到列表
+        for match in matches:
+            obj = match.strip()
+            if obj:  # 只添加非空物体
+                objects.append(obj)
+                
+        logger.info(f"从回答中提取到 {len(objects)} 个物体: {objects}")
+    except Exception as e:
+        logger.error(f"提取物体时出错: {e}")
+    
+    return objects
+
+def draw_boxes_on_image(image_path: str, prompts: Dict, output_path: str = None) -> str:
+    """
+    在图像上绘制边界框
+    
+    Args:
+        image_path: 输入图像路径
+        prompts: 包含边界框坐标的字典，格式如 {'box': [[x1,y1,x2,y2], ...], 'labels': ['person', 'kite', ...]}
+        output_path: 输出图像路径，如果为None则自动生成
+        
+    Returns:
+        输出图像的路径
+    """
+    import cv2
+    import numpy as np
+    import os
+    
+    # 读取图像
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"无法读取图像: {image_path}")
+    
+    # 如果没有指定输出路径，自动生成
+    if output_path is None:
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        output_path = f"outputs/boxes_{base_name}.jpg"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # 绘制边界框
+    if 'box' in prompts and prompts['box']:
+        boxes = prompts['box']
+        labels = prompts.get('labels', [])  # 获取标签列表，如果没有则为空列表
+        colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+        
+        for i, box in enumerate(boxes):
+            x1, y1, x2, y2 = [int(coord) for coord in box]
+            color = colors[i % len(colors)]
+            
+            # 绘制边界框
+            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+            
+            # 添加标签（优先使用类别标签，否则使用默认标签）
+            if i < len(labels) and labels[i]:
+                label = labels[i]
+            else:
+                label = f"Box {i+1}"
+            
+            # 计算标签文本大小
+            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+            
+            # 绘制标签背景
+            cv2.rectangle(image, (x1, y1-label_size[1]-10), (x1+label_size[0]+10, y1), color, -1)
+            
+            # 绘制标签文本
+            cv2.putText(image, label, (x1+5, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    
+    # 保存图像
+    cv2.imwrite(output_path, image)
+    
+    return output_path
+
+def parse_json(json_output: str) -> str:
+    """
+    Parse JSON output by removing markdown fencing
+    Based on qwen's official implementation
+    
+    Args:
+        json_output: Raw response that may contain ```json fencing
+        
+    Returns:
+        Clean JSON string
+    """
+    lines = json_output.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == "```json":
+            json_output = "\n".join(lines[i+1:])  # Remove everything before "```json"
+            json_output = json_output.split("```")[0]  # Remove everything after the closing "```"
+            break  # Exit the loop once "```json" is found
+    return json_output

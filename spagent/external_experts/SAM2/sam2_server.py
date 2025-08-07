@@ -276,7 +276,7 @@ def infer_video():
 
 if __name__ == '__main__':
     logger.info("正在启动服务器...")
-    model_path = '/media/rbh/2TB/pretrained_weight/sam2.1_b.pt'
+    model_path = 'spagent/external_experts/SAM2/checkpoints/sam2.1_b.pt'
     # 加载默认模型
     if not load_model(model_type='sam2.1_b', model_path=model_path):
         logger.error("无法启动服务器：模型加载失败")

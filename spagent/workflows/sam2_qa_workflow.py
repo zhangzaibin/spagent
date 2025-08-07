@@ -5,10 +5,12 @@ import sys
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from external_experts.SAM2.sam2_client import SAM2Client
+import ast
 from external_experts.GroundingDINO.grounding_dino_client import GroundingDINOClient
 # Add parent directory to path to import modules
 sys.path.append(str(Path(__file__).parent.parent))
 
+from utils.utils import draw_boxes_on_image, parse_json, extract_objects_from_response
 from vllm_models.gpt import gpt_single_image_inference, gpt_multiple_images_inference, gpt_text_only_inference
 from vllm_models.qwen import qwen_single_image_inference, qwen_multiple_images_inference, qwen_text_only_inference
 
@@ -19,10 +21,10 @@ logger = logging.getLogger(__name__)
 QWEN2_5_VL_PROMPT = """You are given an image and a text description.  
 Your task is to find the object described in the text and output its bounding boxes in image coordinates.  
 Each box should be given as [x1, y1, x2, y2], where (x1, y1) represents the top-left corner of the box, and (x2, y2) represents the bottom-right corner.  
-Output only strictly in the following format:  
-<box1>[x1, y1, x2, y2]</box1><box2>[x1, y1, x2, y2]</box2>...<boxn>[x1, y1, x2, y2]</boxn>
+Outline the position of each object described in the text andd output all the coordinates in JSON format.
 \n\nText: {text}"""
-
+# Output only strictly in the following format:  
+# <box1>[x1, y1, x2, y2]</box1><box2>[x1, y1, x2, y2]</box2>...<boxn>[x1, y1, x2, y2]</boxn>
 SAM2_SYSTEM_PROMPT = """You are a helpful assistant.
 
 # Tools
@@ -150,7 +152,7 @@ class SimpleMockClient:
 class SAM2QAWorkflow:
     """SAM2图像分割问答工作流"""
     
-    def __init__(self, use_mock_sam: bool = True):
+    def __init__(self, use_mock_sam: bool = True, use_dino: bool = False):
         """
         初始化工作流
         
@@ -158,6 +160,7 @@ class SAM2QAWorkflow:
             use_mock_sam: 是否使用mock SAM2服务
         """
         self.use_mock_sam = use_mock_sam
+        self.use_dino = use_dino
         
         # 初始化SAM2客户端
         if use_mock_sam:
@@ -167,40 +170,14 @@ class SAM2QAWorkflow:
         else:
             # 使用真实的SAM2客户端
             try:
-                self.sam_client = SAM2Client("http://10.5.100.158:5000")
-                self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
+                self.sam_client = SAM2Client("http://0.0.0.0:5000")
+                if self.use_dino:
+                    self.groundingdino_client = GroundingDINOClient("http://0.0.0.0:5001")
                 logger.info("使用真实SAM2服务")
             except ImportError:
                 logger.error("无法导入真实SAM2客户端")
                 raise
-    def extract_objects_from_response(self, response: str) -> list:
-        """
-        从回答中提取<object></object>标签包含的物体列表
-        
-        Args:
-            response: VLLM的回答文本
-            
-        Returns:
-            提取的物体列表
-        """
-        objects = []
-        try:
-            # 查找所有带编号的object标签对
-            import re
-            pattern = r'<object_\d+>(.*?)</object_\d+>'
-            matches = re.findall(pattern, response)
-            
-            # 清理并添加到列表
-            for match in matches:
-                obj = match.strip()
-                if obj:  # 只添加非空物体
-                    objects.append(obj)
-                    
-            logger.info(f"从回答中提取到 {len(objects)} 个物体: {objects}")
-        except Exception as e:
-            logger.error(f"提取物体时出错: {e}")
-        
-        return objects          
+
     def call_sam_segmentation(self, image_path: str, prompts: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
         调用SAM2分割专家
@@ -229,7 +206,7 @@ class SAM2QAWorkflow:
             logger.error(f"SAM2调用异常: {e}")
             return None
     
-    def call_groundingdino(self, image_path: str, prompts: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+    def call_groundingdino(self, image_path: str, prompts: Optional[Dict] = None) -> Optional[List[Dict]]:
         """
         调用groundingdino模型为sam2生成prompt
         
@@ -238,44 +215,52 @@ class SAM2QAWorkflow:
             prompts: 要grounding的目标
             
         Returns:
-            grounding结果
+            grounding结果，格式为 [{'box': [x1, y1, x2, y2], 'label': 'label'}, ...]
         """
         logger.info(f"调用groundingdino专家处理图片: {image_path}")
         
         try:
-            # 执行图像分割
+            # 执行图像检测
             result = self.groundingdino_client.infer(image_path, prompts)
             visual_prompt_response = []
+            
             if result and result.get('success'):
                 # 获取检测结果
                 detections = result.get('detections', [])
                 image_shape = result.get('shape', [])
                 image_height, image_width = image_shape[0], image_shape[1]
+                
                 if detections:
                     for detection in detections:
-                    # 获取第一个检测结果的边界框
+                        # 获取检测结果的边界框和标签
                         bbox = detection['bbox']  # [cx, cy, w, h]
+                        label = detection.get('label', 'unknown')  # 获取标签
+                        
                         # 将box从cxcywh转成xyxy格式
                         cx, cy, w, h = bbox
                         x1 = cx - w / 2
                         y1 = cy - h / 2
                         x2 = cx + w / 2
                         y2 = cy + h / 2
-                        bbox = [
+                        bbox_xyxy = [
                             x1 * image_width,   
                             y1 * image_height,  
                             x2 * image_width,   
                             y2 * image_height  
                         ]
                         
-                        visual_prompt_response.append(bbox)
+                        # 添加到结果列表，格式与extract_coordinates_from_response一致
+                        visual_prompt_response.append({
+                            'box': bbox_xyxy,
+                            'label': label
+                        })
                         
                 else:
-                    visual_prompt_response = {'message': '未检测到目标'}
+                    logger.warning("未检测到目标")
+                    return None
                 
-                visual_prompt = {"box": visual_prompt_response}
                 logger.info("图像grounding完成")
-                return visual_prompt
+                return visual_prompt_response
             else:
                 logger.error("图像grounding失败")
                 return None
@@ -309,43 +294,54 @@ class SAM2QAWorkflow:
         # response_lower = response.lower()
         # return any(keyword in response_lower for keyword in segmentation_keywords)
 
-    def extract_coordinates_from_response(self, response: str) -> Optional[Dict]:
+    def extract_coordinates_from_response(self, response: str) -> Optional[List[Dict]]:
         """
-        Extract coordinates from <box> tags in the response text
+        Extract coordinates from JSON format in the response text
+        Based on qwen's official implementation with ast.literal_eval
         
         Args:
-            response: Response text containing box coordinates
+            response: Response text containing box coordinates in JSON format
             
         Returns:
-            Dictionary containing box coordinates, or None if extraction fails
+            List of dictionaries containing box coordinates and labels, or None if extraction fails
         """
         try:
-            import re
-            boxes = []
+            # Parse JSON using qwen's method
+            clean_json = parse_json(response)
             
-            # 直接匹配所有<box>标签中的内容
-            box_pattern = r'<box\d*>\[([\d\s,.-]+)\]</box\d*>'
-            matches = re.finditer(box_pattern, response)
-            
-            for match in matches:
-                coords_str = match.group(1)
+            try:
+                # First try with ast.literal_eval (qwen's preferred method)
+                json_output = ast.literal_eval(clean_json)
+            except Exception as e:
+                logger.warning(f"ast.literal_eval failed: {e}")
                 try:
-                    coords = [float(x.strip()) for x in coords_str.split(',')]
-                    if len(coords) == 4:
-                        boxes.append(coords)
-                except ValueError:
-                    logger.error(f"Invalid coordinate format: {coords_str}")
-                    continue
-
-            if not boxes:
+                    # Fallback: try to fix incomplete JSON as qwen does
+                    end_idx = clean_json.rfind('"}') + len('"}')
+                    truncated_text = clean_json[:end_idx] + "]"
+                    json_output = ast.literal_eval(truncated_text)
+                except Exception as e2:
+                    logger.warning(f"Truncated JSON also failed: {e2}")
+                    # Final fallback: try standard json.loads
+                    json_output = json.loads(clean_json)
+            
+            # Extract boxes and labels
+            prompts = []
+            for item in json_output:
+                if 'bbox_2d' in item and len(item['bbox_2d']) == 4:
+                    box = [float(coord) for coord in item['bbox_2d']]
+                    label = item.get('label', 'unknown')
+                    prompts.append({
+                        'box': box,
+                        'label': label
+                    })
+            
+            if prompts:
+                logger.info(f"Successfully extracted {len(prompts)} bounding boxes")
+                logger.info(f"Extracted prompts: {prompts}")
+                return prompts
+            else:
                 logger.error("No valid boxes found in response")
                 return None
-
-            prompts = {
-                'box': boxes
-            }
-            logger.info(f"Successfully extracted prompts: {prompts}")
-            return prompts
 
         except Exception as e:
             logger.error(f"Error extracting coordinates: {e}")
@@ -375,45 +371,59 @@ class SAM2QAWorkflow:
             temperature=0.7
         )
 
-        # 2.调用qwen2.5-vl-32B去给出点或框的visual prompt，交给sam2去分割
-        # objects = self.extract_objects_from_response(initial_response)
-        # 将物体列表用and连接，处理单个物体和多个物体的情况
-        # if len(objects) == 0:
-        #     visual_text = "no specific object"
-        # elif len(objects) == 1:
-        #     visual_text = objects[0]
-        # else:
-        #     # 最后两个物体用and连接，之前的用逗号分隔
-        #     visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
-        
-        # prompt_for_visual = get_qwen2_5_prompt(visual_text)
-        # visual_prompt_response = qwen_single_image_inference(
-        #     image_path=image_path,
-        #     prompt=prompt_for_visual,
-        #     model="qwen2.5-vl-32b-instruct",
-        #     temperature=0.7
-        # )
+        if not self.use_dino:# 2.调用qwen2.5-vl-32B去给出点或框的visual prompt，交给sam2去分割
+            objects = extract_objects_from_response(initial_response)
+            # 将物体列表用and连接，处理单个物体和多个物体的情况
+            if len(objects) == 0:
+                visual_text = "no specific object"
+            elif len(objects) == 1:
+                visual_text = objects[0]
+            else:
+                # 最后两个物体用and连接，之前的用逗号分隔
+                visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
+            prompt_for_visual = get_qwen2_5_prompt(visual_text)
+            visual_prompt_response = qwen_single_image_inference(
+                image_path=image_path,
+                prompt=prompt_for_visual,
+                model="qwen2.5-vl-32b-instruct",
+                temperature=0.7
+            )
+        else:# 2.调用grounding dino去给出点或框的visual prompt，交给sam2去分割
+            objects = extract_objects_from_response(initial_response)
+            # 将物体列表用and连接，处理单个物体和多个物体的情况
+            if len(objects) == 0:
+                visual_text = "no specific object"
+            elif len(objects) == 1:
+                visual_text = objects[0]
+            else:
+                # 最后两个物体用and连接，之前的用逗号分隔
+                visual_text = ".".join(objects[:])
 
-        # 2.调用groundingdino给出框的visual prompt,交给sam2去分割，将objects用.连接起来，groundingdino推荐这么用
-        objects = self.extract_objects_from_response(initial_response)
-        if len(objects) == 0:
-            visual_text = "no specific object"
-        elif len(objects) == 1:
-            visual_text = objects[0]
-        else:
-            # 最后两个物体用and连接，之前的用逗号分隔
-            visual_text = ".".join(objects[:])
-        
         # 3. 检查是否需要分割工具
         if self.needs_segmentation_tool(initial_response):
             logger.info("VLLM需要分割工具，调用SAM2")
             
-            # 从回答中提取坐标信息
-            # prompts = self.extract_coordinates_from_response(visual_prompt_response)
-            prompts = self.call_groundingdino(image_path, visual_text)
+            if not self.use_dino:
+                # 用qwen2.5-vl-32B生成visual prompt
+                prompts = self.extract_coordinates_from_response(visual_prompt_response)
+            else:
+                # 用groundingdino生成visual prompt
+                prompts = self.call_groundingdino(image_path, visual_text)
+            
+            # 如果成功提取到边界框，先绘制到图像上用于可视化
+            if prompts and len(prompts) > 0:
+                # 为draw_boxes_on_image函数准备参数，转换为原有格式
+                boxes_for_draw = [item['box'] for item in prompts]
+                labels_for_draw = [item['label'] for item in prompts]
+                draw_prompts = {'box': boxes_for_draw, 'labels': labels_for_draw}
+                
+                box_vis_path = draw_boxes_on_image(image_path, draw_prompts)
+                logger.info(f"边界框已绘制到图像: {box_vis_path}")
             
             # 执行分割
-            sam_result = self.call_sam_segmentation(image_path, prompts)
+            # 为SAM2准备传统格式的prompts
+            sam_prompts = {'box': [item['box'] for item in prompts]} if prompts else None
+            sam_result = self.call_sam_segmentation(image_path, sam_prompts)
             
             if sam_result and sam_result.get('vis_path'):
                 follow_up_prompt = get_follow_up_prompt(question, initial_response)
@@ -454,13 +464,13 @@ def infer(image_path: str, question: str, use_mock_sam: bool = True) -> Dict[str
     Returns:
         推理结果
     """
-    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam)
+    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam, use_dino=False)
     return workflow.run_workflow(image_path, question)
 
 def main():
     """主程序示例"""
     # 创建工作流实例
-    workflow = SAM2QAWorkflow(use_mock_sam=False)
+    workflow = SAM2QAWorkflow(use_mock_sam=False, use_dino=False)
     
     # 示例图像路径和问题
     image_path = "assets/example.png"  # 替换为实际的测试图片路径

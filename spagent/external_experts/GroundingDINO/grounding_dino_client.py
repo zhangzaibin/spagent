@@ -117,7 +117,7 @@ class GroundingDINOClient:
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
                 name, ext = os.path.splitext(input_filename)
-                output_filename = f"detected_{name}{ext}"
+                output_filename = f"outputs/detected_{name}{ext}"
                 
                 # 保存结果
                 cv2.imwrite(output_filename, annotated_array)
@@ -200,7 +200,7 @@ class GroundingDINOClient:
                 # 生成输出文件名
                 input_filename = os.path.basename(video_path)
                 name, ext = os.path.splitext(input_filename)
-                output_filename = f"detected_{name}{ext}"
+                output_filename = f"outputs/detected_{name}{ext}"
                 
                 # 保存视频
                 with open(output_filename, 'wb') as f:
