@@ -119,13 +119,13 @@ class SAM2Client:
                 
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
-                output_filename = f"mask_{input_filename}"
+                output_filename = f"outputs/mask_{input_filename}"
                 if not output_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
                     output_filename += '.png'
                 
                 # 保存结果
-                cv2.imwrite(output_filename, mask_array)
-                logger.info(f"掩码已保存至: {output_filename}")
+                # cv2.imwrite(output_filename, mask_array)
+                # logger.info(f"掩码已保存至: {output_filename}")
                 
                 # 可视化结果（将掩码叠加到原图上）
                 overlay = image.copy()
@@ -134,7 +134,7 @@ class SAM2Client:
                 cv2.addWeighted(colored_mask, 0.5, overlay, 0.5, 0, overlay)
                 
                 # 保存可视化结果
-                vis_filename = f"vis_{input_filename}"
+                vis_filename = f"outputs/vis_{input_filename}"
                 if not vis_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
                     vis_filename += '.png'
                 cv2.imwrite(vis_filename, overlay)
@@ -264,7 +264,7 @@ def main():
     # 3. 处理图片示例
     logger.info("\n=== 处理图片示例 ===")
     # 使用点提示
-    image_path = "/media/rbh/2TB/pycharmprojects_rbh/spagent/assets/example.png"  # 替换为实际的测试图片路径
+    image_path = "/home/ubuntu/projects/spagent/assets/example.png"  # 替换为实际的测试图片路径
     prompts = {
         'point_coords': [[900, 540]],  # 点击坐标
         'point_labels': [1]  # 1表示前景点
