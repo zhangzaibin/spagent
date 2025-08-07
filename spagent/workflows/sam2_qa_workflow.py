@@ -152,7 +152,7 @@ class SimpleMockClient:
 class SAM2QAWorkflow:
     """SAM2图像分割问答工作流"""
     
-    def __init__(self, use_mock_sam: bool = True):
+    def __init__(self, use_mock_sam: bool = True, use_dino: bool = False):
         """
         初始化工作流
         
@@ -160,6 +160,7 @@ class SAM2QAWorkflow:
             use_mock_sam: 是否使用mock SAM2服务
         """
         self.use_mock_sam = use_mock_sam
+        self.use_dino = use_dino
         
         # 初始化SAM2客户端
         if use_mock_sam:
@@ -169,12 +170,14 @@ class SAM2QAWorkflow:
         else:
             # 使用真实的SAM2客户端
             try:
-                self.sam_client = SAM2Client("http://10.5.100.158:5000")
-                # self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
+                self.sam_client = SAM2Client("http://0.0.0.0:5000")
+                if self.use_dino:
+                    self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
                 logger.info("使用真实SAM2服务")
             except ImportError:
                 logger.error("无法导入真实SAM2客户端")
                 raise
+
     def call_sam_segmentation(self, image_path: str, prompts: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
         调用SAM2分割专家
@@ -359,17 +362,20 @@ class SAM2QAWorkflow:
             model="gpt-4o-mini",
             temperature=0.7
         )
-        # 2.调用qwen2.5-vl-32B去给出点或框的visual prompt，交给sam2去分割
+        
+        # 2.调用qwen2.5-vl-32B或者grounding dino去给出点或框的visual prompt，交给sam2去分割
         objects = extract_objects_from_response(initial_response)
         # 将物体列表用and连接，处理单个物体和多个物体的情况
         if len(objects) == 0:
             visual_text = "no specific object"
         elif len(objects) == 1:
             visual_text = objects[0]
-        else:
-            # 最后两个物体用and连接，之前的用逗号分隔
-            visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
-        
+        else:  # 最后两个物体用and连接，之前的用逗号分隔
+            if not self.use_dino:  # 调用qwen2.5-vl-32B的text
+                visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
+            else:  # 调用grounding dino的text
+                visual_text = ".".join(objects[:])
+
         prompt_for_visual = get_qwen2_5_prompt(visual_text)
         visual_prompt_response = qwen_single_image_inference(
             image_path=image_path,
@@ -378,17 +384,6 @@ class SAM2QAWorkflow:
             temperature=0.7
         )
 
-        # # 2.调用grounding dino去给出点或框的visual prompt，交给sam2去分割
-        # objects = extract_objects_from_response(initial_response)
-        # # 将物体列表用and连接，处理单个物体和多个物体的情况
-        # if len(objects) == 0:
-        #     visual_text = "no specific object"
-        # elif len(objects) == 1:
-        #     visual_text = objects[0]
-        # else:
-        #     # 最后两个物体用and连接，之前的用逗号分隔
-        #     visual_text = ".".join(objects[:])
-        
         # 3. 检查是否需要分割工具
         if self.needs_segmentation_tool(initial_response):
             logger.info("VLLM需要分割工具，调用SAM2")
@@ -453,13 +448,13 @@ def infer(image_path: str, question: str, use_mock_sam: bool = True) -> Dict[str
     Returns:
         推理结果
     """
-    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam)
+    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam, use_dino=False)
     return workflow.run_workflow(image_path, question)
 
 def main():
     """主程序示例"""
     # 创建工作流实例
-    workflow = SAM2QAWorkflow(use_mock_sam=False)
+    workflow = SAM2QAWorkflow(use_mock_sam=False, use_dino=False)
     
     # 示例图像路径和问题
     image_path = "assets/example.png"  # 替换为实际的测试图片路径

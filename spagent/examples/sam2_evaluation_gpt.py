@@ -124,7 +124,7 @@ def evaluate_blink_dataset(
     print(f"Evaluating {len(data)} samples with {model}")
     print(f"Using {'mock' if use_mock_sam else 'real'} SAM2 service")
 
-    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam)
+    workflow = SAM2QAWorkflow(use_mock_sam=use_mock_sam, use_dino=False)
 
     results = []
     correct_count = 0

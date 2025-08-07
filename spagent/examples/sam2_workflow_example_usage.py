@@ -54,7 +54,7 @@ def main():
     print("=" * 50)
     
     # 创建工作流实例（使用mock SAM2）
-    workflow = SAM2QAWorkflow(use_mock_sam=False)
+    workflow = SAM2QAWorkflow(use_mock_sam=False, use_dino=False)
     
     # 示例图像路径（请替换为实际路径）
     image_path = "assets/example.png"
