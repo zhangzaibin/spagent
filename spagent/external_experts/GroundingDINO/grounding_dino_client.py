@@ -14,18 +14,18 @@ logging.basicConfig(
 )
 
 # 添加文件处理器
-file_handler = logging.FileHandler('sam_client.log')
+file_handler = logging.FileHandler('grounding_dino_client.log')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger = logging.getLogger(__name__)
 logger.addHandler(file_handler)
 
-class SAM2Client:
+class GroundingDINOClient:
     def __init__(self, server_url):
         """
         初始化客户端
         
         Args:
-            server_url: 服务器地址，如 'http://localhost:5000'
+            server_url: 服务器地址，如 'http://localhost:5001'
         """
         self.server_url = server_url.rstrip('/')
     
@@ -53,16 +53,15 @@ class SAM2Client:
             logger.error(f"测试推理失败: {e}")
             return None
     
-    def infer(self, image_path, prompts=None):
+    def infer(self, image_path, text_prompt, box_threshold=0.35, text_threshold=0.25):
         """
-        发送图片进行分割
+        发送图片进行目标检测
         
         Args:
             image_path: 图片路径
-            prompts: 提示信息，可包含以下键：
-                - point_coords: 点击坐标列表 [[x1, y1], [x2, y2], ...]
-                - point_labels: 点标签列表 [1, 1, 0, ...] (1表示前景，0表示背景)
-                - box: 框选坐标 [x1, y1, x2, y2]
+            text_prompt: 文本提示，如 "person", "car", "dog" 等
+            box_threshold: 边界框置信度阈值
+            text_threshold: 文本匹配阈值
             
         Returns:
             推理结果，如果失败则返回None
@@ -89,14 +88,12 @@ class SAM2Client:
             # 准备请求数据
             data = {
                 'image': image_b64,
-                'conf': 0.5  # 置信度阈值
+                'text_prompt': text_prompt,
+                'box_threshold': box_threshold,
+                'text_threshold': text_threshold
             }
             
-            # 添加提示信息
-            if prompts:
-                data.update(prompts)
-            
-            logger.info("发送推理请求...")
+            logger.info(f"发送目标检测请求，文本提示：{text_prompt}")
             # 发送POST请求
             response = requests.post(
                 f'{self.server_url}/infer',
@@ -110,58 +107,56 @@ class SAM2Client:
             result = response.json()
             
             if result.get('success'):
-                # 解码掩码
-                mask_bytes = base64.b64decode(result['mask'])
-                mask_array = cv2.imdecode(
-                    np.frombuffer(mask_bytes, np.uint8),
-                    cv2.IMREAD_GRAYSCALE
+                # 解码标注图像
+                annotated_bytes = base64.b64decode(result['annotated_image'])
+                annotated_array = cv2.imdecode(
+                    np.frombuffer(annotated_bytes, np.uint8),
+                    cv2.IMREAD_COLOR
                 )
                 
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
-                output_filename = f"outputs/mask_{input_filename}"
-                if not output_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    output_filename += '.png'
+                name, ext = os.path.splitext(input_filename)
+                output_filename = f"detected_{name}{ext}"
                 
                 # 保存结果
-                # cv2.imwrite(output_filename, mask_array)
-                # logger.info(f"掩码已保存至: {output_filename}")
+                cv2.imwrite(output_filename, annotated_array)
+                logger.info(f"检测结果已保存至: {output_filename}")
                 
-                # 可视化结果（将掩码叠加到原图上）
-                overlay = image.copy()
-                colored_mask = cv2.cvtColor(mask_array, cv2.COLOR_GRAY2BGR)
-                colored_mask[mask_array > 0] = [0, 0, 255]  # 红色 ，bgr
-                cv2.addWeighted(colored_mask, 0.5, overlay, 0.5, 0, overlay)
+                # 处理检测结果
+                detections = result.get('detections', [])
+                logger.info(f"检测到 {len(detections)} 个目标")
                 
-                # 保存可视化结果
-                vis_filename = f"outputs/vis_{input_filename}"
-                if not vis_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    vis_filename += '.png'
-                cv2.imwrite(vis_filename, overlay)
-                logger.info(f"可视化结果已保存至: {vis_filename}")
+                for i, detection in enumerate(detections):
+                    bbox = detection['bbox']
+                    confidence = detection['confidence']
+                    label = detection['label']
+                    logger.info(f"目标 {i+1}: {label} (置信度: {confidence:.3f}) 位置: {bbox}")
                 
                 return {
-                    'mask_array': mask_array,
+                    'detections': detections,
+                    'annotated_image': annotated_array,
+                    'output_path': output_filename,
                     'shape': result['shape'],
-                    'mask_path': output_filename,
-                    'vis_path': vis_filename,
                     'success': True
                 }
             else:
-                logger.error(f"服务器返回错误: {result.get('error')}")
+                logger.error(f"服务器返回错误: {result.get('message')}")
                 return None
                 
         except Exception as e:
             logger.error(f"推理请求失败: {e}")
             return None
     
-    def infer_video(self, video_path, prompts=None):
+    def infer_video(self, video_path, text_prompt, box_threshold=0.35, text_threshold=0.25):
         """
-        发送视频进行分割
+        发送视频进行目标检测
         
         Args:
             video_path: 视频文件路径
-            prompts: 提示信息（用于第一帧），格式同infer方法
+            text_prompt: 文本提示
+            box_threshold: 边界框置信度阈值
+            text_threshold: 文本匹配阈值
             
         Returns:
             处理后的视频路径，如果失败则返回None
@@ -180,14 +175,12 @@ class SAM2Client:
             # 准备请求数据
             data = {
                 'video': video_b64,
-                'conf': 0.5  # 置信度阈值
+                'text_prompt': text_prompt,
+                'box_threshold': box_threshold,
+                'text_threshold': text_threshold
             }
             
-            # 添加提示信息
-            if prompts:
-                data.update(prompts)
-            
-            logger.info("发送视频处理请求...")
+            logger.info(f"发送视频处理请求，文本提示：{text_prompt}")
             # 发送POST请求
             response = requests.post(
                 f'{self.server_url}/infer_video',
@@ -206,9 +199,8 @@ class SAM2Client:
                 
                 # 生成输出文件名
                 input_filename = os.path.basename(video_path)
-                output_filename = f"mask_{input_filename}"
-                if not output_filename.lower().endswith('.mp4'):
-                    output_filename += '.mp4'
+                name, ext = os.path.splitext(input_filename)
+                output_filename = f"detected_{name}{ext}"
                 
                 # 保存视频
                 with open(output_filename, 'wb') as f:
@@ -219,7 +211,8 @@ class SAM2Client:
                     'output_path': output_filename,
                     'frames': result['frames'],
                     'fps': result['fps'],
-                    'size': result['size']
+                    'size': result['size'],
+                    'total_detections': result.get('total_detections', 0)
                 }
             else:
                 logger.error(f"服务器返回错误: {result.get('error')}")
@@ -232,10 +225,10 @@ class SAM2Client:
 def main():
     """主程序"""
     # 服务器地址
-    SERVER_URL = "http://127.0.0.1:5001"
+    SERVER_URL = "http://localhost:5001"
     
     # 创建客户端
-    client = SAM2Client(SERVER_URL)
+    client = GroundingDINOClient(SERVER_URL)
     
     # 1. 健康检查
     logger.info("\n=== 执行健康检查 ===")
@@ -263,41 +256,37 @@ def main():
     
     # 3. 处理图片示例
     logger.info("\n=== 处理图片示例 ===")
-    # 使用点提示
-    image_path = "/home/ubuntu/projects/spagent/assets/example.png"  # 替换为实际的测试图片路径
-    prompts = {
-        'point_coords': [[900, 540]],  # 点击坐标
-        'point_labels': [1]  # 1表示前景点
-    }
-    result = client.infer(image_path, prompts)
+    image_path = "assets/example.png"  # 替换为实际的测试图片路径
+    text_prompt = "car.tree" 
+    
+    result = client.infer(image_path, text_prompt)
     
     if result:
         logger.info("图片处理成功！")
         logger.info(f"- 输入图片: {image_path}")
-        logger.info(f"- 掩码文件: {result['mask_path']}")
-        logger.info(f"- 可视化文件: {result['vis_path']}")
-        logger.info(f"- 掩码尺寸: {result['shape']}")
+        logger.info(f"- 输出图片: {result['output_path']}")
+        logger.info(f"- 检测到 {len(result['detections'])} 个目标")
+        logger.info(f"- 图片尺寸: {result['shape']}")
     else:
         logger.error("图片处理失败")
     
     # 4. 处理视频示例
-    logger.info("\n=== 处理视频示例 ===")
-    video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
-    prompts = {
-        'point_coords': [[100, 100]],  # 第一帧的点击坐标
-        'point_labels': [1]  # 1表示前景点
-    }
-    result = client.infer_video(video_path, prompts)
+    # logger.info("\n=== 处理视频示例 ===")
+    # video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
+    # text_prompt = "car"  # 检测汽车
     
-    if result:
-        logger.info("视频处理成功！")
-        logger.info(f"- 输入视频: {video_path}")
-        logger.info(f"- 输出视频: {result['output_path']}")
-        logger.info(f"- 总帧数: {result['frames']}")
-        logger.info(f"- FPS: {result['fps']}")
-        logger.info(f"- 分辨率: {result['size']}")
-    else:
-        logger.error("视频处理失败")
+    # result = client.infer_video(video_path, text_prompt)
+    
+    # if result:
+    #     logger.info("视频处理成功！")
+    #     logger.info(f"- 输入视频: {video_path}")
+    #     logger.info(f"- 输出视频: {result['output_path']}")
+    #     logger.info(f"- 总帧数: {result['frames']}")
+    #     logger.info(f"- FPS: {result['fps']}")
+    #     logger.info(f"- 分辨率: {result['size']}")
+    #     logger.info(f"- 总检测数: {result['total_detections']}")
+    # else:
+    #     logger.error("视频处理失败")
 
 if __name__ == '__main__':
     main() 

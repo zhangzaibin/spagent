@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from external_experts.SAM2.sam2_client import SAM2Client
 import ast
-
+from external_experts.GroundingDINO.grounding_dino_client import GroundingDINOClient
 # Add parent directory to path to import modules
 sys.path.append(str(Path(__file__).parent.parent))
 
@@ -169,7 +169,8 @@ class SAM2QAWorkflow:
         else:
             # 使用真实的SAM2客户端
             try:
-                self.sam_client = SAM2Client("http://127.0.0.1:5000")
+                self.sam_client = SAM2Client("http://10.5.100.158:5000")
+                self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
                 logger.info("使用真实SAM2服务")
             except ImportError:
                 logger.error("无法导入真实SAM2客户端")
@@ -200,6 +201,61 @@ class SAM2QAWorkflow:
                 
         except Exception as e:
             logger.error(f"SAM2调用异常: {e}")
+            return None
+    
+    def call_groundingdino(self, image_path: str, prompts: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
+        """
+        调用groundingdino模型为sam2生成prompt
+        
+        Args:
+            image_path: 输入图片路径
+            prompts: 要grounding的目标
+            
+        Returns:
+            grounding结果
+        """
+        logger.info(f"调用groundingdino专家处理图片: {image_path}")
+        
+        try:
+            # 执行图像分割
+            result = self.groundingdino_client.infer(image_path, prompts)
+            visual_prompt_response = []
+            if result and result.get('success'):
+                # 获取检测结果
+                detections = result.get('detections', [])
+                image_shape = result.get('shape', [])
+                image_height, image_width = image_shape[0], image_shape[1]
+                if detections:
+                    for detection in detections:
+                    # 获取第一个检测结果的边界框
+                        bbox = detection['bbox']  # [cx, cy, w, h]
+                        # 将box从cxcywh转成xyxy格式
+                        cx, cy, w, h = bbox
+                        x1 = cx - w / 2
+                        y1 = cy - h / 2
+                        x2 = cx + w / 2
+                        y2 = cy + h / 2
+                        bbox = [
+                            x1 * image_width,   
+                            y1 * image_height,  
+                            x2 * image_width,   
+                            y2 * image_height  
+                        ]
+                        
+                        visual_prompt_response.append(bbox)
+                        
+                else:
+                    visual_prompt_response = {'message': '未检测到目标'}
+                
+                visual_prompt = {"box": visual_prompt_response}
+                logger.info("图像grounding完成")
+                return visual_prompt
+            else:
+                logger.error("图像grounding失败")
+                return None
+                
+        except Exception as e:
+            logger.error(f"groundingdino调用异常: {e}")
             return None
 
     def needs_segmentation_tool(self, response: str) -> bool:
@@ -305,7 +361,7 @@ class SAM2QAWorkflow:
         )
 
         # 2.调用qwen2.5-vl-32B去给出点或框的visual prompt，交给sam2去分割
-        objects = extract_objects_from_response(initial_response)
+        objects = self.extract_objects_from_response(initial_response)
         # 将物体列表用and连接，处理单个物体和多个物体的情况
         if len(objects) == 0:
             visual_text = "no specific object"
@@ -313,21 +369,15 @@ class SAM2QAWorkflow:
             visual_text = objects[0]
         else:
             # 最后两个物体用and连接，之前的用逗号分隔
-            visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
+            visual_text = ".".join(objects[:])
         
-        prompt_for_visual = get_qwen2_5_prompt(visual_text)
-        visual_prompt_response = qwen_single_image_inference(
-            image_path=image_path,
-            prompt=prompt_for_visual,
-            model="qwen2.5-vl-32b-instruct",
-            temperature=0.7
-        )
         # 3. 检查是否需要分割工具
         if self.needs_segmentation_tool(initial_response):
             logger.info("VLLM需要分割工具，调用SAM2")
             
             # 从回答中提取坐标信息
-            prompts = self.extract_coordinates_from_response(visual_prompt_response)
+            # prompts = self.extract_coordinates_from_response(visual_prompt_response)
+            prompts = self.call_groundingdino(image_path, visual_text)
             
             # 如果成功提取到边界框，先绘制到图像上用于可视化
             if prompts and len(prompts) > 0:
