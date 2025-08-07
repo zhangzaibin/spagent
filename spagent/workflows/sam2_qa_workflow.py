@@ -170,7 +170,7 @@ class SAM2QAWorkflow:
             # 使用真实的SAM2客户端
             try:
                 self.sam_client = SAM2Client("http://10.5.100.158:5000")
-                self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
+                # self.groundingdino_client = GroundingDINOClient("http://127.0.0.1:5001")
                 logger.info("使用真实SAM2服务")
             except ImportError:
                 logger.error("无法导入真实SAM2客户端")
@@ -359,9 +359,8 @@ class SAM2QAWorkflow:
             model="gpt-4o-mini",
             temperature=0.7
         )
-
         # 2.调用qwen2.5-vl-32B去给出点或框的visual prompt，交给sam2去分割
-        objects = self.extract_objects_from_response(initial_response)
+        objects = extract_objects_from_response(initial_response)
         # 将物体列表用and连接，处理单个物体和多个物体的情况
         if len(objects) == 0:
             visual_text = "no specific object"
@@ -369,15 +368,36 @@ class SAM2QAWorkflow:
             visual_text = objects[0]
         else:
             # 最后两个物体用and连接，之前的用逗号分隔
-            visual_text = ".".join(objects[:])
+            visual_text = ", ".join(objects[:-1]) + " and " + objects[-1]
+        
+        prompt_for_visual = get_qwen2_5_prompt(visual_text)
+        visual_prompt_response = qwen_single_image_inference(
+            image_path=image_path,
+            prompt=prompt_for_visual,
+            model="qwen2.5-vl-32b-instruct",
+            temperature=0.7
+        )
+
+        # # 2.调用grounding dino去给出点或框的visual prompt，交给sam2去分割
+        # objects = extract_objects_from_response(initial_response)
+        # # 将物体列表用and连接，处理单个物体和多个物体的情况
+        # if len(objects) == 0:
+        #     visual_text = "no specific object"
+        # elif len(objects) == 1:
+        #     visual_text = objects[0]
+        # else:
+        #     # 最后两个物体用and连接，之前的用逗号分隔
+        #     visual_text = ".".join(objects[:])
         
         # 3. 检查是否需要分割工具
         if self.needs_segmentation_tool(initial_response):
             logger.info("VLLM需要分割工具，调用SAM2")
             
-            # 从回答中提取坐标信息
-            # prompts = self.extract_coordinates_from_response(visual_prompt_response)
-            prompts = self.call_groundingdino(image_path, visual_text)
+            # 用qwen2.5-vl-32B生成visual prompt
+            prompts = self.extract_coordinates_from_response(visual_prompt_response)
+
+            # # 用groundingdino生成visual prompt
+            # prompts = self.call_groundingdino(image_path, visual_text)
             
             # 如果成功提取到边界框，先绘制到图像上用于可视化
             if prompts and len(prompts) > 0:
