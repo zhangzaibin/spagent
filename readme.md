@@ -1,62 +1,55 @@
-# Introduction
+# 📌 Introduction
 
-This repo aims to integrate **agentic skills** into spatial intelligence.
+This repository integrates **agentic skills** into **multi-modal understanding** using external expert models and LLMs.
 
-这个项目的主要目的是将智能体技术和空间智能结合。
+---
 
-## Project Structure
+## 📂 Project Structure
 
-The project is organized into three main modules:
+| Module | Path | Description |
+|--------|------|-------------|
+| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Can run as external APIs |
+| **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
+| **Workflows** | `spagent/workflows/` | Orchestrates complete workflows:<br>- Combines LLM + external experts<br>- Defines spatial reasoning pipelines<br>- Manages data flow |
+| **Examples** | `spagent/examples/` | Example scripts, each showing a usage tutorial (e.g., `depth_workflow_example_usage.py`) |
 
-### 1. External Experts (`spagent/external_experts/`)
-This module contains specialized expert models for spatial intelligence tasks:
-- **Depth Estimation**: Depth-AnythingV2 for depth prediction
-- **Object Detection**: SAM2 for segmentation and detection
-- These experts can be deployed as external APIs and integrated into the workflow
+---
 
-### 2. VLLM Models (`spagent/vllm_models/`)
-This module contains VLLM inference functions and model wrappers:
-- GPT model inference functions
-- Model loading and serving utilities
-- Provides standardized interfaces for large language model interactions
+## 🚀 Quick Start
 
-### 3. Workflows (`spagent/workflows/`)
-This module orchestrates the complete spatial intelligence workflows:
-- Imports and combines components from `vllm_models` and `external_experts`
-- Defines end-to-end workflows for spatial reasoning tasks
-- Handles data flow between different expert models and LLM components
+### 1 Prepare APIs
+```bash
+# OpenAI API
+export OPENAI_API_KEY="your_api_key"
+export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/"
 
-### 4. Examples (`spagent/examples/`)
-启动示例脚本的入口，每个脚本就是一个使用教程，比如现在要使用depth_workflow
-```
-cd spagent
-python examples/depth_workflow_example_usage.py
-```
+# Qwen API (apply at https://bailian.console.aliyun.com)
+export DASHSCOPE_API_KEY="your_api_key"
 
-# Quick Start
-
-## Prepare API
-```
-# Prepare OPENAI API
-export OPENAI_API_KEY="you api key here (我之前给过)"
-export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/" 
-
-# Prepare QWEN API
-export DASHSCOPE_API_KEY=sk-bfe5209fcf5143abaa529c4150ea752b
-# 也可以去https://bailian.console.aliyun.com注册申请api，新人有免费额度
-# 测试QWEN API
+# Test Qwen API
 python spagent/vllm_models/qwen.py
+
+# prepare VLLM in the iiau A800 server
+vllm serve /13693266743/models/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 20004 --served-model-name 'qwen-2' --enable-auto-tool-choice --tool-call-parser hermes
+
+# Then, you can run
+python spagent/vllm_models/qwen_vllm.py
+
+# 现在我已经在A800上部署了，ip什么都是固定的，直接跑就行，24小时内都能用，过时间我再部署。
 ```
 
 
-## Install
+
+
+
+### 2 Install
 ```
 # 安装的包很少，主要是一些api的服务
 pip install -r requirements.txt
 pip install "httpx[socks]"
 ```
 
-## Run
+### 3 Run
 ```
 # depth workflow
 cd spagent
@@ -64,7 +57,7 @@ python examples/depth_workflow_example_usage.py
 
 ```
 
-# Evaluation
+## 📊 Evaluation
 
 ## prepare BLINK dataset
 ```
@@ -84,20 +77,22 @@ python spagent/examples/straight_evaluation_gpt.py
 
 
 
-# Workflow
-https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoSt4rx2gqIc6lXmnTf
+## 📜  Workflow
+[feishu link](https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoSt4rx2gqIc6lXmnTf)
 
-# TODO
+
+## ✅ TODO
 ## External Experts
 - [x] Depth-AnythingV2
 - [x] SAM2
 - [x] Supervision
+- [x] GroundingDINO
 - [ ] MoonDream2
 
 ## Models
 - [x] GPT
 - [x] QwenVL
-- [ ] Local vllm deployment
+- [x] Local vllm deployment
 
 ## Workflows
 - [x] Add workflow examples
