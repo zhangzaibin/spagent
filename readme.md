@@ -30,7 +30,7 @@ export DASHSCOPE_API_KEY="your_api_key"
 python spagent/vllm_models/qwen.py
 
 # prepare VLLM in the iiau A800 server
-vllm serve /13693266743/models/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 20004 --served-model-name 'qwen-2' --enable-auto-tool-choice --tool-call-parser hermes
+vllm serve /13693266743/models/Qwen2.5-VL-7B-Instruct --host 0.0.0.0 --port 20004 --served-model-name 'qwen-vl' 
 
 # Then, you can run
 python spagent/vllm_models/qwen_vllm.py
