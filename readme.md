@@ -92,7 +92,7 @@ python spagent/examples/straight_evaluation_gpt.py
 ## Models
 - [x] GPT
 - [x] QwenVL
-- [ ] Local vllm deployment
+- [x] Local vllm deployment
 
 ## Workflows
 - [x] Add workflow examples
