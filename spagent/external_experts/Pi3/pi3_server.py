@@ -289,8 +289,8 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
         
         camera_centers = np.array(camera_centers)
         
-        # 子采样点云以提高渲染性能，减少到更合理的数量
-        max_points_to_visualize = 30000  # 减少到30000个点以提高性能
+        # 子采样点云以提高渲染性能，最多可视化100000个点
+        max_points_to_visualize = 100000
         if len(points_3d) > max_points_to_visualize:
             indices = np.random.choice(len(points_3d), max_points_to_visualize, replace=False)
             points_sample = points_3d[indices]
@@ -345,8 +345,8 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
             limited_view_angles = view_angles[:max_views_per_camera]
             
             for angle_idx, (azim_offset, elev_offset, view_name) in enumerate(limited_view_angles):
-                # 创建图形，优化分辨率以平衡质量和性能
-                fig = plt.figure(figsize=(8, 6), dpi=100)  # 降低分辨率提高性能
+                # 创建图形，增加分辨率
+                fig = plt.figure(figsize=(10, 8), dpi=120)
                 ax = fig.add_subplot(111, projection='3d')
                 
                 # 绘制点云，使用自适应点大小
