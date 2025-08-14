@@ -19,6 +19,15 @@ Pi3/
 
 下载链接 [link](https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors)
 
+## 环境
+
+torch==2.5.1
+
+torchvision==0.20.1
+
+numpy==1.26.4
+
+
 ## 快速开始
 
 ### 1. 准备模型权重
