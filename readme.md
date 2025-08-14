@@ -130,7 +130,7 @@ python examples/depth_workflow_example_usage.py
 
 ## 📊 Evaluation
 
-## prepare BLINK dataset
+### prepare BLINK dataset
 ```
 dataset/
 ├── blink_data.jsonl          # BLINK数据集文件
@@ -141,42 +141,35 @@ dataset/
 ```
 
 
-## Evaluate gpt-4o-mini on BLINK
+### Evaluate gpt-4o-mini on BLINK
 ```
 python spagent/examples/straight_evaluation_gpt.py
 ```
 
 
 
-## 📜  Workflow
-[feishu link](https://b14esv5etcu.feishu.cn/docx/RvVFdkjiro52bnxgRVgcRXUqnpx#share-KQ73doO7IoSt4rx2gqIc6lXmnTf)
+
+## 🔍 External Experts
+| 工具名称 | 类型 | 主要功能 | 备注 |
+| --- | --- | --- | --- |
+| **Depth-AnythingV2** | 3D | 单目深度估计 | 将 2D 图像转为像素级深度图 |
+| **SAM2** | 2D | 图像分割 | Segment Anything 模型第二代，交互式或自动分割 |
+| **Supervision** | 2D | 视觉任务辅助工具库 | 用于目标检测、分割结果可视化和后处理 |
+| **GroundingDINO** | 2D | 文本驱动目标检测 | 基于自然语言进行检测和框选 |
+| **Pi3** | 3D | 点云生成与处理 | 将图像或多视角输入转为 3D 表示 |
 
 
-## ✅ TODO
-## External Experts
-- [x] Depth-AnythingV2
-- [x] SAM2
-- [x] Supervision
-- [x] GroundingDINO
-- [ ] MoonDream2
+## 🧠 Models
 
-## Models
-- [x] GPT
-- [x] QwenVL
-- [x] Local vllm deployment
+| models |
+| --- |
+| **GPT** |
+| **QwenVL** |
+| **Local vllm** |
 
-## Workflows
-- [x] Add workflow examples
-    - [x] Depth estimation workflow
-    - [x] SAM2 workflow
-    - [x] Grounding DINO workflow
-    - [x] supervision workflow
-    - [x] supervision-yoloe workflow
-- [x] Add evaluation scripts
-    - [x] gpt
-    - [x] depth workflow
-    - [x] SAM2 workflow
-    - [x] Grounding DINO workflow
-    - [x] supervision workflow
-    - [x] supervision-yoloe workflow
-- [ ] Add documentation
+## ✅ Todo
+
+
+
+
+
