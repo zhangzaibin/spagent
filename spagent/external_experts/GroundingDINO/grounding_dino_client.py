@@ -131,7 +131,7 @@ class GroundingDINOClient:
                     bbox = detection['bbox']
                     confidence = detection['confidence']
                     label = detection['label']
-                    logger.info(f"目标 {i+1}: {label} (置信度: {confidence:.3f}) 位置: {bbox}")
+                    # logger.info(f"目标 {i+1}: {label} (置信度: {confidence:.3f}) 位置: {bbox}")
                 
                 return {
                     'detections': detections,

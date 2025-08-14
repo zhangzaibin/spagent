@@ -8,7 +8,7 @@ This repository integrates **agentic skills** into **multi-modal understanding**
 
 | Module | Path | Description |
 |--------|------|-------------|
-| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
 | **Workflows** | `spagent/workflows/` | Orchestrates complete workflows:<br>- Combines LLM + external experts<br>- Defines spatial reasoning pipelines<br>- Manages data flow |
 | **Examples** | `spagent/examples/` | Example scripts, each showing a usage tutorial (e.g., `depth_workflow_example_usage.py`) |
@@ -17,7 +17,7 @@ This repository integrates **agentic skills** into **multi-modal understanding**
 
 ## 🚀 Quick Start
 
-### 1 Prepare APIs
+### 1. Prepare APIs
 ```bash
 # OpenAI API
 export OPENAI_API_KEY="your_api_key"
@@ -40,21 +40,92 @@ python spagent/vllm_models/qwen_vllm.py
 
 
 
+### 2. Install Dependencies
 
-
-### 2 Install
-```
-# 安装的包很少，主要是一些api的服务
+```bash
+# Install required packages for API services
 pip install -r requirements.txt
 pip install "httpx[socks]"
 ```
 
-### 3 Run
+### 3. Download Model Weights
+
+Create checkpoints directories first:
+```bash
+mkdir -p spagent/external_experts/{Depth_AnythingV2,GroundingDINO,Pi3,SAM2}/checkpoints/
 ```
+
+---
+
+####  (1)  **Depth-Anything V2** - *Monocular Depth Estimation*
+
+Choose one model based on your performance needs:
+
+| Model | Size | Performance | Download |
+|-------|------|-------------|----------|
+| **Small** | ~25MB | Fastest | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth` |
+| **Base** | ~100MB | Balanced | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth` |
+| **Large** | ~350MB | Best Quality | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth` |
+
+#### (2) **SAM2** - *Segment Anything Model 2*
+
+Advanced image and video segmentation:
+
+Option 1: Auto-download All Models
+```bash
+cd spagent/external_experts/SAM2/checkpoints
+wget https://raw.githubusercontent.com/facebookresearch/sam2/main/checkpoints/download_ckpts.sh
+chmod +x download_ckpts.sh
+./download_ckpts.sh
+```
+
+Option 2: Manual Selection
+| Model | Size | Performance | Download |
+|-------|------|-------------|----------|
+| **Large** | ~900MB | Best Quality | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt` |
+| **Base+** | ~230MB | Balanced | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt` |
+| **Small** | ~50MB | Fastest | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt` |
+
+#### (3) **Grounding DINO** - *Open-Vocabulary Object Detection*
+
+Natural language object detection with text prompts:
+
+```bash
+cd spagent/external_experts/GroundingDINO/checkpoints
+wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
+```
+- **Size**: ~400MB
+- **Features**: Detect any object with text descriptions
+
+#### (4) **Pi3** - *3D Reconstruction & Point Cloud Generation*
+
+High-quality 3D scene reconstruction:
+
+```bash
+cd spagent/external_experts/Pi3/checkpoints
+wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
+```
+- **Size**: ~500MB
+- **Features**: Single image to 3D point cloud
+
+#### (5) **Supervision & YOLO-World** - *Computer Vision Toolkit*
+
+Real-time object detection and tracking:
+
+- **Supervision models**: Auto-downloaded when running server/client
+- **YOLO-World weights**: 
+  ```bash
+  python download_weights.py
+  ```
+
+---
+
+### 4. Run Examples
+
+```bash
 # depth workflow
 cd spagent
 python examples/depth_workflow_example_usage.py
-
 ```
 
 ## 📊 Evaluation
