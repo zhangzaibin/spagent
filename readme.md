@@ -43,7 +43,8 @@ python spagent/vllm_models/qwen_vllm.py
 ### 2. Install Dependencies
 
 ```bash
-# Install required packages for API services
+# create env of pyhon 3.11. note that other python version may have bugs.
+conda create -n spagent python=3.11
 pip install -r requirements.txt
 pip install "httpx[socks]"
 ```
