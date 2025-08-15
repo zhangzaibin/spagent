@@ -139,6 +139,10 @@ python spagent/external_experts/SAM2/sam2_server.py --checkpoint_path checkpoint
 # depth workflow
 cd spagent
 python examples/depth_workflow_example_usage.py
+
+
+# mix workflow
+python spagent/examples/example_mixed_workflow.py assets/example.png "In an intersection with multiple traffic lights, which traffic light corresponds to the current driving lane? note that the image_path is assets/example.png"
 ```
 
 ## 📊 Evaluation
