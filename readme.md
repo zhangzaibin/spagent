@@ -53,7 +53,7 @@ pip install "httpx[socks]"
 
 Create checkpoints directories first:
 ```bash
-mkdir -p spagent/external_experts/checkpoints/{grounding_dino,depth_anything,pi3,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,sam2}
 
 ```
 
