@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import torch
 import os
+import argparse
 from flask import Flask, request, jsonify
 from PIL import Image
 import traceback
@@ -275,13 +276,24 @@ def infer_video():
         return jsonify({"error": f"视频处理失败：{str(e)}"}), 500
 
 if __name__ == '__main__':
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='SAM2 Server')
+    parser.add_argument('--model_path', type=str, default='checkpoints/sam2/sam2.1_b.pt',
+                        help='Path to SAM2 model checkpoint (default: checkpoints/sam2/sam2.1_b.pt)')
+    parser.add_argument('--port', type=int, default=20020,
+                        help='Port to run the server on (default: 20020)')
+    
+    args = parser.parse_args()
+    
     logger.info("正在启动服务器...")
-    model_path = 'spagent/external_experts/SAM2/checkpoints/sam2.1_b.pt'
-    # 加载默认模型
-    if not load_model(model_type='sam2.1_b', model_path=model_path):
+    logger.info(f"模型路径: {args.model_path}")
+    logger.info(f"服务端口: {args.port}")
+    
+    # 加载指定模型
+    if not load_model(model_type='sam2.1_b', model_path=args.model_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     
     logger.info("模型加载成功，正在启动服务器...")
     # 启动Flask服务器
-    app.run(host='0.0.0.0', port=5000, debug=False) 
+    app.run(host='0.0.0.0', port=args.port, debug=False) 

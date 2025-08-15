@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import torch
 import os
+import argparse
 from flask import Flask, request, jsonify
 from PIL import Image
 import traceback
@@ -187,20 +188,43 @@ def infer():
         return jsonify({"error": f"推理失败：{str(e)}"}), 500
 
 if __name__ == '__main__':
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Depth Anything V2 Server')
+    parser.add_argument('--checkpoint_path', type=str, default='checkpoints/depth_anything/depth_anything_v2_vitb.pth',
+                        help='Path to depth model checkpoint (default: checkpoints/depth_anything/depth_anything_v2_vitb.pth)')
+    parser.add_argument('--port', type=int, default=20019,
+                        help='Port to run the server on (default: 20019)')
+    
+    args = parser.parse_args()
+    
     logger.info("正在启动服务器...")
+    logger.info(f"模型路径: {args.checkpoint_path}")
+    logger.info(f"服务端口: {args.port}")
     
-    # 加载默认模型
-    checkpoint_path = 'spagent/external_experts/Depth_AnythingV2/checkpoints/depth_anything_v2_vitb.pth'
-    logger.info(f"正在从 {checkpoint_path} 加载模型")
-    
-    if not os.path.exists(checkpoint_path):
-        logger.error(f"找不到模型文件：{checkpoint_path}")
+    # 检查模型文件是否存在
+    if not os.path.exists(args.checkpoint_path):
+        logger.error(f"找不到模型文件：{args.checkpoint_path}")
         exit(1)
     
-    if not load_model(encoder='vitb', checkpoint_path=checkpoint_path):
+    # 从路径中提取编码器类型
+    if 'vits' in args.checkpoint_path:
+        encoder = 'vits'
+    elif 'vitb' in args.checkpoint_path:
+        encoder = 'vitb'
+    elif 'vitl' in args.checkpoint_path:
+        encoder = 'vitl'
+    elif 'vitg' in args.checkpoint_path:
+        encoder = 'vitg'
+    else:
+        encoder = 'vitb'  # 默认使用vitb
+    
+    logger.info(f"检测到编码器类型: {encoder}")
+    
+    # 加载指定模型
+    if not load_model(encoder=encoder, checkpoint_path=args.checkpoint_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     
     logger.info("模型加载成功，正在启动服务器...")
     # 启动Flask服务器
-    app.run(host='0.0.0.0', port=5000, debug=False) 
+    app.run(host='0.0.0.0', port=args.port, debug=False) 

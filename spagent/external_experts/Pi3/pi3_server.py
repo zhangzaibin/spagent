@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import torch
 import os
+import argparse
 from flask import Flask, request, jsonify
 from PIL import Image
 import traceback
@@ -501,20 +502,29 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
         return []
 
 if __name__ == '__main__':
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Pi3 3D Reconstruction Server')
+    parser.add_argument('--checkpoint_path', type=str, default='checkpoints/pi3/model.safetensors',
+                        help='Path to Pi3 model checkpoint (default: checkpoints/pi3/model.safetensors)')
+    parser.add_argument('--port', type=int, default=20021,
+                        help='Port to run the server on (default: 20021)')
+    
+    args = parser.parse_args()
+    
     logger.info("正在启动Pi3服务器...")
+    logger.info(f"模型路径: {args.checkpoint_path}")
+    logger.info(f"服务端口: {args.port}")
     
-    # 加载默认模型
-    checkpoint_path = '/home/ubuntu/projects/spagent/spagent/external_experts/Pi3/checkpoints/model.safetensors'
-    logger.info(f"正在从 {checkpoint_path} 加载模型")
-    
-    if not os.path.exists(checkpoint_path):
-        logger.error(f"找不到模型文件：{checkpoint_path}")
+    # 检查模型文件是否存在
+    if not os.path.exists(args.checkpoint_path):
+        logger.error(f"找不到模型文件：{args.checkpoint_path}")
         exit(1)
     
-    if not load_model(checkpoint_path=checkpoint_path):
+    # 加载指定模型
+    if not load_model(checkpoint_path=args.checkpoint_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     
     logger.info("模型加载成功，正在启动服务器...")
     # 启动Flask服务器
-    app.run(host='0.0.0.0', port=5004, debug=False)  # 使用端口5004避免与depth服务(5000)冲突 
+    app.run(host='0.0.0.0', port=args.port, debug=False) 

@@ -53,7 +53,8 @@ pip install "httpx[socks]"
 
 Create checkpoints directories first:
 ```bash
-mkdir -p spagent/external_experts/{Depth_AnythingV2,GroundingDINO,Pi3,SAM2}/checkpoints/
+mkdir -p spagent/external_experts/checkpoints/{grounding_dino,depth_anything,pi3,sam2}
+
 ```
 
 ---
@@ -64,9 +65,9 @@ Choose one model based on your performance needs:
 
 | Model | Size | Performance | Download |
 |-------|------|-------------|----------|
-| **Small** | ~25MB | Fastest | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth` |
-| **Base** | ~100MB | Balanced | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth` |
-| **Large** | ~350MB | Best Quality | `cd spagent/external_experts/Depth_AnythingV2/checkpoints && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth` |
+| **Small** | ~25MB | Fastest | `cd checkpoints/depth_anything && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth` |
+| **Base** | ~100MB | Balanced | `cd checkpoints/depth_anything && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth` |
+| **Large** | ~350MB | Best Quality | `cd checkpoints/depth_anything && wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth` |
 
 #### (2) **SAM2** - *Segment Anything Model 2*
 
@@ -74,7 +75,7 @@ Advanced image and video segmentation:
 
 Option 1: Auto-download All Models
 ```bash
-cd spagent/external_experts/SAM2/checkpoints
+cd checkpoints/sam2
 wget https://raw.githubusercontent.com/facebookresearch/sam2/main/checkpoints/download_ckpts.sh
 chmod +x download_ckpts.sh
 ./download_ckpts.sh
@@ -83,19 +84,18 @@ chmod +x download_ckpts.sh
 Option 2: Manual Selection
 | Model | Size | Performance | Download |
 |-------|------|-------------|----------|
-| **Large** | ~900MB | Best Quality | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt` |
-| **Base+** | ~230MB | Balanced | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt` |
-| **Small** | ~50MB | Fastest | `cd spagent/external_experts/SAM2/checkpoints && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt` |
+| **Large** | ~900MB | Best Quality | `cd checkpoints/sam2 && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt` |
+| **Base+** | ~230MB | Balanced | `cd checkpoints/sam2 && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt` |
+| **Small** | ~50MB | Fastest | `cd checkpoints/sam2 && wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt` |
 
 #### (3) **Grounding DINO** - *Open-Vocabulary Object Detection*
 
 Natural language object detection with text prompts:
 
 ```bash
-cd spagent/external_experts/GroundingDINO/checkpoints
+cd checkpoints/grounding_dino
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
 ```
-- **Size**: ~400MB
 - **Features**: Detect any object with text descriptions
 
 #### (4) **Pi3** - *3D Reconstruction & Point Cloud Generation*
@@ -103,10 +103,9 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 High-quality 3D scene reconstruction:
 
 ```bash
-cd spagent/external_experts/Pi3/checkpoints
+cd checkpoints/pi3
 wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
 ```
-- **Size**: ~500MB
 - **Features**: Single image to 3D point cloud
 
 #### (5) **Supervision & YOLO-World** - *Computer Vision Toolkit*
@@ -120,6 +119,19 @@ Real-time object detection and tracking:
   ```
 
 ---
+
+### 4. Deploy External Experts
+```
+# prepare a GPU with >= 24G
+apt-get install tmux # install tmux, use tmux to create two terminal
+
+#deploy depth anything v2
+python spagent/external_experts/Depth_AnythingV2/depth_server.py --checkpoint_path checkpoints/depth_anything/depth_anything_v2_vitb.pth --port 20019
+
+# deploy sam2
+python spagent/external_experts/SAM2/sam2_server.py --checkpoint_path checkpoints/sam2/sam2.1_b.pt --port 20020
+
+```
 
 ### 4. Run Examples
 
