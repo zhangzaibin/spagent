@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import torch
 import os
+import argparse
 from flask import Flask, request, jsonify
 from PIL import Image
 import traceback
@@ -335,14 +336,24 @@ def infer_video():
         return jsonify({"error": f"视频处理失败：{str(e)}"}), 500
 
 if __name__ == '__main__':
-    logger.info("正在启动Grounding DINO服务器...")
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Grounding DINO Server')
+    parser.add_argument('--model_path', type=str, default='checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth',
+                        help='Path to Grounding DINO model checkpoint (default: checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth)')
+    parser.add_argument('--port', type=int, default=20022,
+                        help='Port to run the server on (default: 20022)')
     
-    # 加载模型
-    model_path = "spagent/external_experts/GroundingDINO/checkpoints/groundingdino_swinb_cogcoor.pth"  # 使用默认路径，或指定实际路径
-    if not load_grounding_dino_model(model_path):
+    args = parser.parse_args()
+    
+    logger.info("正在启动Grounding DINO服务器...")
+    logger.info(f"模型路径: {args.model_path}")
+    logger.info(f"服务端口: {args.port}")
+    
+    # 加载指定模型
+    if not load_grounding_dino_model(args.model_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     
     logger.info("模型加载成功，正在启动服务器...")
     # 启动Flask服务器
-    app.run(host='0.0.0.0', port=5001, debug=False) 
+    app.run(host='0.0.0.0', port=args.port, debug=False) 
