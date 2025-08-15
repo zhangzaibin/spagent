@@ -152,7 +152,7 @@ class SimpleMockClient:
 class SAM2QAWorkflow:
     """SAM2图像分割问答工作流"""
     
-    def __init__(self, use_mock_sam: bool = True, use_dino: bool = False):
+    def __init__(self, api_ip: str = "10.8.131.51", port: int = 30646, use_mock_sam: bool = True, use_dino: bool = False):
         """
         初始化工作流
         
@@ -170,9 +170,10 @@ class SAM2QAWorkflow:
         else:
             # 使用真实的SAM2客户端
             try:
-                self.sam_client = SAM2Client("http://0.0.0.0:5000")
+                self.sam_client = SAM2Client(server_url=f"http://{api_ip}:{port}")
                 if self.use_dino:
-                    self.groundingdino_client = GroundingDINOClient("http://0.0.0.0:5001")
+                    # TODO 这块需要额外再输入一个dino的api_ip和port
+                    self.groundingdino_client = GroundingDINOClient(server_url=f"http://{api_ip}:{port}")
                 logger.info("使用真实SAM2服务")
             except ImportError:
                 logger.error("无法导入真实SAM2客户端")

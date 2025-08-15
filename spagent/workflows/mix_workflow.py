@@ -33,10 +33,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+
+
+
 class MixedExpertWorkflow:
-    """混合专家工作流 - 结合深度估计、SAM2分割和GroundingDINO检测"""
+    """混合专家工作流 - 结合深度估计、SAM2分割和GroundingDINO检测 TODO 这块不止这三个，以后要做到可扩展"""
     
-    def __init__(self, ip: str = "10.8.131.51", use_mock: bool = True):
+    def __init__(self, ip: str = "10.8.131.51", port_depth: int = 30750, port_sam2: int = 30646, port_gdino: int = 30969, use_mock: bool = False):
         """
         初始化混合专家工作流
         
@@ -45,9 +48,9 @@ class MixedExpertWorkflow:
             use_mock: 是否使用mock服务
         """
         # 初始化各个专家工作流
-        self.depth_workflow = DepthQAWorkflow(use_mock_depth=use_mock)
-        self.sam2_workflow = SAM2QAWorkflow(use_mock_sam=use_mock)
-        self.gdino_workflow = GdinoQAWorkflow(use_mock=use_mock)
+        self.depth_workflow = DepthQAWorkflow(api_ip=ip, port=port_depth, use_mock_depth=use_mock)
+        self.sam2_workflow = SAM2QAWorkflow(api_ip=ip, port=port_sam2, use_mock_sam=use_mock)
+        self.gdino_workflow = GdinoQAWorkflow(api_ip=ip, port=port_gdino, use_mock=use_mock)
         
     def needs_depth_tool(self, response: str) -> bool:
         """检查是否需要深度估计工具"""
@@ -193,7 +196,7 @@ class MixedExpertWorkflow:
         }
 
 
-def infer(image_path: str, question: str, ip: str = "10.8.131.51", use_mock: bool = True) -> Dict[str, Any]:
+def infer(image_path: str, question: str, ip: str = "10.8.131.51", use_mock: bool = False) -> Dict[str, Any]:
     """
     简化接口，用于混合专家推理
     

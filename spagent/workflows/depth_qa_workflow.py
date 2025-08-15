@@ -121,11 +121,13 @@ class SimpleMockClient:
 class DepthQAWorkflow:
     """深度估计问答工作流"""
     
-    def __init__(self, use_mock_depth: bool = True):
+    def __init__(self, api_ip: str = "10.8.131.51", port: int = 30750, use_mock_depth: bool = True):
         """
         初始化工作流
         
         Args:
+            api_ip: 深度估计服务器的IP地址
+            port: 深度估计服务器的端口
             use_mock_depth: 是否使用mock深度估计服务
         """
         self.use_mock_depth = use_mock_depth
@@ -145,7 +147,7 @@ class DepthQAWorkflow:
             # 这里可以替换为真实的深度估计客户端
             try:
                 from external_experts.Depth_AnythingV2.depth_client import DepthClient
-                self.depth_client = DepthClient("http://localhost:5000")
+                self.depth_client = DepthClient(server_url=f"http://{api_ip}:{port}")
                 # from external_experts.Depth_AnythingV2._service import DepthClient
                 # checkpoint_path = 'spagent/external_experts/Depth_AnythingV2/checkpoints/depth_anything_v2_vitb.pth'
                 # client = DepthClient(use_mock=use_mock_depth, encoder='vitb', checkpoint_path=checkpoint_path, server_url="http://localhost:5000")

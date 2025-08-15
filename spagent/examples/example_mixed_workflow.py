@@ -106,7 +106,7 @@ def demo_advanced_usage():
     print("\n[高级接口示例]")
     
     # 创建工作流实例
-    workflow = MixedExpertWorkflow(ip="10.8.131.51", use_mock=True)
+    workflow = MixedExpertWorkflow(ip="10.8.131.51", port_depth=30750, port_sam2=30646, port_gdino=30969, use_mock=True)
     
     # 运行工作流
     image_path = "path/to/your/test_image.jpg"

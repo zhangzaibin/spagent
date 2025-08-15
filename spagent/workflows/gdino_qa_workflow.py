@@ -228,11 +228,13 @@ class GdinoQAWorkflow:
     Grounding DINO Vision QA Workflow - 使用Grounding DINO进行视觉问答的工作流
     """
     
-    def __init__(self, use_mock: bool = True):
+    def __init__(self, api_ip: str = "10.8.131.51", port: int = 30969, use_mock: bool = True):
         """
         初始化工作流
         
         Args:
+            api_ip: Grounding DINO服务器的IP地址
+            port: Grounding DINO服务器的端口
             use_mock: 是否使用Mock客户端进行测试
             gdino_client_url: Grounding DINO服务器URL
         """
@@ -254,7 +256,7 @@ class GdinoQAWorkflow:
                     except ImportError:
                         from external_experts.GroundingDINO.grounding_dino_client import GroundingDINOClient
 
-                self.gdino_client = GroundingDINOClient(server_url="http://0.0.0.0:5001")
+                self.gdino_client = GroundingDINOClient(server_url=f"http://{api_ip}:{port}")
                 logger.info("使用真实Grounding DINO服务")
             except ImportError:
                 logger.error("无法导入真实Grounding DINO客户端")
