@@ -47,7 +47,7 @@ You can call multiple tools if needed by using multiple <tool_call> blocks.
 5. Be specific and detailed in your responses"""
 
 
-def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any]) -> str:
+def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str]) -> str:
     """
     Create follow-up prompt after tool execution
     
@@ -55,6 +55,8 @@ def create_follow_up_prompt(question: str, initial_response: str, tool_results: 
         question: Original user question
         initial_response: Model's initial response
         tool_results: Results from tool execution
+        original_images: List of original image paths
+        additional_images: List of additional image paths from tools
         
     Returns:
         Follow-up prompt string
@@ -66,7 +68,16 @@ def create_follow_up_prompt(question: str, initial_response: str, tool_results: 
         else:
             tool_summary.append(f"- {tool_name}: Failed - {result.get('error', 'Unknown error')}")
     
+    original_images_info = "\n".join([f"- {path}" for path in original_images])
+    additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None"
+    
     return f"""Based on the tool results, please provide a comprehensive answer to the original question.
+
+Original Images:
+{original_images_info}
+
+Additional Images from Tools:
+{additional_images_info}
 
 Original Question: {question}
 
@@ -78,18 +89,24 @@ Tool Execution Summary:
 Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response."""
 
 
-def create_user_prompt(question: str) -> str:
+def create_user_prompt(question: str, image_paths: List[str]) -> str:
     """
     Create user prompt template
     
     Args:
         question: User's question
+        image_paths: List of image paths to analyze
         
     Returns:
         Formatted user prompt
     """
-    return f"""Please analyze the provided image(s) and answer the following question:
+    images_info = "\n".join([f"- {path}" for path in image_paths])
+    return f"""Please analyze the following image(s):
 
+Images to analyze:
+{images_info}
+
+Question:
 {question}
 
 Think step by step and use any available tools if they would help provide a better answer.""" 

@@ -11,3 +11,5 @@ output/
 .vscode
 *.ts
 *.log
+*.json
+*.tsv

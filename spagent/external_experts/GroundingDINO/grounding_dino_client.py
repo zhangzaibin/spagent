@@ -20,6 +20,14 @@ logger = logging.getLogger(__name__)
 logger.addHandler(file_handler)
 
 class GroundingDINOClient:
+    """
+    Grounding DINO 目标检测客户端
+    
+    支持多种文本提示格式：
+    - 单个对象: "person" -> "<object_1>person</object_1>"
+    - 点分隔: "car.tree" -> "<object_1>car</object_1> <object_2>tree</object_2>"
+    - 逗号分隔: "person, banana" -> "<object_1>person</object_1> <object_2>banana</object_2>"
+    """
     def __init__(self, server_url):
         """
         初始化客户端
@@ -28,6 +36,35 @@ class GroundingDINOClient:
             server_url: 服务器地址，如 'http://localhost:5001'
         """
         self.server_url = server_url.rstrip('/')
+    
+    def _format_text_prompt(self, text_prompt):
+        """
+        将文本提示转换为XML-like格式
+        
+        Args:
+            text_prompt: 原始文本提示，支持逗号或点分隔，如 "person, banana" 或 "person.banana"
+            
+        Returns:
+            格式化后的文本提示，如 "<object_1>person</object_1> <object_2>banana</object_2>"
+        """
+        if not text_prompt:
+            return "<object_1>object</object_1>"
+        
+        # 支持逗号或点分隔
+        if ',' in text_prompt:
+            objects = [obj.strip() for obj in text_prompt.split(',') if obj.strip()]
+        elif '.' in text_prompt:
+            objects = [obj.strip() for obj in text_prompt.split('.') if obj.strip()]
+        else:
+            # 如果没有分隔符，当作单个对象处理
+            objects = [text_prompt.strip()]
+        
+        # 转换为XML-like格式
+        formatted_objects = []
+        for i, obj in enumerate(objects, 1):
+            formatted_objects.append(f"{obj}")
+        
+        return ".".join(formatted_objects)
     
     def health_check(self):
         """检查服务器健康状态"""
@@ -53,13 +90,31 @@ class GroundingDINOClient:
             logger.error(f"测试推理失败: {e}")
             return None
     
+    def test_text_formatting(self):
+        """测试文本提示格式化功能"""
+        test_cases = [
+            "person",
+            "car.tree", 
+            "person, banana",
+            "dog, cat, bird",
+            "apple.orange.banana",
+            ""
+        ]
+        
+        logger.info("=== 测试文本提示格式化 ===")
+        for test_case in test_cases:
+            formatted = self._format_text_prompt(test_case)
+            logger.info(f"输入: '{test_case}' -> 输出: '{formatted}'")
+        
+        return True
+    
     def infer(self, image_path, text_prompt, box_threshold=0.35, text_threshold=0.25):
         """
         发送图片进行目标检测
         
         Args:
             image_path: 图片路径
-            text_prompt: 文本提示，如 "person", "car", "dog" 等
+            text_prompt: 文本提示，如 "person", "car", "dog" 等，支持逗号或点分隔
             box_threshold: 边界框置信度阈值
             text_threshold: 文本匹配阈值
             
@@ -85,15 +140,18 @@ class GroundingDINOClient:
             _, buffer = cv2.imencode('.jpg', image)
             image_b64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
             
+            # 转换text_prompt格式：从 "person, banana" 或 "person.banana" 转换为 "<object_1>person</object_1> <object_2>banana</object_2>"
+            formatted_prompt = self._format_text_prompt(text_prompt)
+            
             # 准备请求数据
             data = {
                 'image': image_b64,
-                'text_prompt': text_prompt,
+                'text_prompt': formatted_prompt,
                 'box_threshold': box_threshold,
                 'text_threshold': text_threshold
             }
             
-            logger.info(f"发送目标检测请求，文本提示：{text_prompt}")
+            logger.info(f"发送目标检测请求，文本提示：{formatted_prompt}")
             # 发送POST请求
             response = requests.post(
                 f'{self.server_url}/infer',
@@ -154,7 +212,7 @@ class GroundingDINOClient:
         
         Args:
             video_path: 视频文件路径
-            text_prompt: 文本提示
+            text_prompt: 文本提示，支持逗号或点分隔
             box_threshold: 边界框置信度阈值
             text_threshold: 文本匹配阈值
             
@@ -172,15 +230,18 @@ class GroundingDINOClient:
                 video_bytes = f.read()
             video_b64 = base64.b64encode(video_bytes).decode('utf-8')
             
+            # 转换text_prompt格式
+            formatted_prompt = self._format_text_prompt(text_prompt)
+            
             # 准备请求数据
             data = {
                 'video': video_b64,
-                'text_prompt': text_prompt,
+                'text_prompt': formatted_prompt,
                 'box_threshold': box_threshold,
                 'text_threshold': text_threshold
             }
             
-            logger.info(f"发送视频处理请求，文本提示：{text_prompt}")
+            logger.info(f"发送视频处理请求，文本提示：{formatted_prompt}")
             # 发送POST请求
             response = requests.post(
                 f'{self.server_url}/infer_video',
@@ -254,9 +315,19 @@ def main():
     # 等待一下确保服务器准备好
     time.sleep(2)
     
+    # 2.5. 测试文本格式化功能
+    logger.info("\n=== 测试文本格式化功能 ===")
+    client.test_text_formatting()
+    
+    # 等待一下确保服务器准备好
+    time.sleep(2)
+    
     # 3. 处理图片示例
     logger.info("\n=== 处理图片示例 ===")
     image_path = "assets/example.png"  # 替换为实际的测试图片路径
+    # 支持多种输入格式，会自动转换为XML-like格式：
+    # "car.tree" -> "<object_1>car</object_1> <object_2>tree</object_2>"
+    # "person, banana" -> "<object_1>person</object_1> <object_2>banana</object_2>"
     text_prompt = "car.tree" 
     
     result = client.infer(image_path, text_prompt)
@@ -273,6 +344,9 @@ def main():
     # 4. 处理视频示例
     # logger.info("\n=== 处理视频示例 ===")
     # video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
+    # # 支持多种输入格式，会自动转换为XML-like格式：
+    # # "car" -> "<object_1>car</object_1>"
+    # # "person, dog" -> "<object_1>person</object_1> <object_2>dog</object_2>"
     # text_prompt = "car"  # 检测汽车
     
     # result = client.infer_video(video_path, text_prompt)
