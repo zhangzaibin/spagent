@@ -128,7 +128,7 @@ class SPAgent:
         # Create system prompt with available tools
         tool_schemas = self.tool_registry.get_function_schemas()
         system_prompt = create_system_prompt(tool_schemas)
-        user_prompt = create_user_prompt(question)
+        user_prompt = create_user_prompt(question, image_paths)
         
         # Step 1: Get initial model response
         logger.info("Getting initial model response...")
@@ -183,7 +183,13 @@ class SPAgent:
         # Step 5: Generate final response with tool results
         if successful_tools:
             logger.info(f"Generating final response with results from {len(successful_tools)} tools...")
-            follow_up_prompt = create_follow_up_prompt(question, initial_response, tool_results)
+            follow_up_prompt = create_follow_up_prompt(
+                question, 
+                initial_response, 
+                tool_results,
+                image_paths,
+                additional_images
+            )
             
             # Include additional images in final inference if available (filter out None and invalid paths)
             valid_additional_images = [img for img in additional_images if img is not None and Path(img).exists()]

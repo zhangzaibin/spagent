@@ -42,13 +42,17 @@ TOOL_SERVERS = {
     # ],
 
 # Define tool combinations for evaluation
+
 TOOL_CONFIGS = {
+    "baseline_no_tools": [
+    ],
     "depth_detection_segmentation": [
         DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
         ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
         SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"])
     ]
 }
+
 
 def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
     """Extract frames from video
