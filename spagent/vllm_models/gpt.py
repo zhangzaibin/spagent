@@ -115,15 +115,20 @@ def gpt_multiple_images_inference(
         ]
     }
     
-    # 添加所有图像
+    # 添加所有图像（过滤无效路径）
     for image_path in image_paths:
-        base64_image = encode_image(image_path)
-        message["content"].append({
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/jpeg;base64,{base64_image}"
-            }
-        })
+        if image_path is not None and os.path.exists(image_path):
+            try:
+                base64_image = encode_image(image_path)
+                message["content"].append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                })
+            except Exception as e:
+                print(f"Warning: Failed to encode image {image_path}: {e}")
+                continue
     
     response = client.chat.completions.create(
         model=model,
