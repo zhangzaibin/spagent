@@ -95,7 +95,7 @@ def main():
         print_evaluation_results(results)
     
     # Save all results to file
-    output_file = f"spagent_evaluation_results_{model.replace('-', '_')}.json"
+    output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
     print(f"\nAll results saved to {output_file}")

@@ -122,6 +122,10 @@ result = agent.solve_problem(
 ```
 
 ---
+### 5. BLINK test (evaluate on BLINK)
+```
+python blink_example.py --data_path dataset/BLINK_All_Tasks.jsonl --max_samples 5 --max_workers 4 --image_base_path dataset --model gpt-4o-mini
+```
 
 ## 🛠️ 安装和配置 (Installation & Setup)
 
