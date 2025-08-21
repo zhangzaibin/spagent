@@ -18,3 +18,4 @@ scipy
 transformers
 Flask
 clip
+datasets

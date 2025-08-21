@@ -44,13 +44,23 @@ def validate_sample_paths(
             "error": f"No {required_field} found"
         }
     
-    # 构建完整路径
-    full_path = os.path.join(base_path, paths[0])
-    if not os.path.exists(full_path):
+    # 验证所有路径是否存在
+    full_paths = []
+    missing_paths = []
+    
+    for path in paths:
+        full_path = os.path.join(base_path, path)
+        full_paths.append(full_path)
+        
+        if not os.path.exists(full_path):
+            missing_paths.append(full_path)
+    
+    # 如果有路径不存在，返回错误
+    if missing_paths:
         return False, {
             "id": sample.get("id", "unknown"),
             "success": False,
-            "error": f"{required_field.capitalize()} not found: {full_path}"
+            "error": f"{required_field.capitalize()} not found: {missing_paths}"
         }
     
     # 提取问题和答案
@@ -72,7 +82,7 @@ def validate_sample_paths(
     
     # 返回验证成功和路径信息
     return True, {
-        "path": full_path,
+        "path": full_paths,
         "question": question,
         "ground_truth": ground_truth
     }
