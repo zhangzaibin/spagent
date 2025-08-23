@@ -209,10 +209,16 @@ python spagent/external_experts/Depth_AnythingV2/depth_server.py \
   --checkpoint_path checkpoints/depth_anything/depth_anything_v2_vitb.pth \
   --port 20019
 
-# 部署SAM2分割服务
+# 部署SAM2分割服务，这里面需要将sam的权重名字rename成sam2.1_b.pt，否则会报错
 python spagent/external_experts/SAM2/sam2_server.py \
   --checkpoint_path checkpoints/sam2/sam2.1_hiera_base_plus.pt \
   --port 20020
+
+
+# 部署grounding dino
+python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
+  --model_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
+  --port 20022
 ```
 
 ---

@@ -278,7 +278,7 @@ def infer_video():
 if __name__ == '__main__':
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='SAM2 Server')
-    parser.add_argument('--model_path', type=str, default='checkpoints/sam2/sam2.1_b.pt',
+    parser.add_argument('--checkpoint_path', type=str, default='checkpoints/sam2/sam2.1_b.pt',
                         help='Path to SAM2 model checkpoint (default: checkpoints/sam2/sam2.1_b.pt)')
     parser.add_argument('--port', type=int, default=20020,
                         help='Port to run the server on (default: 20020)')
@@ -286,11 +286,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     logger.info("正在启动服务器...")
-    logger.info(f"模型路径: {args.model_path}")
+    logger.info(f"模型路径: {args.checkpoint_path}")
     logger.info(f"服务端口: {args.port}")
     
     # 加载指定模型
-    if not load_model(model_type='sam2.1_b', model_path=args.model_path):
+    if not load_model(model_type='sam2.1_b', model_path=args.checkpoint_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     
