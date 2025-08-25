@@ -31,10 +31,15 @@ from utils.utils import (
 )
 
 # Define server URLs
+# TOOL_SERVERS = {
+#     "depth": "http://10.8.131.51:30750",
+#     "segmentation": "http://10.8.131.51:30646",
+#     "detection": "http://10.8.131.51:30969"
+# }
 TOOL_SERVERS = {
-    "depth": "http://10.8.131.51:30750",
-    "segmentation": "http://10.8.131.51:30646",
-    "detection": "http://10.8.131.51:30969"
+    "depth": "http://127.0.0.1:20019",
+    "segmentation": "http://127.0.0.1:20020",
+    "detection": "http://127.0.0.1:20022"
 }
 
     # "baseline_no_tools": [
@@ -46,13 +51,19 @@ TOOL_SERVERS = {
 TOOL_CONFIGS = {
     "baseline_no_tools": [
         # Empty tool list - pure LLM baseline
-    ],
-    "depth_detection_segmentation": [
-        DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
-        ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
-        SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"])
     ]
 }
+
+# TOOL_CONFIGS = {
+#     "baseline_no_tools": [
+#         # Empty tool list - pure LLM baseline
+#     ],
+#     "depth_detection_segmentation": [
+#         DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
+#         ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
+#         SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"])
+#     ]
+# }
 
 
 def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
@@ -377,7 +388,7 @@ def evaluate_tool_config(
 def main():
     """Main function"""
     # Configure paths
-    data_path = "dataset/blink_data.jsonl"
+    data_path = "dataset/Relative_Depth_BLINK_subset.jsonl"
     image_base_path = "dataset"
     
     # Check if files exist
