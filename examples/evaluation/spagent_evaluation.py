@@ -138,15 +138,16 @@ def evaluate_single_video(
         is_correct = normalized_prediction == normalized_ground_truth
         
         # Save errors to TSV
-        if not is_correct:
-            error_data = {
-                'question': result["question"],
-                'path': result["path"],
-                'analysis': prediction,
-                'normalized_prediction': normalized_prediction,
-                'normalized_ground_truth': normalized_ground_truth
-            }
-            save_error_to_tsv(error_data)
+        
+        error_data = {
+            'question': result["question"],
+            'path': result["path"],
+            'analysis': prediction,
+            'normalized_prediction': normalized_prediction,
+            'normalized_ground_truth': normalized_ground_truth,
+            'is_correct': 'correct' if is_correct else 'incorrect'
+        }
+        save_error_to_tsv(error_data)
         
         return {
             "id": sample.get("id", "unknown"),
@@ -221,16 +222,17 @@ def evaluate_single_sample(
         is_correct = normalized_prediction == normalized_ground_truth
         
         # Save errors to TSV
-        if not is_correct:
-            error_data = {
-                'question': result["question"],
-                'path': result["path"],
-                'analysis': prediction,
-                'normalized_prediction': normalized_prediction,
-                'normalized_ground_truth': normalized_ground_truth
-            }
-            save_error_to_tsv(error_data)
-        
+        error_data = {
+            'question': result["question"],
+            'path': result["path"],
+            'analysis': prediction,
+            'normalized_prediction': normalized_prediction,
+            'normalized_ground_truth': normalized_ground_truth,
+            'is_correct': '1' if is_correct else '0',
+            'used_tools': ','.join(agent_result.get("used_tools", []))
+        }
+        save_error_to_tsv(error_data, tsv_file="notool_analysis.tsv")
+
         return {
             "id": sample.get("id", "unknown"),
             "success": True,
