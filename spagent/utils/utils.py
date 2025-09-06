@@ -204,15 +204,17 @@ def save_error_to_tsv(error_data: Dict[str, Any], tsv_file: str = "error_analysi
         
         # 如果文件不存在，写入表头
         if not file_exists:
-            writer.writerow(['question', 'path', 'analysis', 'normalized_prediction', 'normalized_ground_truth'])
+            writer.writerow(['question', 'path', 'is_correct', 'analysis', 'normalized_prediction', 'normalized_ground_truth', 'used_tools'])
         
         # 写入错误数据
         writer.writerow([
             error_data.get('question', ''),
             error_data.get('path', ''),
+            error_data.get('is_correct', ''),
             error_data.get('analysis', ''),
             error_data.get('normalized_prediction', ''),
-            error_data.get('normalized_ground_truth', '')
+            error_data.get('normalized_ground_truth', ''),
+            error_data.get('used_tools', '')
         ])
 
 def extract_objects_from_response(response: str) -> list:
