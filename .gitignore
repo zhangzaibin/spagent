@@ -7,7 +7,7 @@ outputs/*
 *.pt
 *.mp4
 *.jpg
-output/
+output/*
 .vscode
 *.ts
 *.log

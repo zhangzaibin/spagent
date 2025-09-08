@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Tuple
 import json
 import os
-import csv
+import pandas as pd
 
 
 def load_blink_data(data_path: str) -> List[Dict[str, Any]]:
@@ -190,32 +190,39 @@ def print_evaluation_results(results: Dict[str, Any]):
             print(f"... and {len(results['failed_samples_details']) - 5} more")
 
 
-def save_error_to_tsv(error_data: Dict[str, Any], tsv_file: str = "error_analysis.tsv"):
-    """保存错误信息到TSV文件
+def save_error_to_csv(error_data: Dict[str, Any], csv_file: str = "error_analysis.csv"):
+    """保存错误信息到CSV文件
     
     Args:
         error_data: 包含错误信息的字典
-        tsv_file: TSV文件名
+        csv_file: CSV文件名
     """
-    file_exists = os.path.exists(tsv_file)
+    # 定义列名
+    columns = ['question', 'path', 'is_correct', 'analysis', 'normalized_prediction', 'normalized_ground_truth', 'used_tools', 'follow_up_prompt']
     
-    with open(tsv_file, 'a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f, delimiter='\t')
-        
-        # 如果文件不存在，写入表头
-        if not file_exists:
-            writer.writerow(['question', 'path', 'is_correct', 'analysis', 'normalized_prediction', 'normalized_ground_truth', 'used_tools'])
-        
-        # 写入错误数据
-        writer.writerow([
-            error_data.get('question', ''),
-            error_data.get('path', ''),
-            error_data.get('is_correct', ''),
-            error_data.get('analysis', ''),
-            error_data.get('normalized_prediction', ''),
-            error_data.get('normalized_ground_truth', ''),
-            error_data.get('used_tools', '')
-        ])
+    # 准备数据行
+    row_data = {
+        'question': error_data.get('question', ''),
+        'path': error_data.get('path', ''),
+        'is_correct': error_data.get('is_correct', ''),
+        'analysis': error_data.get('analysis', ''),
+        'normalized_prediction': error_data.get('normalized_prediction', ''),
+        'normalized_ground_truth': error_data.get('normalized_ground_truth', ''),
+        'used_tools': error_data.get('used_tools', ''),
+        'follow_up_prompt': error_data.get('follow_up_prompt', '')
+    }
+    
+    # 检查文件是否存在
+    if os.path.exists(csv_file):
+        # 如果文件存在，追加数据
+        df_existing = pd.read_csv(csv_file)
+        df_new = pd.DataFrame([row_data])
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+        df_combined.to_csv(csv_file, index=False)
+    else:
+        # 如果文件不存在，创建新文件
+        df_new = pd.DataFrame([row_data])
+        df_new.to_csv(csv_file, index=False)
 
 def extract_objects_from_response(response: str) -> list:
     """
