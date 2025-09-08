@@ -113,50 +113,44 @@ def extract_question_and_answer(conversation: List[Dict[str, str]]) -> Tuple[str
     return human_message, gpt_answer
 
 def normalize_answer(answer: str) -> tuple[str, str]:
-    """标准化答案格式
+    """Normalize answer format
     
     Args:
-        answer: 原始答案
+        answer: Original answer string
         
     Returns:
-        元组 (analysis, final_answer): 分析内容和标准化后的答案
+        Tuple (analysis, final_answer): Analysis content and normalized answer
     """
     original_answer = answer.strip()
     
-    # 提取分析部分
-    analysis = ""
-    analysis_start = original_answer.find("<analysis>")
-    analysis_end = original_answer.find("</analysis>")
-    if analysis_start != -1 and analysis_end != -1 and analysis_end > analysis_start:
-        analysis = original_answer[analysis_start+10:analysis_end].strip()
-        original_answer = original_answer[:analysis_start] + original_answer[analysis_end+11:]
-    
-    # 提取答案部分
-    processed_answer = original_answer.strip()
+    # Extract answer part
+    processed_answer = original_answer
     answer_start = processed_answer.find("<answer>")
     answer_end = processed_answer.find("</answer>")
+    
     if answer_start != -1 and answer_end != -1 and answer_end > answer_start:
         processed_answer = processed_answer[answer_start+8:answer_end].strip()
     
-    # 提取选项字母
+    # Extract option letter if present
     final_answer = ""
-    # 首先尝试从类似"(B) ..."的格式中提取
+    # Try to extract from formats like "(B) ..." or "B. ..."
     import re
-    match = re.search(r'\(([A-D])\)|([A-D])\.', processed_answer)  # 匹配(A)和A.两种形式的答案
+    match = re.search(r'\(([A-D])\)|([A-D])\.', processed_answer)
     if match:
         final_answer = match.group(1) or match.group(2)
     else:
-        # 如果没有括号格式，直接查找选项字母
+        # If no parenthesis format, look for option letters directly
         for char in processed_answer:
             if char in ['A', 'B', 'C', 'D']:
                 final_answer = char
                 break
     
-    # 如果没有找到选项字母，返回处理后的答案或空字符串
+    # If no option letter found, return the processed answer
     if not final_answer:
         final_answer = processed_answer
     
-    return analysis, final_answer
+    # Since we no longer have <analysis> tags, return empty string for analysis
+    return "", final_answer
 
 
 def print_evaluation_results(results: Dict[str, Any]):

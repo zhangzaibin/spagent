@@ -44,9 +44,6 @@ TOOL_SERVERS = {
 
 
 TOOL_CONFIGS = {
-    "baseline_no_tools": [
-        # Empty tool list - pure LLM baseline
-    ],
     "depth_detection_segmentation": [
         DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
         ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
@@ -399,7 +396,7 @@ def main():
     
     # Evaluation parameters
     model = "gpt-4o"
-    max_samples = 50  # Set to None for full evaluation
+    max_samples = 10  # Set to None for full evaluation
     max_workers = 4
     
     # Run evaluation for each tool configuration
