@@ -19,7 +19,7 @@ def create_system_prompt(tools: List[Dict[str, Any]]) -> str:
         System prompt string
     """
     if not tools:
-        return """You are a helpful assistant that can analyze images and answer questions."""
+        return """You are a helpful assistant that can analyze images and answer questions. You MUST output your thinking process in <think></think> and final choice in <answer></answer>."""
     
     tools_json = json.dumps(tools, indent=2)
     
@@ -86,9 +86,11 @@ Your Initial Analysis: {initial_response}
 Tool Execution Summary:
 {chr(10).join(tool_summary)}
 
-Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response."""
+Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response. 
+You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
+"""
 
-
+# TODO 这块我总觉得有点奇怪，对于If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>.
 def create_user_prompt(question: str, image_paths: List[str]) -> str:
     """
     Create user prompt template
@@ -109,4 +111,8 @@ Images to analyze:
 Question:
 {question}
 
-Think step by step and use any available tools if they would help provide a better answer.""" 
+Think step by step and use any available tools if they would help provide a better answer.
+
+
+If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>. 
+""" 
