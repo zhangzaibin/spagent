@@ -197,6 +197,9 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_
 ```bash
 cd checkpoints/grounding_dino
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
+
+# sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
+export HF_ENDPOINT=https://hf-mirror.com
 ```
 
 ### 4. 部署外部专家服务 (Deploy External Expert Services)
@@ -214,7 +217,7 @@ python spagent/external_experts/Depth_AnythingV2/depth_server.py \
 
 # 部署SAM2分割服务，这里面需要将sam的权重名字rename成sam2.1_b.pt，否则会报错
 python spagent/external_experts/SAM2/sam2_server.py \
-  --checkpoint_path checkpoints/sam2/sam2.1_hiera_base_plus.pt \
+  --checkpoint_path checkpoints/sam2/sam2.1_b.pt \
   --port 20020
 
 
