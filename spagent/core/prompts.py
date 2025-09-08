@@ -19,7 +19,7 @@ def create_system_prompt(tools: List[Dict[str, Any]]) -> str:
         System prompt string
     """
     if not tools:
-        return """You are a helpful assistant that can analyze images and answer questions. You MUST output your thinking process in <think></think> and final choice in <answer></answer>."""
+        return """You are a helpful assistant that can analyze images and answer questions."""
     
     tools_json = json.dumps(tools, indent=2)
     
@@ -111,8 +111,6 @@ Images to analyze:
 Question:
 {question}
 
-Think step by step and use any available tools if they would help provide a better answer.
+Think step by step and use any available tools if they would help provide a better answer. You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call> and final choice in <answer></answer>. 
 
-
-If you think do not need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>. 
 """ 
