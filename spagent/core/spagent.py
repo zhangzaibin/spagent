@@ -158,7 +158,12 @@ class SPAgent:
                 "tool_calls": [],
                 "tool_results": {},
                 "used_tools": [],
-                "additional_images": []
+                "additional_images": [],
+                "prompts": {
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "follow_up_prompt": None
+                }
             }
         
         # Step 3: Execute tools
@@ -217,7 +222,12 @@ class SPAgent:
             "tool_calls": tool_calls,
             "tool_results": tool_results,
             "used_tools": successful_tools,
-            "additional_images": additional_images
+            "additional_images": additional_images,
+            "prompts": {
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "follow_up_prompt": follow_up_prompt if successful_tools else None
+            }
         }
     
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:

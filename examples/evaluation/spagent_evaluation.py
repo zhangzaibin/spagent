@@ -27,7 +27,7 @@ from utils.utils import (
     normalize_answer, 
     print_evaluation_results, 
     validate_sample_paths,
-    save_error_to_tsv
+    save_error_to_csv
 )
 
 # Define server URLs
@@ -42,17 +42,6 @@ TOOL_SERVERS = {
     "detection": "http://127.0.0.1:20022"
 }
 
-    # "baseline_no_tools": [
-    #     # Empty tool list - pure LLM baseline
-    # ],
-
-# Define tool combinations for evaluation
-
-# TOOL_CONFIGS = {
-#     "baseline_no_tools": [
-#         # Empty tool list - pure LLM baseline
-#     ]
-# }
 
 TOOL_CONFIGS = {
     "baseline_no_tools": [
@@ -149,6 +138,8 @@ def evaluate_single_video(
         is_correct = normalized_prediction == normalized_ground_truth
         
         # Save errors to TSV
+        # Check correctness
+        is_correct = normalized_prediction == normalized_ground_truth
         
         error_data = {
             'question': result["question"],
@@ -156,10 +147,13 @@ def evaluate_single_video(
             'analysis': prediction,
             'normalized_prediction': normalized_prediction,
             'normalized_ground_truth': normalized_ground_truth,
-            'is_correct': 'correct' if is_correct else 'incorrect'
+            'is_correct': '1' if is_correct else '0',
+            'used_tools': agent_result.get("used_tools", []),
+            'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
-        save_error_to_tsv(error_data)
-        
+        # use the config name as the csv file name
+        save_error_to_csv(error_data, csv_file=f"{list(TOOL_CONFIGS.keys())[0]}.csv")
+
         return {
             "id": sample.get("id", "unknown"),
             "success": True,
@@ -171,10 +165,8 @@ def evaluate_single_video(
             "is_correct": is_correct,
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
-            "num_frames": len(frame_paths),
-            "target_fps": target_fps,
             "used_tools": agent_result.get("used_tools", [])
-        }
+        }      
         
     except Exception as e:
         return {
@@ -232,7 +224,6 @@ def evaluate_single_sample(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        # Save errors to TSV
         error_data = {
             'question': result["question"],
             'path': result["path"],
@@ -240,9 +231,11 @@ def evaluate_single_sample(
             'normalized_prediction': normalized_prediction,
             'normalized_ground_truth': normalized_ground_truth,
             'is_correct': '1' if is_correct else '0',
-            'used_tools': ','.join(agent_result.get("used_tools", []))
+            'used_tools': agent_result.get("used_tools", []),
+            'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
-        save_error_to_tsv(error_data, tsv_file="notool_analysis.tsv")
+        # use the config name as the csv file name
+        save_error_to_csv(error_data, csv_file=f"{list(TOOL_CONFIGS.keys())[0]}.csv")
 
         return {
             "id": sample.get("id", "unknown"),

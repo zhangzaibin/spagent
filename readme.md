@@ -198,8 +198,6 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_
 cd checkpoints/grounding_dino
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
 
-# sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
-export HF_ENDPOINT=https://hf-mirror.com
 ```
 
 ### 4. 部署外部专家服务 (Deploy External Expert Services)
@@ -222,6 +220,9 @@ python spagent/external_experts/SAM2/sam2_server.py \
 
 
 # 部署grounding dino
+# sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
+export HF_ENDPOINT=https://hf-mirror.com
+
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --model_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
