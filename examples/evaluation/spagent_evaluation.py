@@ -98,7 +98,8 @@ def evaluate_single_video(
     agent: SPAgent,
     sample: Dict[str, Any], 
     video_base_path: str,
-    target_fps: float = 1.0
+    target_fps: float = 1.0,
+    config_name: str = "default"
 ) -> Dict[str, Any]:
     """Evaluate a single video sample
     
@@ -152,7 +153,7 @@ def evaluate_single_video(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{list(TOOL_CONFIGS.keys())[0]}.csv")
+        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),
@@ -190,7 +191,8 @@ def evaluate_single_video(
 def evaluate_single_sample(
     agent: SPAgent,
     sample: Dict[str, Any], 
-    image_base_path: str
+    image_base_path: str,
+    config_name: str = "default"
 ) -> Dict[str, Any]:
     """Evaluate a single image sample
     
@@ -235,7 +237,7 @@ def evaluate_single_sample(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{list(TOOL_CONFIGS.keys())[0]}.csv")
+        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),
@@ -310,10 +312,10 @@ def evaluate_tool_config(
         
         if has_image and not has_video:
             # Image sample
-            result = evaluate_single_sample(agent, sample, image_base_path)
+            result = evaluate_single_sample(agent, sample, image_base_path, config_name)
         elif has_video and not has_image:
             # Video sample
-            result = evaluate_single_video(agent, sample, image_base_path, target_fps=0.5)
+            result = evaluate_single_video(agent, sample, image_base_path, target_fps=0.5, config_name=config_name)
         else:
             # Invalid sample
             result = {
@@ -403,6 +405,7 @@ def main():
     # Run evaluation for each tool configuration
     all_results = {}
     for config_name, tools in TOOL_CONFIGS.items():
+        RUN_CONFIG_NAME = config_name
         results = evaluate_tool_config(
             config_name=config_name,
             tools=tools,
