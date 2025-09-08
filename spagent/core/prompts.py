@@ -114,5 +114,5 @@ Question:
 Think step by step and use any available tools if they would help provide a better answer.
 
 
-If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>. 
+If you think do not need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>. 
 """ 
