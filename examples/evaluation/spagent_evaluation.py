@@ -382,7 +382,7 @@ def evaluate_tool_config(
 def main():
     """Main function"""
     # Configure paths
-    data_path = "dataset/Relative_Depth_BLINK_subset.jsonl"
+    data_path = "dataset/Sampled_Tasks_3.jsonl"
     image_base_path = "dataset"
     
     # Check if files exist
@@ -396,7 +396,7 @@ def main():
     
     # Evaluation parameters
     model = "gpt-4o"
-    max_samples = 10  # Set to None for full evaluation
+    max_samples = None  # Set to None for full evaluation
     max_workers = 4
     
     # Run evaluation for each tool configuration
