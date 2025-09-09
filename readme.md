@@ -154,6 +154,9 @@ export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/"
 # Qwen API (申请地址: https://bailian.console.aliyun.com)
 export DASHSCOPE_API_KEY="your_api_key"
 
+# moondream API（申请地址：https://moondream.ai）
+export MOONDREAM_API_KEY="your_api_key"
+
 # 测试API连接
 python spagent/vllm_models/qwen.py
 ```
@@ -226,6 +229,10 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --model_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# 部署moondream
+python spagent/external_experts/GroundingDINO/grounding_dino_server.py 
+  --port 20024
 ```
 
 ---

@@ -61,7 +61,7 @@ wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/
 
 ### 1. 启动服务器
 ```bash
-python depth_server.py
+python depth_server.py  --port 8080
 ```
 
 ### 2. 测试客户端
