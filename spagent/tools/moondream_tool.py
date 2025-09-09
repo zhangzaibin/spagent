@@ -79,17 +79,51 @@ class MoondreamTool(Tool):
                         }
                     
                     def point(self, image_path, object_name):
-                        return {
-                            "success": True,
-                            "points": [
-                                {
-                                    "x": 0.5,
-                                    "y": 0.5,
-                                    "confidence": 0.9
-                                }
-                            ],
-                            "output_path": f"outputs/pointing_{Path(image_path).stem}.jpg"
-                        }
+                        # 解析对象输入，支持单个或多个对象
+                        object_names = [name.strip() for name in object_name.split(',')]
+                        is_multi_object = len(object_names) > 1
+                        
+                        if is_multi_object:
+                            # 多对象模拟结果
+                            mock_points = {}
+                            color_mapping = {}
+                            colors = ["RGB(255,0,0)", "RGB(0,255,0)", "RGB(0,0,255)", "RGB(255,255,0)", "RGB(255,0,255)"]
+                            
+                            for i, obj_name in enumerate(object_names):
+                                mock_points[obj_name] = [
+                                    {
+                                        "x": 0.3 + i * 0.15,
+                                        "y": 0.4 + i * 0.1,
+                                        "confidence": 0.85
+                                    }
+                                ]
+                                color_mapping[obj_name] = colors[i % len(colors)]
+                            
+                            return {
+                                "success": True,
+                                "is_multi_object": True,
+                                "object": object_name,
+                                "objects": object_names,
+                                "all_points": mock_points,
+                                "color_mapping": color_mapping,
+                                "total_points": sum(len(pts) for pts in mock_points.values()),
+                                "output_path": f"outputs/multi_pointing_{Path(image_path).stem}.jpg"
+                            }
+                        else:
+                            # 单对象模拟结果
+                            return {
+                                "success": True,
+                                "is_multi_object": False,
+                                "object": object_names[0],
+                                "points": [
+                                    {
+                                        "x": 0.5,
+                                        "y": 0.5,
+                                        "confidence": 0.9
+                                    }
+                                ],
+                                "output_path": f"outputs/pointing_{Path(image_path).stem}.jpg"
+                            }
                 
                 self._client = SimpleMockMoondream()
                 logger.info("Using mock Moondream service")
@@ -115,15 +149,11 @@ class MoondreamTool(Tool):
                 "task": {
                     "type": "string",
                     "enum": ["point"],
-                    "description": "The task to perform: point (locate objects)"
-                },
-                "question": {
-                    "type": "string",
-                    "description": "Question to ask about the image (required for query task)"
+                    "description": "The task to perform: point (locate objects - supports both single objects like 'car' and multiple objects like 'car, person, tree')"
                 },
                 "object_name": {
                     "type": "string",
-                    "description": "Name of the object to locate (required for point tasks)"
+                    "description": "Name of the object(s) to locate. Can be a single object like 'car' or multiple objects separated by commas like 'car, person, tree'"
                 }
             },
             "required": ["image_path", "task", "object_name"]
@@ -133,8 +163,7 @@ class MoondreamTool(Tool):
         self, 
         image_path: str,
         task: str,
-        question: Optional[str] = None,
-        object_name: Optional[str] = None
+        object_name: str
     ) -> Dict[str, Any]:
         """
         Execute vision-language task
@@ -142,8 +171,7 @@ class MoondreamTool(Tool):
         Args:
             image_path: Path to input image
             task: Task type ("point")
-            question: Question for query task
-            object_name: Object name for detect/point tasks
+            object_name: Object name(s) - can be single like "car" or multiple like "car, person, tree"
             
         Returns:
             Task result dictionary
@@ -159,27 +187,22 @@ class MoondreamTool(Tool):
                 }
             
             # Validate task parameters
-            if task == "query" and not question:
+            if task == "point" and not object_name:
                 return {
                     "success": False,
-                    "error": "Question is required for query task"
+                    "error": "Object name is required for point task"
                 }
             
-            if task in ["detect", "point"] and not object_name:
-                return {
-                    "success": False,
-                    "error": f"Object name is required for {task} task"
-                }
+            # Parse object_name to detect if it's multiple objects
+            object_names = [name.strip() for name in object_name.split(',')]
+            is_multi_object = len(object_names) > 1
+            
+            logger.info(f"Detected objects: {object_names} (multi-object: {is_multi_object})")
             
             # Execute the appropriate task
             result = None
-            if task == "caption":
-                result = self._client.caption(image_path)
-            elif task == "query":
-                result = self._client.query(image_path, question)
-            elif task == "detect":
-                result = self._client.detect(image_path, object_name)
-            elif task == "point":
+            if task == "point":
+                # 统一使用 point 方法，它会自动处理单个或多个对象
                 result = self._client.point(image_path, object_name)
             else:
                 return {
@@ -193,6 +216,8 @@ class MoondreamTool(Tool):
                     "success": True,
                     "result": result,
                     "task": task,
+                    "is_multi_object": is_multi_object,
+                    "objects": object_names,
                     "output_path": result.get('output_path')
                 }
             else:
