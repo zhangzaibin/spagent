@@ -114,8 +114,8 @@ class MoondreamTool(Tool):
                 },
                 "task": {
                     "type": "string",
-                    "enum": ["caption", "query", "detect", "point"],
-                    "description": "The task to perform: caption (generate description), query (answer question), detect (find objects), point (locate objects)"
+                    "enum": ["point"],
+                    "description": "The task to perform: point (locate objects)"
                 },
                 "question": {
                     "type": "string",
@@ -123,7 +123,7 @@ class MoondreamTool(Tool):
                 },
                 "object_name": {
                     "type": "string",
-                    "description": "Name of the object to detect or locate (required for detect and point tasks)"
+                    "description": "Name of the object to locate (required for point tasks)"
                 }
             },
             "required": ["image_path", "task", "object_name"]
@@ -141,7 +141,7 @@ class MoondreamTool(Tool):
         
         Args:
             image_path: Path to input image
-            task: Task type ("caption", "query", "detect", "point")
+            task: Task type ("point")
             question: Question for query task
             object_name: Object name for detect/point tasks
             
