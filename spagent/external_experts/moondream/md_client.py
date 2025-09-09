@@ -19,7 +19,6 @@ class MoondreamClient:
             server_url: Moondream服务器地址
         """
         self.server_url = server_url
-        
     def _encode_image(self, image):
         """将图像编码为base64字符串"""
         if isinstance(image, str):
@@ -187,10 +186,11 @@ class MoondreamClient:
     def point(self, image, object_name):
         """
         定位图像中的对象点
+        支持单个对象（如 "person"）或多个对象（如 "person, car, tree"）
         
         Args:
             image: 图像（文件路径、numpy数组或PIL图像）
-            object_name: 要定位的对象名称
+            object_name: 要定位的对象名称，可以是单个对象或逗号分隔的多个对象
             
         Returns:
             dict: 包含点坐标的结果
@@ -209,10 +209,14 @@ class MoondreamClient:
             
             # 如果成功并且有标注图像，保存到本地
             if result.get('success') and result.get('annotated_image'):
+                # 根据是否是多对象选择文件前缀
+                is_multi = result.get('is_multi_object', False)
+                prefix = "multi_pointing" if is_multi else "pointing"
+                
                 output_path = self._save_annotated_image(
                     result['annotated_image'], 
                     image, 
-                    "pointing"
+                    prefix
                 )
                 # 将输出路径添加到结果中
                 result['output_path'] = output_path
@@ -336,26 +340,76 @@ def main():
     
     # 6. 对象定位测试
     print("\n6️⃣ === 对象定位测试 ===")
-    objects_to_point = ["person", "car"]
     
-    for i, obj in enumerate(objects_to_point, 1):
+    # 测试单个对象
+    print("\n单个对象定位:")
+    single_objects = ["person", "car"]
+    
+    for i, obj in enumerate(single_objects, 1):
         try:
             print(f"\n定位 {i}: {obj}")
             point_result = client.point(image_path, obj)
             
             if point_result.get('success'):
-                points = point_result['points']
-                print(f"✅ 定位到 {len(points)} 个 '{obj}' 的关键点")
+                if point_result.get('is_multi_object'):
+                    # 多对象结果
+                    all_points = point_result.get('all_points', {})
+                    color_mapping = point_result.get('color_mapping', {})
+                    total_points = point_result.get('total_points', 0)
+                    print(f"✅ 总共定位到 {total_points} 个点")
+                    for obj_name, points in all_points.items():
+                        color = color_mapping.get(obj_name, "未知颜色")
+                        print(f"   🎯 {obj_name} ({color}): {len(points)} 个点")
+                else:
+                    # 单对象结果
+                    points = point_result['points']
+                    print(f"✅ 定位到 {len(points)} 个 '{obj}' 的关键点")
+                
                 if point_result.get('output_path'):
-                    print(f"标注图像已保存: {point_result['output_path']}")
+                    print(f"   📁 标注图像已保存: {point_result['output_path']}")
             else:
-                print(f"定位失败: {point_result.get('error')}")
+                print(f"❌ 定位失败: {point_result.get('error')}")
                 
         except Exception as e:
-            print(f"定位异常: {e}")
+            print(f"❌ 定位异常: {e}")
         
         # 避免请求过于频繁
         time.sleep(1.5)
+    
+    # 7. 多对象定位测试（逗号分隔格式）
+    print("\n7️⃣ === 多对象定位测试（逗号分隔格式）===")
+    multi_object_queries = ["person, car, tree"]
+    
+    for i, query in enumerate(multi_object_queries, 1):
+        try:
+            print(f"\n多对象查询 {i}: '{query}'")
+            point_result = client.point(image_path, query)
+            
+            if point_result.get('success'):
+                if point_result.get('is_multi_object'):
+                    all_points = point_result.get('all_points', {})
+                    color_mapping = point_result.get('color_mapping', {})
+                    total_points = point_result.get('total_points', 0)
+                    
+                    print(f"✅ 多对象定位成功，总共找到 {total_points} 个点")
+                    for obj_name, points in all_points.items():
+                        color = color_mapping.get(obj_name, "未知颜色")
+                        print(f"   🎯 {obj_name} ({color}): {len(points)} 个点")
+                    
+                    if point_result.get('output_path'):
+                        print(f"   � 多对象标注图像已保存: {point_result['output_path']}")
+                else:
+                    # 单对象结果（不应该发生，但以防万一）
+                    points = point_result['points']
+                    print(f"✅ 定位到 {len(points)} 个点")
+            else:
+                print(f"❌ 多对象定位失败: {point_result.get('error')}")
+                
+        except Exception as e:
+            print(f"❌ 多对象定位异常: {e}")
+        
+        # 避免请求过于频繁
+        time.sleep(2)
     return True
 
 

@@ -135,6 +135,63 @@ def save_annotated_image(image, detection_boxes=None, point_coords=None, filenam
         logger.error(f"创建标注图像失败：{e}")
         return None
 
+def save_multi_object_annotated_image(image, multi_points, color_mapping, filename_prefix="multi_annotated"):
+    """创建多对象标注图像，使用不同颜色"""
+    try:
+        # 创建图像副本用于标注
+        overlay = image.copy()
+        draw = ImageDraw.Draw(overlay)
+        w, h = overlay.size
+        
+        # 定义颜色列表（RGB格式）
+        colors = [
+            (255, 0, 0),     # 红色
+            (0, 255, 0),     # 绿色
+            (0, 0, 255),     # 蓝色
+            (255, 255, 0),   # 黄色
+            (255, 0, 255),   # 紫色
+            (0, 255, 255),   # 青色
+            (255, 165, 0),   # 橙色
+            (128, 0, 128),   # 紫罗兰
+            (255, 192, 203), # 粉色
+            (165, 42, 42),   # 棕色
+        ]
+        
+        # 为每个对象分配颜色
+        color_assignment = {}
+        for i, obj_name in enumerate(multi_points.keys()):
+            color_assignment[obj_name] = colors[i % len(colors)]
+        
+        # 绘制每个对象的点
+        for obj_name, points in multi_points.items():
+            color = color_assignment[obj_name]
+            for pt in points:
+                r = 6  # 稍微大一点的点
+                x, y = int(pt['x'] * w), int(pt['y'] * h)
+                
+                # 绘制实心圆
+                draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
+                # 绘制边框让点更明显
+                draw.ellipse([x - r, y - r, x + r, y + r], outline=(0, 0, 0), width=1)
+        
+        # 更新颜色映射信息
+        for obj_name in multi_points.keys():
+            color = color_assignment[obj_name]
+            color_mapping[obj_name] = f"RGB{color}"
+        
+        # 将PIL图像转换为numpy数组，然后编码为base64
+        import cv2
+        overlay_np = cv2.cvtColor(np.array(overlay), cv2.COLOR_RGB2BGR)
+        _, buffer = cv2.imencode('.jpg', overlay_np)
+        annotated_b64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
+        
+        logger.info("多对象标注图像已创建并编码")
+        return annotated_b64
+        
+    except Exception as e:
+        logger.error(f"创建多对象标注图像失败：{e}")
+        return None
+
 @app.route('/infer', methods=['POST'])
 def infer():
     """Moondream推理接口"""
@@ -216,24 +273,72 @@ def infer():
             if 'object' not in data:
                 return jsonify({"error": "point任务需要object参数"}), 400
             
-            object_name = data['object']
-            logger.info(f"正在定位对象：{object_name}")
-            point_result = model.point(image, object_name)
-            point_coords = point_result['points']
+            object_input = data['object']
+            logger.info(f"正在定位对象：{object_input}")
             
-            # 创建标注图像
-            annotated_image_b64 = save_annotated_image(
-                image,
-                point_coords=point_coords,
-                filename_prefix="pointing"
-            )
+            # 解析对象输入，支持单个对象或逗号分隔的多个对象
+            object_names = [name.strip() for name in object_input.split(',')]
+            is_multi_object = len(object_names) > 1
             
-            result = {
-                "task": "point",
-                "object": object_name,
-                "points": point_coords,
-                "annotated_image": annotated_image_b64
-            }
+            if is_multi_object:
+                # 多对象定位
+                logger.info(f"检测到多对象输入：{object_names}")
+                multi_points = {}
+                color_mapping = {}
+                total_points = 0
+                
+                # 对每个对象进行定位
+                for obj_name in object_names:
+                    try:
+                        point_result = model.point(image, obj_name)
+                        obj_points = point_result['points']
+                        multi_points[obj_name] = obj_points
+                        total_points += len(obj_points)
+                        
+                        logger.info(f"定位到 {len(obj_points)} 个 '{obj_name}' 的关键点")
+                        
+                    except Exception as e:
+                        logger.warning(f"定位对象 '{obj_name}' 时出错: {e}")
+                        multi_points[obj_name] = []
+                
+                # 创建多对象标注图像
+                annotated_image_b64 = save_multi_object_annotated_image(
+                    image,
+                    multi_points,
+                    color_mapping,
+                    filename_prefix="multi_pointing"
+                )
+                
+                result = {
+                    "task": "point",
+                    "object": object_input,
+                    "objects": object_names,
+                    "is_multi_object": True,
+                    "all_points": multi_points,
+                    "total_points": total_points,
+                    "color_mapping": color_mapping,
+                    "annotated_image": annotated_image_b64
+                }
+            else:
+                # 单对象定位
+                object_name = object_names[0]
+                point_result = model.point(image, object_name)
+                point_coords = point_result['points']
+                
+                # 创建标注图像
+                annotated_image_b64 = save_annotated_image(
+                    image,
+                    point_coords=point_coords,
+                    filename_prefix="pointing"
+                )
+                
+                result = {
+                    "task": "point",
+                    "object": object_name,
+                    "is_multi_object": False,
+                    "points": point_coords,
+                    "annotated_image": annotated_image_b64
+                }
         
         logger.info(f"{task}任务完成")
         return jsonify({
