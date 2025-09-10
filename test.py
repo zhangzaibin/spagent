@@ -1,7 +1,7 @@
 # 1. 导入必要模块
 from spagent import SPAgent
 from spagent.models import GPTModel, QwenModel
-from spagent.tools import DepthEstimationTool, SegmentationTool, ObjectDetectionTool
+from spagent.tools import DepthEstimationTool, SegmentationTool, ObjectDetectionTool, MoondreamTool
 
 # 2. 选择和配置模型
 model = GPTModel(model_name="gpt-4o-mini", temperature=0.7)
@@ -12,7 +12,8 @@ tools = [
     DepthEstimationTool(use_mock=False, server_url="http://127.0.0.1:20019"),      # Mock模式用于测试
     SegmentationTool(use_mock=False, server_url="http://127.0.0.1:20020"),         # Mock模式用于测试
     ObjectDetectionTool(use_mock=False,      # 真实模式
-                       server_url="http://127.0.0.1:20022")
+                       server_url="http://10.7.8.94:20022"),
+    MoondreamTool(use_mock=False, server_url="http://0.0.0.0:20024")  # 真实模式
 ]
 
 # 4. 创建智能体

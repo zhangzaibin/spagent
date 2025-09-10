@@ -19,3 +19,4 @@ transformers
 Flask
 clip
 datasets
+moondream
