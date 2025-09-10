@@ -159,7 +159,8 @@ class ObjectDetectionTool(Tool):
                     "boxes": result.get('boxes', []),
                     "labels": result.get('labels', []),
                     "confidence": result.get('confidence', []),
-                    "vis_path": result.get('vis_path')
+                    "vis_path": result.get('vis_path'),
+                    "output_path": result.get('output_path')
                 }
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
