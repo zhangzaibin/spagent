@@ -28,14 +28,14 @@ from spagent.utils.utils import (
     normalize_answer, 
     print_evaluation_results, 
     validate_sample_paths,
-    save_error_to_tsv
+    save_error_to_csv
 )
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
 # Define server URLs
 TOOL_SERVERS = {
-    "depth": "http://10.8.131.51:30750",
-    "segmentation": "http://10.8.131.51:30646",
-    "detection": "http://10.8.131.51:30969"
+    "depth": "http://10.7.8.94:20019",  # depth-anything-v2
+    "segmentation": "http://10.7.8.94:20010",  # sam
+    "detection": "http://10.7.8.94:20022"  # dino
 }
 
 TOOL_CONFIGS = {
@@ -56,7 +56,7 @@ def main():
 
     parser.add_argument('--data_path', type=str, default='dataset/BLINK_All_Tasks.jsonl',
                         help='Path to the data file (default: dataset/BLINK_All_Tasks.jsonl)')
-    parser.add_argument('--max_samples', type=int, default=5,
+    parser.add_argument('--max_samples', type=int, default=None,
                         help='Maximum number of samples to process (default: 5), Set to None for full evaluation')
     parser.add_argument('--max_workers', type=int, default=4,
                         help='Maximum number of worker threads (default: 4)')

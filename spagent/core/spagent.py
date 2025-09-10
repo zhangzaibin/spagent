@@ -197,7 +197,8 @@ class SPAgent:
             )
             
             # Include additional images in final inference if available (filter out None and invalid paths)
-            valid_additional_images = [img for img in additional_images if img is not None and Path(img).exists()]
+            # And ensure the order matches the original image_paths order
+            valid_additional_images = self._sort_additional_images_by_input_order(image_paths, additional_images)
             all_images = image_paths + valid_additional_images
             
             if len(all_images) == 1:
@@ -337,4 +338,68 @@ class SPAgent:
             return {
                 "success": False,
                 "error": str(e)
-            } 
+            }
+    
+    def _sort_additional_images_by_input_order(self, image_paths: List[str], additional_images: List[str]) -> List[str]:
+        """
+        Sort additional images to match the order of input image_paths
+        
+        Args:
+            image_paths: Original input image paths in order
+            additional_images: Generated additional images (may be in different order)
+            
+        Returns:
+            List of valid additional images sorted by input order
+        """
+        # Filter out None and invalid paths first
+        valid_additional_images = [img for img in additional_images if img is not None and Path(img).exists()]
+        
+        if not valid_additional_images:
+            return []
+        
+        # Create a sorted list of additional images based on input order
+        sorted_additional_images = []
+        
+        for input_path in image_paths:
+            input_stem = Path(input_path).stem
+            
+            # Find all additional images that correspond to this input image
+            matching_images = []
+            
+            for additional_img in valid_additional_images:
+                if additional_img in sorted_additional_images:
+                    continue  # Already matched
+                
+                additional_stem = Path(additional_img).stem
+                
+                # Check if this additional image corresponds to the current input image
+                if self._is_image_match(input_stem, additional_stem):
+                    matching_images.append(additional_img)
+            
+            # Add matching images in a consistent order (by filename)
+            matching_images.sort()
+            sorted_additional_images.extend(matching_images)
+        
+        # Add any remaining unmatched additional images at the end
+        for additional_img in valid_additional_images:
+            if additional_img not in sorted_additional_images:
+                sorted_additional_images.append(additional_img)
+        
+        logger.info(f"Sorted additional images: {[Path(img).name for img in sorted_additional_images]}")
+        return sorted_additional_images
+    
+    def _is_image_match(self, input_stem: str, additional_stem: str) -> bool:
+        """
+        Check if an additional image corresponds to an input image
+        
+        Args:
+            input_stem: Stem of input image filename
+            additional_stem: Stem of additional image filename
+            
+        Returns:
+            True if they match, False otherwise
+        """
+        # Since the suffix of saved images is always the same as the original image name,
+        # we check if the additional image name ends with the input image name
+        # This handles any prefix automatically without needing to maintain a list
+        return additional_stem.endswith(input_stem)
