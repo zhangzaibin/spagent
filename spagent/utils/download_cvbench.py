@@ -73,17 +73,21 @@ def download_cvbench(test_mode=False, max_samples=5):
                     continue
                 
                 # 构建图片路径
-                image_folder_name = f"dataset/CVBench/{sample_type}"
+                # 本地文件路径（用于验证文件存在）
+                local_image_folder = f"dataset/CVBench/{sample_type}"
                 image_filename = f"{local_file_id:06d}.png"
-                image_path = f"{image_folder_name}/{image_filename}"
+                local_image_path = f"{local_image_folder}/{image_filename}"
+                
+                # JSONL中保存的相对路径（不包含dataset/前缀）
+                jsonl_image_path = f"CVBench/{sample_type}/{image_filename}"
                 
                 # 验证图片文件是否存在
-                if not os.path.exists(image_path):
-                    print(f"  警告: 图片文件不存在: {image_path} (HuggingFace idx: {sample_idx}, type: {sample_type})")
+                if not os.path.exists(local_image_path):
+                    print(f"  警告: 图片文件不存在: {local_image_path} (HuggingFace idx: {sample_idx}, type: {sample_type})")
                     continue
                 
-                # 处理图片路径
-                image_paths = [image_path]                # 构建对话内容
+                # 处理图片路径（JSONL中保存相对路径）
+                image_paths = [jsonl_image_path]                # 构建对话内容
                 conversations = []
                 
                 # 添加人类问题

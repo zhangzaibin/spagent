@@ -21,8 +21,8 @@ from spagent.tools import (
     SupervisionTool,
     YOLOETool
 )
-from utils.utils import (
-    load_blink_data, 
+from spagent.utils.utils import (
+    load_json_data, 
     extract_question_and_answer, 
     normalize_answer, 
     print_evaluation_results, 
@@ -282,7 +282,7 @@ def evaluate_tool_config(
     """
     print(f"\nEvaluating configuration: {config_name}")
     print(f"Loading data from {data_path}")
-    data = load_blink_data(data_path)
+    data = load_json_data(data_path)
     
     if max_samples:
         data = data[:max_samples]

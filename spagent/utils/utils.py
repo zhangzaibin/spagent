@@ -4,8 +4,8 @@ import os
 import pandas as pd
 
 
-def load_blink_data(data_path: str) -> List[Dict[str, Any]]:
-    """加载BLINK数据集
+def load_json_data(data_path: str) -> List[Dict[str, Any]]:
+    """加载json数据集
     
     Args:
         data_path: 数据文件路径
