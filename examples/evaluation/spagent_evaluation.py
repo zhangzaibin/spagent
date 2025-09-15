@@ -27,7 +27,7 @@ from spagent.utils.utils import (
     normalize_answer, 
     print_evaluation_results, 
     validate_sample_paths,
-    save_error_to_csv
+    save_result_to_csv
 )
 
 # Define server URLs
@@ -139,7 +139,7 @@ def evaluate_single_video(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        error_data = {
+        task_data = {
             'question': result["question"],
             'path': result["path"],
             'analysis': prediction,
@@ -150,7 +150,7 @@ def evaluate_single_video(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
+        save_result_to_csv(task_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),
@@ -223,7 +223,7 @@ def evaluate_single_sample(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        error_data = {
+        task_data = {
             'question': result["question"],
             'path': result["path"],
             'analysis': prediction,
@@ -234,7 +234,7 @@ def evaluate_single_sample(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
+        save_result_to_csv(task_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),

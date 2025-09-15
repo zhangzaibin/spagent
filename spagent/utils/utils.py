@@ -184,11 +184,11 @@ def print_evaluation_results(results: Dict[str, Any]):
             print(f"... and {len(results['failed_samples_details']) - 5} more")
 
 
-def save_error_to_csv(error_data: Dict[str, Any], csv_file: str = "error_analysis.csv"):
-    """保存错误信息到CSV文件
-    
+def save_result_to_csv(result_data: Dict[str, Any], csv_file: str = "error_analysis.csv"):
+    """保存结果信息到CSV文件
+
     Args:
-        error_data: 包含错误信息的字典
+        result_data: 包含结果信息的字典
         csv_file: CSV文件名
     """
     # 定义列名
@@ -196,14 +196,14 @@ def save_error_to_csv(error_data: Dict[str, Any], csv_file: str = "error_analysi
     
     # 准备数据行
     row_data = {
-        'question': error_data.get('question', ''),
-        'path': error_data.get('path', ''),
-        'is_correct': error_data.get('is_correct', ''),
-        'analysis': error_data.get('analysis', ''),
-        'normalized_prediction': error_data.get('normalized_prediction', ''),
-        'normalized_ground_truth': error_data.get('normalized_ground_truth', ''),
-        'used_tools': error_data.get('used_tools', ''),
-        'follow_up_prompt': error_data.get('follow_up_prompt', '')
+        'question': result_data.get('question', ''),
+        'path': result_data.get('path', ''),
+        'is_correct': result_data.get('is_correct', ''),
+        'analysis': result_data.get('analysis', ''),
+        'normalized_prediction': result_data.get('normalized_prediction', ''),
+        'normalized_ground_truth': result_data.get('normalized_ground_truth', ''),
+        'used_tools': result_data.get('used_tools', ''),
+        'follow_up_prompt': result_data.get('follow_up_prompt', '')
     }
     
     # 检查文件是否存在
