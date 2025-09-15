@@ -127,7 +127,19 @@ result = agent.solve_problem(
 # 首先下载blink数据集
 python spagent/utils/download_blink.py
 
+# test
 python blink_example.py --data_path dataset/BLINK_All_Tasks.jsonl --max_samples 5 --max_workers 4 --image_base_path dataset --model gpt-4o-mini
+```
+
+### 6. CVBench test(evaluate on CVBench)
+```
+# 首先保存2个parquet（地址https://huggingface.co/datasets/nyu-visionx/CV-Bench），下载CVBench图片
+python cvbench_img.py --subset both --root dataset --out dataset/CVBench
+
+# 保存json文件
+python download_cvbench.py
+
+# test
 ```
 
 ## 🛠️ 安装和配置 (Installation & Setup)
