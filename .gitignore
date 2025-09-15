@@ -13,3 +13,4 @@ output/*
 *.log
 *.json
 *.tsv
+*.csv

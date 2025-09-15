@@ -21,13 +21,13 @@ from spagent.tools import (
     SupervisionTool,
     YOLOETool
 )
-from utils.utils import (
-    load_blink_data, 
+from spagent.utils.utils import (
+    load_json_data, 
     extract_question_and_answer, 
     normalize_answer, 
     print_evaluation_results, 
     validate_sample_paths,
-    save_error_to_csv
+    save_result_to_csv
 )
 
 # Define server URLs
@@ -139,7 +139,7 @@ def evaluate_single_video(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        error_data = {
+        task_data = {
             'question': result["question"],
             'path': result["path"],
             'analysis': prediction,
@@ -150,7 +150,7 @@ def evaluate_single_video(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
+        save_result_to_csv(task_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),
@@ -223,7 +223,7 @@ def evaluate_single_sample(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        error_data = {
+        task_data = {
             'question': result["question"],
             'path': result["path"],
             'analysis': prediction,
@@ -234,7 +234,7 @@ def evaluate_single_sample(
             'follow_up_prompt': agent_result["prompts"]["follow_up_prompt"]
         }
         # use the config name as the csv file name
-        save_error_to_csv(error_data, csv_file=f"{config_name}.csv")
+        save_result_to_csv(task_data, csv_file=f"{config_name}.csv")
 
         return {
             "id": sample.get("id", "unknown"),
@@ -282,7 +282,7 @@ def evaluate_tool_config(
     """
     print(f"\nEvaluating configuration: {config_name}")
     print(f"Loading data from {data_path}")
-    data = load_blink_data(data_path)
+    data = load_json_data(data_path)
     
     if max_samples:
         data = data[:max_samples]

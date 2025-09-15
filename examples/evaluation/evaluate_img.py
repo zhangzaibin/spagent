@@ -20,15 +20,16 @@ from spagent.tools import (
     SegmentationTool,
     ObjectDetectionTool,
     SupervisionTool,
-    YOLOETool
+    YOLOETool,
+    MoondreamTool
 )
 from spagent.utils.utils import (
-    load_blink_data, 
+    load_json_data, 
     extract_question_and_answer, 
     normalize_answer, 
     print_evaluation_results, 
     validate_sample_paths,
-    save_error_to_csv
+    save_result_to_csv
 )
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
 # Define server URLs
@@ -54,8 +55,8 @@ def main():
     # Configure paths
     parser = argparse.ArgumentParser(description='Depth Anything V2 Server')
 
-    parser.add_argument('--data_path', type=str, default='dataset/BLINK_All_Tasks.jsonl',
-                        help='Path to the data file (default: dataset/BLINK_All_Tasks.jsonl)')
+    parser.add_argument('--data_path', type=str, default='dataset/cvbench_data.jsonl',
+                        help='Path to the data file (default: dataset/cvbench_data.jsonl)')
     parser.add_argument('--max_samples', type=int, default=None,
                         help='Maximum number of samples to process (default: 5), Set to None for full evaluation')
     parser.add_argument('--max_workers', type=int, default=4,

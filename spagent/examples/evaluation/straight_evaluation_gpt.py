@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from vllm_models.gpt import gpt_multiple_images_inference, gpt_single_image_inference
-from utils.utils import load_blink_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
+from utils.utils import load_json_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
 
 def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
     """从视频中提取帧
@@ -230,7 +230,7 @@ def evaluate_blink_dataset(
         评估结果字典
     """
     print(f"Loading data from {data_path}")
-    data = load_blink_data(data_path)
+    data = load_json_data(data_path)
     
     if max_samples:
         data = data[:max_samples]
