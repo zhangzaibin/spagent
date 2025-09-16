@@ -35,6 +35,14 @@ def load_and_merge_data(tool_results_path, no_tool_results_path):
         print(f"❌ 不使用工具结果文件不存在: {no_tool_results_path}")
         return None, False
     
+    # 检查并创建输出目录
+    if not os.path.exists(args.output_dir):
+        print(f"📁 输出目录不存在，正在创建: {args.output_dir}")
+        os.makedirs(args.output_dir, exist_ok=True)
+        print(f"✅ 输出目录创建成功")
+    else:
+        print(f"✅ 输出目录已存在")
+
     # 读取数据
     try:
         tool_df = pd.read_csv(tool_results_path)
@@ -371,13 +379,13 @@ if __name__ == "__main__":
         """
     )
     
-    # 必需参数
+    # 可选参数
     parser.add_argument(
-        "tool_csv", 
+        "--tool-csv", "-t",
         help="使用工具的结果CSV文件路径"
     )
     parser.add_argument(
-        "baseline_csv", 
+        "--baseline-csv", "-b",
         help="不使用工具的结果CSV文件路径（基线）"
     )
     
