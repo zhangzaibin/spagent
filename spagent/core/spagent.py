@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .tool import Tool, ToolRegistry
 from .model import Model
-from .prompts import create_system_prompt, create_follow_up_prompt, create_user_prompt
+from .prompts import create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -214,8 +214,25 @@ class SPAgent:
                     **model_kwargs
                 )
         else:
-            logger.warning("No tools executed successfully, using initial response")
-            final_response = initial_response
+            logger.warning("No tools executed successfully, generating fallback response")
+            # Check if initial_response contains <answer> tags
+            if self._has_answer_tags(initial_response):
+                final_response = initial_response
+            else:
+                # Generate a proper response with <answer> tags when tools fail
+                fallback_prompt = create_fallback_prompt(question, initial_response)
+                if len(image_paths) == 1:
+                    final_response = self.model.single_image_inference(
+                        image_paths[0],
+                        fallback_prompt,
+                        **model_kwargs
+                    )
+                else:
+                    final_response = self.model.multiple_images_inference(
+                        image_paths,
+                        fallback_prompt,
+                        **model_kwargs
+                    )
         
         return {
             "answer": final_response,
@@ -403,3 +420,15 @@ class SPAgent:
         # we check if the additional image name ends with the input image name
         # This handles any prefix automatically without needing to maintain a list
         return additional_stem.endswith(input_stem)
+    
+    def _has_answer_tags(self, response: str) -> bool:
+        """
+        Check if response contains <answer> tags
+        
+        Args:
+            response: Response text to check
+            
+        Returns:
+            True if response contains <answer> tags, False otherwise
+        """
+        return '<answer>' in response and '</answer>' in response
