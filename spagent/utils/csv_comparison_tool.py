@@ -374,8 +374,8 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  python csv_comparison_tool.py tool_results.csv baseline_results.csv
-  python csv_comparison_tool.py tool.csv baseline.csv --output-dir=output
+  python csv_comparison_tool.py --tool-csv tool_results.csv --baseline-csv baseline_results.csv
+  python csv_comparison_tool.py --tool-csv tool.csv --baseline-csv baseline.csv --output-dir=output
         """
     )
     
