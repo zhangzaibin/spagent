@@ -273,7 +273,7 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 
 ```
 
-#### Pi3（3D点云图）
+#### Pi3（3D重建）
 ```bash
 cd checkpoints/pi3
 wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
