@@ -123,44 +123,8 @@ result = agent.solve_problem(
 )
 ```
 
-### 5. 专业工具使用 (Advanced Tool Usage)
-
-```python
-from spagent.tools import MoondreamTool, Pi3Tool
-
-# 视觉问答专用智能体
-vqa_tools = [MoondreamTool(use_mock=True)]
-vqa_agent = SPAgent(model=model, tools=vqa_tools)
-result = vqa_agent.solve_problem(
-    "image.jpg", 
-    "这张图片中有什么？描述主要对象和场景"
-)
-
-# 3D重建专用智能体
-reconstruction_tools = [Pi3Tool(use_mock=True)]
-recon_agent = SPAgent(model=model, tools=reconstruction_tools)
-result = recon_agent.solve_problem(
-    "image.jpg",
-    "从这张图片生成3D点云，视角设置为方位角30度，仰角45度"
-)
-
-# 完整分析智能体（包含所有工具）
-full_tools = [
-    DepthEstimationTool(use_mock=True),
-    SegmentationTool(use_mock=True),
-    ObjectDetectionTool(use_mock=True),
-    MoondreamTool(use_mock=True),
-    Pi3Tool(use_mock=True)
-]
-full_agent = SPAgent(model=model, tools=full_tools)
-result = full_agent.solve_problem(
-    "image.jpg",
-    "全面分析这张图片：描述场景内容，检测对象，分析深度，并生成3D重建"
-)
-```
-
 ---
-### 6. 图像数据集评测 (Image Dataset Evaluation)
+### 5. 图像数据集评测 (Image Dataset Evaluation)
 
 本节介绍如何在图像数据集上评测SPAgent的性能。所有数据集都需要先下载并转换为统一的JSONL格式，其中每条数据包含以下标准字段：
 - `id`: 数据样本的唯一标识符
