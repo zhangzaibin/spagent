@@ -456,44 +456,44 @@ if __name__ == "__main__":
         for test_image in test_images:
             logger.info(f"  - {test_image}")
     
-    # # 4. 处理视频文件
-    # logger.info("\n=== 处理视频文件 ===")
+    # 4. 处理视频文件
+    logger.info("\n=== 处理视频文件 ===")
     
-    # # 检查是否有可用的测试视频
-    # test_videos = ["assets/cartoon_horse.mp4"]
+    # 检查是否有可用的测试视频
+    test_videos = ["assets/cartoon_horse.mp4"]
     
-    # video_path = None
-    # for test_video in test_videos:
-    #     if os.path.exists(test_video):
-    #         video_path = test_video
-    #         break
+    video_path = None
+    for test_video in test_videos:
+        if os.path.exists(test_video):
+            video_path = test_video
+            break
     
-    # if video_path:
-    #     logger.info(f"使用测试视频：{video_path}")
-    #     video_result = client.infer_from_video(
-    #         video_path=video_path,
-    #         interval=10,  # 每10帧提取一帧
-    #         conf_threshold=0.1,
-    #         rtol=0.03,
-    #         generate_views=True,
-    #         max_views_per_camera=4  # 每个相机最多4张视角图
-    #     )
+    if video_path:
+        logger.info(f"使用测试视频：{video_path}")
+        video_result = client.infer_from_video(
+            video_path=video_path,
+            interval=10,  # 每10帧提取一帧
+            conf_threshold=0.1,
+            rtol=0.03,
+            generate_views=True,
+            max_views_per_camera=4  # 每个相机最多4张视角图
+        )
         
-    #     if video_result:
-    #         logger.info("视频3D重建成功！")
-    #         logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
-    #         logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
-    #         logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
+        if video_result:
+            logger.info("视频3D重建成功！")
+            logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
+            logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
+            logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
             
-    #         # 保存结果
-    #         if client.save_results(video_result, "outputs/video"):
-    #             logger.info("视频重建结果保存成功！")
-    #         else:
-    #             logger.error("视频重建结果保存失败")
-    #     else:
-    #         logger.error("视频3D重建失败")
-    # else:
-    #     logger.warning("没有找到可用的测试视频")
-    #     logger.info("可用的测试视频路径：")
-    #     for test_video in test_videos:
-    #         logger.info(f"  - {test_video}")
+            # 保存结果
+            if client.save_results(video_result, "outputs/video"):
+                logger.info("视频重建结果保存成功！")
+            else:
+                logger.error("视频重建结果保存失败")
+        else:
+            logger.error("视频3D重建失败")
+    else:
+        logger.warning("没有找到可用的测试视频")
+        logger.info("可用的测试视频路径：")
+        for test_video in test_videos:
+            logger.info(f"  - {test_video}")
