@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 彩色PLY文件可视化脚本
+可以把pi3生成的彩色PLY文件可视化成交互式HTML
 """
 
 import argparse

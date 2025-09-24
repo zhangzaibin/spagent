@@ -20,9 +20,9 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | 🆕 Main agent architecture:<br>- SPAgent class<br>- Tool base classes<br>- Model wrappers<br>- Unified prompt system |
-| **Tools** | `spagent/tools/` | 🆕 Modular expert tools:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool |
+| **Tools** | `spagent/tools/` | 🆕 Modular expert tools:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool |
 | **Models** | `spagent/models/` | 🆕 Model wrappers:<br>- GPTModel<br>- QwenModel<br>- QwenVLLMModel |
-| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Visual Question Answering (**Moondream**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
 | **Examples** | `spagent/examples/` | Example scripts and usage tutorials |
 | **Legacy Workflows** | `spagent/workflows/` | ⚠️ **Deprecated** - Old workflow system |
@@ -63,7 +63,9 @@ from spagent.tools import (
     SegmentationTool,         # 图像分割  
     ObjectDetectionTool,      # 目标检测
     SupervisionTool,          # 监督学习工具
-    YOLOETool                 # YOLO-E检测
+    YOLOETool,                # YOLO-E检测
+    MoondreamTool,            # 视觉问答
+    Pi3Tool                   # 3D重建
 )
 
 # 创建全功能智能体
@@ -121,8 +123,44 @@ result = agent.solve_problem(
 )
 ```
 
+### 5. 专业工具使用 (Advanced Tool Usage)
+
+```python
+from spagent.tools import MoondreamTool, Pi3Tool
+
+# 视觉问答专用智能体
+vqa_tools = [MoondreamTool(use_mock=True)]
+vqa_agent = SPAgent(model=model, tools=vqa_tools)
+result = vqa_agent.solve_problem(
+    "image.jpg", 
+    "这张图片中有什么？描述主要对象和场景"
+)
+
+# 3D重建专用智能体
+reconstruction_tools = [Pi3Tool(use_mock=True)]
+recon_agent = SPAgent(model=model, tools=reconstruction_tools)
+result = recon_agent.solve_problem(
+    "image.jpg",
+    "从这张图片生成3D点云，视角设置为方位角30度，仰角45度"
+)
+
+# 完整分析智能体（包含所有工具）
+full_tools = [
+    DepthEstimationTool(use_mock=True),
+    SegmentationTool(use_mock=True),
+    ObjectDetectionTool(use_mock=True),
+    MoondreamTool(use_mock=True),
+    Pi3Tool(use_mock=True)
+]
+full_agent = SPAgent(model=model, tools=full_tools)
+result = full_agent.solve_problem(
+    "image.jpg",
+    "全面分析这张图片：描述场景内容，检测对象，分析深度，并生成3D重建"
+)
+```
+
 ---
-### 5. 图像数据集评测 (Image Dataset Evaluation)
+### 6. 图像数据集评测 (Image Dataset Evaluation)
 
 本节介绍如何在图像数据集上评测SPAgent的性能。所有数据集都需要先下载并转换为统一的JSONL格式，其中每条数据包含以下标准字段：
 - `id`: 数据样本的唯一标识符
@@ -235,6 +273,12 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 
 ```
 
+#### Pi3（3D点云图）
+```bash
+cd checkpoints/pi3
+wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
+```
+
 ### 4. 部署外部专家服务 (Deploy External Expert Services)
 
 如果要使用真实的专家服务而非mock模式：
@@ -263,8 +307,13 @@ python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --port 20022
 
 # 部署moondream
-python spagent/external_experts/GroundingDINO/grounding_dino_server.py 
+python spagent/external_experts/Moondream/moondream_server.py \
   --port 20024
+
+# 部署pi3
+python spagent/external_experts/Pi3/pi3_server.py \
+  --checkpoint_path checkpoints/pi3/model.safetensors \
+  --port 20030
 ```
 
 ---
@@ -396,6 +445,8 @@ result = agent.solve_problem(
 | `ObjectDetectionTool` | 目标检测 | 基于文本描述检测对象 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
 | `SupervisionTool` | 监督检测 | 通用目标检测和分割 | `image_path`, `task` ("image_det"或"image_seg") |
 | `YOLOETool` | YOLO-E检测 | 自定义类别的高精度检测 | `image_path`, `task`, `class_names` |
+| `MoondreamTool` | 视觉问答 | 基于图像内容回答自然语言问题 | `image_path`, `question` |
+| `Pi3Tool` | 3D重建 | 从单张图像生成3D点云和多视角渲染 | `image_path`, `azimuth_angle`, `elevation_angle` |
 
 ## 🤖 可用模型 (Available Models)
 
@@ -488,7 +539,8 @@ tools = [
 | **SAM2** | 2D | 图像分割 | Segment Anything 模型第二代，交互式或自动分割 |
 | **Supervision** | 2D | 视觉任务辅助工具库 | 用于目标检测、分割结果可视化和后处理 |
 | **GroundingDINO** | 2D | 文本驱动目标检测 | 基于自然语言进行检测和框选 |
-| **Pi3** | 3D | 点云生成与处理 | 将图像或多视角输入转为 3D 表示 |
+| **Moondream** | 2D | 视觉语言理解 | 小型高效的视觉问答模型，支持图像描述和问答 |
+| **Pi3** | 3D | 3D点云重建 | 从单张图像生成3D点云和多视角渲染图像 |
 
 ## 📈 Future Roadmap
 

@@ -6,8 +6,6 @@
 
 ```
 Pi3/
-├── checkpoints/           # 模型权重文件目录
-│   └── model.safetensors  # Pi3模型权重
 ├── pi3                   # 运行代码
 ├── example.py            # 原始Pi3运行代码(参考)
 ├── pi3_server.py         # Flask服务器
@@ -38,8 +36,13 @@ numpy==1.26.4
 
 ```bash
 # 启动服务器(终端1)
-python pi3_server.py
+python pi3_server.py --checkpoint_path spagent/external_experts/checkpoints/pi3/model.safetensors --port 20030
 
 # 使用客户端(终端2)
 python pi3_client.py
+```
+
+### 3. 将生成的ply文件转为可视化的文件
+```bash
+python spagent/utils/ply_to_html_viewer.py  xxx.ply  --output {html文件路径}/xxx.html  --max_points 100000
 ```
