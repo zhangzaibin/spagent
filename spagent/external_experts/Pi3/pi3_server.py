@@ -9,7 +9,11 @@ import argparse
 from flask import Flask, request, jsonify
 from PIL import Image
 import traceback
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互后端
 import matplotlib.pyplot as plt
+# 设置matplotlib兼容模式以避免3D投影问题
+plt.rcParams['figure.max_open_warning'] = 0
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation as R
 from pi3.models.pi3 import Pi3
@@ -115,7 +119,6 @@ def health_check():
             "model_loaded": model is not None,
             "device": str(next(model.parameters()).device) if model is not None else None
         }
-        logger.info(f"健康检查结果：{status}")
         return jsonify(status)
     except Exception as e:
         logger.error(f"健康检查失败：{e}")
@@ -159,8 +162,7 @@ def test():
             with torch.amp.autocast('cuda', dtype=dtype):
                 results = model(imgs_tensor[None])
         
-        logger.info(f"推理成功，输出包含：{list(results.keys())}")
-        logger.info("测试推理完成")
+        logger.info(f"推理成功")
         return jsonify({
             "success": True,
             "message": "测试推理成功",
@@ -221,7 +223,6 @@ def infer():
                 new_w = ((w + patch_size - 1) // patch_size) * patch_size
                 
                 if new_h != h or new_w != w:
-                    logger.info(f"调整图像尺寸从 {h}x{w} 到 {new_h}x{new_w}")
                     image_bgr = cv2.resize(image_bgr, (new_w, new_h))
                 
                 # 转换BGR到RGB用于显示
@@ -367,11 +368,14 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
         indices = np.arange(0, total_points, step)[:max_points_to_visualize]
         points_sample = points_3d[indices]
         colors_sample = colors_3d[indices]
-        logger.info(f"点云子采样：从 {len(points_3d)} 个点中采样了 {max_points_to_visualize} 个点用于可视化（确定性采样）")
+        logger.info(f"点云子采样：从 {len(points_3d)} 个点中采样了 {max_points_to_visualize} 个点用于可视化")
     else:
         points_sample = points_3d
         colors_sample = colors_3d
         logger.info(f"使用全部 {len(points_3d)} 个点进行可视化")
+    
+    # 添加调试信息
+    logger.info(f"点云处理完成: {len(points_sample)} 个点用于可视化")
     
     return points_sample, colors_sample, camera_centers, camera_poses
 
@@ -421,18 +425,56 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     else:
         point_size = 1.0
     
-    # 创建图形
-    fig = plt.figure(figsize=(10, 8), dpi=120)
+    # 创建图形 - 配置兼容模式，使用更大的尺寸和更高的DPI
+    fig = plt.figure(figsize=(12, 10), dpi=150)
     ax = fig.add_subplot(111, projection='3d')
     
-    # 绘制点云
-    ax.scatter(
-        points_cam[:, 0], points_cam[:, 1], points_cam[:, 2],
-        c=colors_sample,
-        s=point_size,
-        alpha=0.8,
-        edgecolors='none'
-    )
+    # 禁用可能导致问题的3D效果，确保matplotlib兼容性
+    ax.computed_zorder = False  # 禁用自动Z序计算
+    
+    # 绘制点云 - 修复matplotlib兼容性问题
+    try:
+        # 确保颜色数据格式正确
+        if colors_sample.shape[-1] == 3:  # RGB
+            # 确保颜色值在正确范围内
+            colors_normalized = np.clip(colors_sample, 0, 1)
+        else:
+            colors_normalized = colors_sample
+        
+        scatter = ax.scatter(
+            points_cam[:, 0], points_cam[:, 1], points_cam[:, 2],
+            c=colors_normalized,
+            s=point_size,
+            alpha=0.8,
+            edgecolors='none',
+            depthshade=True,  # 重新启用深度阴影
+            linewidth=0
+        )
+        
+        # 尝试设置散点的剪切属性（兼容性处理）
+        try:
+            scatter.set_clip_on(False)
+        except (AttributeError, TypeError):
+            # 忽略不支持的属性
+            pass
+            
+    except Exception as e:
+        logger.warning(f"RGB散点绘制失败，尝试单色绘制，原因: {e}")
+        # 降级到基本绘制方法，使用单色
+        try:
+            scatter = ax.scatter(
+                points_cam[:, 0], points_cam[:, 1], points_cam[:, 2],
+                c='steelblue',  # 使用明显的蓝色
+                s=point_size * 2,  # 增大点的大小以确保可见
+                alpha=0.9,
+                edgecolors='darkblue',
+                linewidth=0.1
+            )
+        except Exception as e2:
+            logger.error(f"单色散点绘制也失败: {e2}")
+            # 最后的降级：使用plot3D绘制线条
+            ax.plot3D(points_cam[:, 0], points_cam[:, 1], points_cam[:, 2], 
+                     'bo', markersize=1, alpha=0.5)
     
     # 绘制相机坐标轴（如果需要）
     if show_camera_axes:
@@ -444,9 +486,9 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         # 将相机中心转换到当前相机坐标系
         cam_center_in_view = (R_cam @ cam_center.T).T + t_cam
         
-        # 绘制相机位置（红色球体）
+        # 绘制相机位置（红色球体）- 修复matplotlib兼容性
         ax.scatter(cam_center_in_view[0], cam_center_in_view[1], cam_center_in_view[2], 
-                  c='red', s=80, marker='o', alpha=1.0)
+                  c='red', s=80, marker='o', alpha=1.0, depthshade=False)
         
         # 计算相机坐标系的轴向量
         if cam_pose.shape == (4, 4):
@@ -499,10 +541,17 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         y_min, y_max = points_cam[:, 1].min(), points_cam[:, 1].max()
         z_min, z_max = points_cam[:, 2].min(), points_cam[:, 2].max()
     
-    # 设置视角
+    # 设置视角，添加一些默认偏移以避免完全正视的空白视图
     base_elev = 15.0
     elev = base_elev + elev_angle
     azim = 225.0 + azim_angle
+    
+    # 如果角度导致完全正视或者在特殊位置，稍作调整
+    if abs(elev_angle) < 1e-3 and abs(azim_angle) < 1e-3:
+        # 当两个角度都为0时，稍作调整避免空白视图
+        elev += 5.0  # 稍微向上倾斜
+        azim += 5.0  # 稍微旋转
+    
     ax.view_init(elev=elev, azim=azim)
     
     # 计算边界框
@@ -527,25 +576,71 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     ax.set_zticks([])
     ax.grid(False)
     
-    # 设置背景为白色
+    # 设置背景为白色，但确保点云可见
     ax.xaxis.pane.fill = False
     ax.yaxis.pane.fill = False
     ax.zaxis.pane.fill = False
     ax.xaxis.pane.set_edgecolor('white')
     ax.yaxis.pane.set_edgecolor('white')
     ax.zaxis.pane.set_edgecolor('white')
+    
+    # 设置背景颜色为浅灰色，以便更容易看到点云
+    ax.set_facecolor('lightgray')
+    
+    # 确保3D轴比例相等
+    # ax.set_box_aspect([x_max-x_min, y_max-y_min, z_max-z_min])  # 可能在某些matplotlib版本中不可用
 
-    # 保存为字节流
+    # 保存为字节流，使用更高的DPI和质量
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', 
-               pad_inches=0.03, facecolor='white', edgecolor='none')
-    buf.seek(0)
-    
-    # 编码为base64
-    img_b64 = base64.b64encode(buf.read()).decode('utf-8')
-    
-    plt.close(fig)
-    buf.close()
+    try:
+        # 强制渲染并保存，避免matplotlib兼容性问题
+        try:
+            fig.canvas.draw()  # 强制渲染
+        except Exception as render_e:
+            pass  # 忽略渲染警告
+        
+        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', 
+                   pad_inches=0.05, facecolor='white', edgecolor='none',
+                   transparent=False)
+        buf.seek(0)
+        
+        # 编码为base64
+        img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+        
+    except Exception as e:
+        logger.error(f"保存图片时出错: {e}")
+        # 创建一个简单的错误图片，使用更大的尺寸
+        try:
+            temp_fig = plt.figure(figsize=(8, 6))
+            temp_ax = temp_fig.add_subplot(111)
+            temp_ax.text(0.5, 0.5, f"生成失败:\n{str(e)}", ha='center', va='center', transform=temp_ax.transAxes)
+            temp_ax.set_xticks([])
+            temp_ax.set_yticks([])
+            
+            temp_buf = io.BytesIO()
+            temp_fig.canvas.draw()  # 强制渲染
+            plt.savefig(temp_buf, format='png', dpi=150, bbox_inches='tight')
+            temp_buf.seek(0)
+            img_b64 = base64.b64encode(temp_buf.read()).decode('utf-8')
+            
+            plt.close(temp_fig)
+            temp_buf.close()
+        except Exception as fallback_e:
+            logger.error(f"备用图片生成也失败: {fallback_e}")
+            # 最终降级：返回一个简单的base64字符串表示错误
+            error_msg = f"Image generation failed: {str(e)}"
+            img_b64 = base64.b64encode(error_msg.encode('utf-8')).decode('utf-8')
+            
+    finally:
+        # 确保释放资源
+        try:
+            plt.close(fig)  # 重要：关闭图形以释放内存和避免兼容性问题
+        except:
+            pass
+        try:
+            buf.close()
+        except:
+            pass
     
     return img_b64
 

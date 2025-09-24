@@ -296,11 +296,43 @@ class SPAgent:
                 tool_groups[tool_name] = []
             tool_groups[tool_name].append((i, call))
         
-        # Execute tools in parallel
+        # Execute tools in parallel, but Pi3Tool sequentially to avoid server issues
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_tool = {}
             
+            # Handle Pi3Tool calls sequentially first
+            pi3_calls = []
+            other_calls = {}
+            
             for tool_name, calls in tool_groups.items():
+                if tool_name == 'pi3_tool':
+                    pi3_calls.extend(calls)
+                else:
+                    other_calls[tool_name] = calls
+            
+            # Execute Pi3Tool calls sequentially
+            if pi3_calls:
+                logger.info(f"Executing {len(pi3_calls)} Pi3Tool calls sequentially...")
+                pi3_tool = self.tool_registry.get('pi3_tool')
+                if pi3_tool:
+                    for call_idx, call in pi3_calls:
+                        result = self._safe_tool_call(pi3_tool, call['arguments'])
+                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                        tool_results[result_key] = result
+                        # Add small delay between Pi3Tool calls
+                        import time
+                        time.sleep(1)
+                else:
+                    logger.error("Pi3Tool not found")
+                    for call_idx, call in pi3_calls:
+                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                        tool_results[result_key] = {
+                            "success": False,
+                            "error": "Pi3Tool not found"
+                        }
+            
+            # Execute other tools in parallel as before
+            for tool_name, calls in other_calls.items():
                 tool = self.tool_registry.get(tool_name)
                 if tool is None:
                     logger.error(f"Tool not found: {tool_name}")
@@ -316,17 +348,17 @@ class SPAgent:
                     future = executor.submit(self._safe_tool_call, tool, call['arguments'])
                     future_to_tool[future] = (tool_name, call_idx)
             
-            # Collect results
+            # Collect results from parallel execution
             for future in as_completed(future_to_tool):
                 tool_name, call_idx = future_to_tool[future]
                 try:
                     result = future.result()
                     # Use unique key for multiple calls to same tool
-                    result_key = tool_name if len([t for t in tool_groups[tool_name]]) == 1 else f"{tool_name}_{call_idx}"
+                    result_key = tool_name if len([t for t in other_calls.get(tool_name, [])]) == 1 else f"{tool_name}_{call_idx}"
                     tool_results[result_key] = result
                 except Exception as e:
                     logger.error(f"Tool execution failed for {tool_name}: {e}")
-                    result_key = tool_name if len([t for t in tool_groups[tool_name]]) == 1 else f"{tool_name}_{call_idx}"
+                    result_key = tool_name if len([t for t in other_calls.get(tool_name, [])]) == 1 else f"{tool_name}_{call_idx}"
                     tool_results[result_key] = {
                         "success": False,
                         "error": str(e)

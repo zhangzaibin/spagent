@@ -192,10 +192,8 @@ class Pi3Client:
             if azimuth_angle is not None and elevation_angle is not None:
                 request_data["azimuth_angle"] = azimuth_angle
                 request_data["elevation_angle"] = elevation_angle
-                logger.info(f"使用自定义角度: 方位角={azimuth_angle}°, 仰角={elevation_angle}°")
             
             # 发送请求
-            logger.info(f"正在发送 {len(encoded_images)} 张图片进行3D重建...")
             response = self.session.post(
                 f"{self.server_url}/infer",
                 json=request_data
@@ -204,7 +202,6 @@ class Pi3Client:
             if response.status_code == 200:
                 result = response.json()
                 if result.get("success"):
-                    logger.info("3D重建成功！")
                     return result
                 else:
                     logger.error(f"3D重建失败：{result.get('error', '未知错误')}")

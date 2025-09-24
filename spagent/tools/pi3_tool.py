@@ -1,0 +1,342 @@
+"""
+Pi3 3D Reconstruction Tool
+
+This module contains the Pi3Tool that wraps
+Pi3 3D reconstruction functionality for the SPAgent system.
+"""
+
+import sys
+import logging
+from pathlib import Path
+from typing import Dict, Any, Optional, List
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+from core.tool import Tool
+
+logger = logging.getLogger(__name__)
+
+
+class Pi3Tool(Tool):
+    """Tool for 3D reconstruction from single image using Pi3"""
+    
+    def __init__(self, use_mock: bool = True, server_url: str = "http://localhost:20030"):
+        """
+        Initialize Pi3 tool
+        
+        Args:
+            use_mock: Whether to use mock client for testing
+            server_url: URL of the Pi3 server
+        """
+        super().__init__(
+            name="pi3_tool",
+            description="Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles."
+        )
+        
+        self.use_mock = use_mock
+        self.server_url = server_url
+        self._client = None
+        
+        # Initialize client
+        self._init_client()
+    
+    def _init_client(self):
+        """Initialize the Pi3 client"""
+        if self.use_mock:
+            try:
+                from external_experts.Pi3.mock_pi3_service import MockPi3Service
+                self._client = MockPi3Service()
+                logger.info("Using mock Pi3 service")
+            except ImportError:
+                # Create a simple mock client
+                class SimpleMockPi3:
+                    def infer_from_images(self, image_paths, azimuth_angle=None, elevation_angle=None, **kwargs):
+                        """Mock 3D reconstruction"""
+                        import os
+                        import base64
+                        from PIL import Image, ImageDraw
+                        import io
+                        import numpy as np
+                        
+                        # Generate mock result based on input
+                        # Use first image from the list for naming
+                        first_image = image_paths[0] if image_paths else "mock"
+                        image_name = Path(first_image).stem
+                        
+                        # Create a mock rendered image with higher resolution
+                        mock_img = Image.new('RGB', (1024, 1024), color='lightgray')
+                        draw = ImageDraw.Draw(mock_img)
+                        
+                        # Draw some simple 3D-like shapes to simulate rendering
+                        draw.ellipse([200, 200, 800, 800], fill='blue', outline='darkblue', width=3)
+                        draw.rectangle([400, 300, 700, 600], fill='red', outline='darkred', width=3)
+                        draw.polygon([(300, 150), (500, 100), (700, 150), (600, 250), (400, 250)], 
+                                   fill='green', outline='darkgreen')
+                        
+                        # Create result first
+                        result = {
+                            "success": True,
+                            "ply_filename": f"result_{image_name}.ply",
+                            "points_count": 50000,
+                            "camera_views": []
+                        }
+                        
+                        # Add angle information as text with larger font
+                        if azimuth_angle is not None and elevation_angle is not None:
+                            # Draw text background
+                            draw.rectangle([20, 20, 280, 120], fill='white', outline='black', width=2)
+                            draw.text((30, 30), f"Azimuth: {azimuth_angle}°", fill='black')
+                            draw.text((30, 50), f"Elevation: {elevation_angle}°", fill='black')
+                            draw.text((30, 70), "Pi3 Mock Render", fill='gray')
+                            draw.text((30, 90), f"Points: {result['points_count']}", fill='blue')
+                        
+                        # Add some visual noise to make it look more realistic
+                        for i in range(100):
+                            x, y = np.random.randint(50, 974, 2)
+                            draw.ellipse([x-2, y-2, x+2, y+2], fill=(
+                                np.random.randint(100, 255),
+                                np.random.randint(100, 255), 
+                                np.random.randint(100, 255)
+                            ))
+                        
+                        # Convert to base64
+                        img_buffer = io.BytesIO()
+                        mock_img.save(img_buffer, format='PNG')
+                        img_base64 = base64.b64encode(img_buffer.getvalue()).decode('utf-8')
+                        
+                        # Generate mock camera views with the provided angles
+                        if azimuth_angle is not None and elevation_angle is not None:
+                            result["camera_views"] = [{
+                                "camera": 1,
+                                "view": f"custom_azim_{azimuth_angle}_elev_{elevation_angle}",
+                                "azimuth_angle": azimuth_angle,
+                                "elevation_angle": elevation_angle,
+                                "image": img_base64
+                            }]
+                        else:
+                            # This should not happen as angles are now required
+                            result["camera_views"] = [{
+                                "camera": 1,
+                                "view": "default_view",
+                                "azimuth_angle": 0,
+                                "elevation_angle": 0,
+                                "image": img_base64
+                            }]
+                        
+                        return result
+                    
+                    def health_check(self):
+                        return {
+                            "status": "健康",
+                            "model_loaded": True,
+                            "device": "mock_device"
+                        }
+                
+                self._client = SimpleMockPi3()
+                logger.info("Using simple mock Pi3 service")
+        else:
+            try:
+                from external_experts.Pi3.pi3_client import Pi3Client
+                self._client = Pi3Client(server_url=self.server_url)
+                logger.info(f"Using real Pi3 service at {self.server_url}")
+            except ImportError as e:
+                logger.error(f"Failed to import real Pi3 client: {e}")
+                raise
+    
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        """Get tool parameter schema"""
+        return {
+            "type": "object",
+            "properties": {
+                "image_path": {
+                    "type": "string",
+                    "description": "The path to the input image for 3D reconstruction. Can be a single image or the first image in a sequence."
+                },
+                "azimuth_angle": {
+                    "type": "number",
+                    "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Negative values rotate left, positive values rotate right."
+                },
+                "elevation_angle": {
+                    "type": "number", 
+                    "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Negative values look down, positive values look up."
+                }
+            },
+            "required": ["image_path", "azimuth_angle", "elevation_angle"]
+        }
+    
+    def call(
+        self, 
+        image_path: str,
+        azimuth_angle: float,
+        elevation_angle: float
+    ) -> Dict[str, Any]:
+        """
+        Execute 3D reconstruction
+        
+        Args:
+            image_path: Path to the input image for 3D reconstruction
+            azimuth_angle: Azimuth angle for custom viewpoint (required)
+            elevation_angle: Elevation angle for custom viewpoint (required)
+            
+        Returns:
+            3D reconstruction result dictionary
+        """
+        try:
+            # Validate image path
+            if not image_path:
+                return {
+                    "success": False,
+                    "error": "image_path is required"
+                }
+            
+            logger.info(f"Running Pi3 3D reconstruction on image: {image_path}")
+            
+            # Check if image exists
+            if not Path(image_path).exists():
+                return {
+                    "success": False,
+                    "error": f"Image file not found: {image_path}"
+                }
+            
+            # Convert angles to float and validate
+            try:
+                azimuth_angle = float(azimuth_angle)
+                elevation_angle = float(elevation_angle)
+            except (ValueError, TypeError) as e:
+                return {
+                    "success": False,
+                    "error": f"Invalid angle values: {e}"
+                }
+            
+            # Validate angle parameters (both are now required)
+            if not -180 <= azimuth_angle <= 180:
+                return {
+                    "success": False,
+                    "error": "azimuth_angle must be between -180 and 180 degrees"
+                }
+            
+            if not -90 <= elevation_angle <= 90:
+                return {
+                    "success": False,
+                    "error": "elevation_angle must be between -90 and 90 degrees"
+                }
+            
+            logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
+            
+            # Execute 3D reconstruction with single image
+            # Note: Pi3Client expects image_paths (list) even for single image
+            result = self._client.infer_from_images(
+                image_paths=[image_path],  # Convert single path to list
+                conf_threshold=0.1,
+                rtol=0.03,
+                generate_views=True,
+                use_filename=True,
+                azimuth_angle=azimuth_angle,
+                elevation_angle=elevation_angle
+            )
+            
+            if result and result.get('success'):
+                logger.info("Pi3 3D reconstruction completed successfully")
+                
+                # Extract key information
+                points_count = result.get('points_count', 0)
+                ply_filename = result.get('ply_filename', 'result.ply')
+                camera_views = result.get('camera_views', [])
+                
+                # Save generated images and get output path
+                output_path = self._save_generated_images(result, image_path)
+                
+                response = {
+                    "success": True,
+                    "result": result,
+                    "points_count": points_count,
+                    "ply_filename": ply_filename,
+                    "view_count": len(camera_views),
+                    "azimuth_angle": azimuth_angle,
+                    "elevation_angle": elevation_angle,
+                    "view_type": "custom_angle",
+                    "output_path": output_path  # This is what SPAgent looks for
+                }
+                
+                return response
+            else:
+                error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                logger.error(f"Pi3 3D reconstruction failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": f"Pi3 3D reconstruction failed: {error_msg}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Pi3 tool error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _save_generated_images(self, result: Dict[str, Any], image_path: str) -> Optional[str]:
+        """
+        Save generated images from Pi3 result and return the path to the first saved image
+        
+        Args:
+            result: Pi3 reconstruction result
+            image_path: Original input image path for naming
+            
+        Returns:
+            Path to the first saved image, or None if no images were saved
+        """
+        try:
+            import base64
+            import os
+            
+            camera_views = result.get('camera_views', [])
+            if not camera_views:
+                logger.warning("No camera views found in Pi3 result")
+                return None
+            
+            # Create output directory
+            output_dir = "outputs"
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Generate base name from input image
+            input_name = Path(image_path).stem
+            
+            saved_images = []
+            
+            # Save all generated images
+            for i, view_data in enumerate(camera_views):
+                try:
+                    camera = view_data.get("camera", 1)
+                    view_name = view_data.get("view", f"view_{i}")
+                    azimuth = view_data.get("azimuth_angle", 0)
+                    elevation = view_data.get("elevation_angle", 0)
+                    
+                    # Debug: log view data info
+                    # Create filename with input image name, angles
+                    img_filename = f"pi3_{input_name}_azim{azimuth}_elev{elevation}.png"
+                    img_path = os.path.join(output_dir, img_filename)
+                    
+                    # Decode and save image
+                    if "image" in view_data:
+                        img_data = base64.b64decode(view_data["image"])
+                        with open(img_path, 'wb') as f:
+                            f.write(img_data)
+                        saved_images.append(img_path)
+                        logger.info(f"Saved Pi3 generated image: {img_path}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to save camera view {i}: {e}")
+                    continue
+            
+            # Return the first saved image path (SPAgent expects this)
+            if saved_images:
+                return saved_images[0]
+            else:
+                logger.warning("No images were successfully saved")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error saving Pi3 generated images: {e}")
+            return None
