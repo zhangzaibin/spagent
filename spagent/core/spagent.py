@@ -296,39 +296,39 @@ class SPAgent:
                 tool_groups[tool_name] = []
             tool_groups[tool_name].append((i, call))
         
-        # Execute tools in parallel, but Pi3Tool sequentially to avoid server issues
+        # Execute tools in parallel, but Pi3Tool and Pi3MultiimgTool sequentially to avoid server issues
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_tool = {}
             
-            # Handle Pi3Tool calls sequentially first
+            # Handle Pi3Tool and Pi3MultiimgTool calls sequentially first
             pi3_calls = []
             other_calls = {}
             
             for tool_name, calls in tool_groups.items():
-                if tool_name == 'pi3_tool':
+                if tool_name in ['pi3_tool', 'pi3_multiimg_tool']:
                     pi3_calls.extend(calls)
                 else:
                     other_calls[tool_name] = calls
             
-            # Execute Pi3Tool calls sequentially
+            # Execute Pi3Tool and Pi3MultiimgTool calls sequentially
             if pi3_calls:
-                logger.info(f"Executing {len(pi3_calls)} Pi3Tool calls sequentially...")
-                pi3_tool = self.tool_registry.get('pi3_tool')
-                if pi3_tool:
-                    for call_idx, call in pi3_calls:
-                        result = self._safe_tool_call(pi3_tool, call['arguments'])
-                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                logger.info(f"Executing {len(pi3_calls)} Pi3 tool calls sequentially...")
+                for call_idx, call in pi3_calls:
+                    tool_name = call['name']
+                    tool = self.tool_registry.get(tool_name)
+                    if tool:
+                        result = self._safe_tool_call(tool, call['arguments'])
+                        result_key = tool_name if len(pi3_calls) == 1 else f"{tool_name}_{call_idx}"
                         tool_results[result_key] = result
-                        # Add small delay between Pi3Tool calls
+                        # Add small delay between Pi3 tool calls
                         import time
                         time.sleep(1)
-                else:
-                    logger.error("Pi3Tool not found")
-                    for call_idx, call in pi3_calls:
-                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                    else:
+                        logger.error(f"{tool_name} not found")
+                        result_key = tool_name if len(pi3_calls) == 1 else f"{tool_name}_{call_idx}"
                         tool_results[result_key] = {
                             "success": False,
-                            "error": "Pi3Tool not found"
+                            "error": f"{tool_name} not found"
                         }
             
             # Execute other tools in parallel as before
