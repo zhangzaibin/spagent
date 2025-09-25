@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 class Pi3Client:
     """Pi3 3D重建客户端"""
     
-    def __init__(self, server_url: str = "http://localhost:5004"):
+    def __init__(self, server_url: str = "http://localhost:20030"):
         """
         初始化客户端
         
         Args:
-            server_url: 服务器地址，如 'http://localhost:5004'
+            server_url: 服务器地址，如 'http://localhost:20030'
         """
         self.server_url = server_url.rstrip('/')
         self.session = requests.Session()
@@ -140,7 +140,9 @@ class Pi3Client:
                          conf_threshold: float = 0.1,
                          rtol: float = 0.03,
                          generate_views: bool = True,
-                         use_filename: bool = True) -> Optional[Dict[str, Any]]:
+                         use_filename: bool = True,
+                         azimuth_angle: Optional[float] = None,
+                         elevation_angle: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
         从图片列表进行3D重建
         
@@ -150,6 +152,8 @@ class Pi3Client:
             rtol: 深度边缘检测阈值
             generate_views: 是否生成多视角图片
             use_filename: 是否使用文件名来命名输出文件
+            azimuth_angle: 自定义方位角（左右旋转），单位：度。如果提供，将生成该角度的视角图片
+            elevation_angle: 自定义仰角（上下旋转），单位：度。如果提供，将生成该角度的视角图片
             
         Returns:
             重建结果字典，包含PLY文件和多视角图片
@@ -184,8 +188,12 @@ class Pi3Client:
             if use_filename and image_names:
                 request_data["image_names"] = image_names
             
+            # 如果提供了自定义角度，添加到请求数据中
+            if azimuth_angle is not None and elevation_angle is not None:
+                request_data["azimuth_angle"] = azimuth_angle
+                request_data["elevation_angle"] = elevation_angle
+            
             # 发送请求
-            logger.info(f"正在发送 {len(encoded_images)} 张图片进行3D重建...")
             response = self.session.post(
                 f"{self.server_url}/infer",
                 json=request_data
@@ -194,7 +202,6 @@ class Pi3Client:
             if response.status_code == 200:
                 result = response.json()
                 if result.get("success"):
-                    logger.info("3D重建成功！")
                     return result
                 else:
                     logger.error(f"3D重建失败：{result.get('error', '未知错误')}")
@@ -215,7 +222,9 @@ class Pi3Client:
                         conf_threshold: float = 0.1,
                         rtol: float = 0.03,
                         generate_views: bool = True,
-                        max_views_per_camera: int = 4) -> Optional[Dict[str, Any]]:
+                        max_views_per_camera: int = 4,
+                        azimuth_angle: Optional[float] = None,
+                        elevation_angle: Optional[float] = None) -> Optional[Dict[str, Any]]:
         """
         从视频文件进行3D重建
         
@@ -225,7 +234,9 @@ class Pi3Client:
             conf_threshold: 置信度阈值
             rtol: 深度边缘检测阈值
             generate_views: 是否生成多视角图片
-            max_views_per_camera: 每个相机最多生成的视角图片数量
+            max_views_per_camera: 每个相机最多生成的视角图片数量（仅在未提供自定义角度时使用）
+            azimuth_angle: 自定义方位角（左右旋转），单位：度。如果提供，将生成该角度的视角图片
+            elevation_angle: 自定义仰角（上下旋转），单位：度。如果提供，将生成该角度的视角图片
             
         Returns:
             重建结果字典，包含PLY文件和多视角图片
@@ -244,9 +255,16 @@ class Pi3Client:
                 "conf_threshold": conf_threshold,
                 "rtol": rtol,
                 "generate_views": generate_views,
-                "max_views_per_camera": max_views_per_camera,  # 添加视角限制参数
                 "image_names": [video_name]  # 使用视频名称作为文件名
             }
+            
+            # 如果提供了自定义角度，添加到请求数据中，否则使用max_views_per_camera
+            if azimuth_angle is not None and elevation_angle is not None:
+                request_data["azimuth_angle"] = azimuth_angle
+                request_data["elevation_angle"] = elevation_angle
+                logger.info(f"使用自定义角度: 方位角={azimuth_angle}°, 仰角={elevation_angle}°")
+            else:
+                request_data["max_views_per_camera"] = max_views_per_camera  # 添加视角限制参数
             
             # 发送请求
             logger.info(f"正在发送 {len(encoded_frames)} 帧进行3D重建...")
@@ -399,50 +417,80 @@ if __name__ == "__main__":
                 logger.error("单张图片结果保存失败")
         else:
             logger.error("单张图片3D重建失败")
+        
+        # 4. 测试自定义角度
+        logger.info("\n=== 测试自定义角度生成 ===")
+        custom_result = client.infer_from_images(
+            image_paths=[single_image_path],
+            conf_threshold=0.1,
+            rtol=0.03,
+            generate_views=True,
+            azimuth_angle=0,  # 左右转
+            elevation_angle=10  # 上下转
+        )
+        
+        if custom_result:
+            logger.info("自定义角度3D重建成功！")
+            logger.info(f"- 点云数量: {custom_result.get('points_count', '未知')}")
+            logger.info(f"- PLY文件名: {custom_result.get('ply_filename', '未知')}")
+            logger.info(f"- 生成视角数: {len(custom_result.get('camera_views', []))}")
+            
+            # 打印角度信息
+            for view in custom_result.get('camera_views', []):
+                if 'azimuth_angle' in view and 'elevation_angle' in view:
+                    logger.info(f"- 视角角度: 方位角={view['azimuth_angle']}°, 仰角={view['elevation_angle']}°")
+            
+            # 保存结果
+            if client.save_results(custom_result, "outputs/custom_angle"):
+                logger.info("自定义角度结果保存成功！")
+            else:
+                logger.error("自定义角度结果保存失败")
+        else:
+            logger.error("自定义角度3D重建失败")
     else:
         logger.warning("没有找到可用的测试图片")
         logger.info("可用的测试图片路径：")
         for test_image in test_images:
             logger.info(f"  - {test_image}")
     
-    # # 4. 处理视频文件
-    # logger.info("\n=== 处理视频文件 ===")
+    # 4. 处理视频文件
+    logger.info("\n=== 处理视频文件 ===")
     
-    # # 检查是否有可用的测试视频
-    # test_videos = ["assets/cartoon_horse.mp4"]
+    # 检查是否有可用的测试视频
+    test_videos = ["assets/cartoon_horse.mp4"]
     
-    # video_path = None
-    # for test_video in test_videos:
-    #     if os.path.exists(test_video):
-    #         video_path = test_video
-    #         break
+    video_path = None
+    for test_video in test_videos:
+        if os.path.exists(test_video):
+            video_path = test_video
+            break
     
-    # if video_path:
-    #     logger.info(f"使用测试视频：{video_path}")
-    #     video_result = client.infer_from_video(
-    #         video_path=video_path,
-    #         interval=10,  # 每10帧提取一帧
-    #         conf_threshold=0.1,
-    #         rtol=0.03,
-    #         generate_views=True,
-    #         max_views_per_camera=4  # 每个相机最多4张视角图
-    #     )
+    if video_path:
+        logger.info(f"使用测试视频：{video_path}")
+        video_result = client.infer_from_video(
+            video_path=video_path,
+            interval=10,  # 每10帧提取一帧
+            conf_threshold=0.1,
+            rtol=0.03,
+            generate_views=True,
+            max_views_per_camera=4  # 每个相机最多4张视角图
+        )
         
-    #     if video_result:
-    #         logger.info("视频3D重建成功！")
-    #         logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
-    #         logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
-    #         logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
+        if video_result:
+            logger.info("视频3D重建成功！")
+            logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
+            logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
+            logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
             
-    #         # 保存结果
-    #         if client.save_results(video_result, "outputs/video"):
-    #             logger.info("视频重建结果保存成功！")
-    #         else:
-    #             logger.error("视频重建结果保存失败")
-    #     else:
-    #         logger.error("视频3D重建失败")
-    # else:
-    #     logger.warning("没有找到可用的测试视频")
-    #     logger.info("可用的测试视频路径：")
-    #     for test_video in test_videos:
-    #         logger.info(f"  - {test_video}")
+            # 保存结果
+            if client.save_results(video_result, "outputs/video"):
+                logger.info("视频重建结果保存成功！")
+            else:
+                logger.error("视频重建结果保存失败")
+        else:
+            logger.error("视频3D重建失败")
+    else:
+        logger.warning("没有找到可用的测试视频")
+        logger.info("可用的测试视频路径：")
+        for test_video in test_videos:
+            logger.info(f"  - {test_video}")
