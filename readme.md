@@ -164,6 +164,13 @@ python dataset/create_cvbench_sample.py
 python evaluate_img.py --data_path dataset/cvbench_data.jsonl --max_samples 30 --max_workers 4 --image_base_path dataset --model gpt-4o-mini
 ```
 
+#### 3. ERQA數據集
+```bash
+# 第一步，下载ERQA原始数据（先保存tfrecord数据到dataset文件夹）
+# 数据集地址：https://github.com/embodiedreasoning/ERQA/blob/main/data/erqa.tfrecord
+python  python spagent/utils/download_erqa.py
+```
+
 ## 🛠️ 安装和配置 (Installation & Setup)
 
 ### 1. 环境准备 (Environment Setup)
