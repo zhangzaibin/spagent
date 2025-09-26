@@ -82,7 +82,7 @@ def convert_erqa_to_conversations():
                         # 生成文件名
                         filename = f"ERQA_{i:04d}.jpg"
                         filepath = os.path.join(images_dir, filename)
-                        relative_path = f"erqa_images1/{filename}"
+                        relative_path = f"ERQA_images/{filename}"
 
                         # 保存图片
                         img.save(filepath, 'JPEG')
@@ -106,7 +106,7 @@ def convert_erqa_to_conversations():
                                 
                                 filename = f"ERQA_{i:04d}_image_{j}.jpg"
                                 filepath = os.path.join(images_dir, filename)
-                                relative_path = f"erqa_images1/{filename}"
+                                relative_path = f"ERQA_images/{filename}"
                                 
                                 img.save(filepath, 'JPEG')
                                 img.close()

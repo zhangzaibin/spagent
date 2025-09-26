@@ -338,7 +338,7 @@ def infer_video():
 if __name__ == '__main__':
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='Grounding DINO Server')
-    parser.add_argument('--model_path', type=str, default='checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth',
+    parser.add_argument('--checkpoint_path', type=str, default='checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth',
                         help='Path to Grounding DINO model checkpoint (default: checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth)')
     parser.add_argument('--port', type=int, default=20022,
                         help='Port to run the server on (default: 20022)')
@@ -346,11 +346,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     logger.info("正在启动Grounding DINO服务器...")
-    logger.info(f"模型路径: {args.model_path}")
+    logger.info(f"模型路径: {args.checkpoint_path}")
     logger.info(f"服务端口: {args.port}")
     
     # 加载指定模型
-    if not load_grounding_dino_model(args.model_path):
+    if not load_grounding_dino_model(args.checkpoint_path):
         logger.error("无法启动服务器：模型加载失败")
         exit(1)
     

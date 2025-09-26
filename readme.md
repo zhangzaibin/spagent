@@ -274,7 +274,7 @@ python spagent/external_experts/SAM2/sam2_server.py \
 export HF_ENDPOINT=https://hf-mirror.com
 
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
-  --model_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
+  --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
 
 # 部署moondream
