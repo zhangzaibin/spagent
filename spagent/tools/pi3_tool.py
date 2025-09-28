@@ -151,8 +151,8 @@ class Pi3Tool(Tool):
             "type": "object",
             "properties": {
                 "image_path": {
-                    "type": "string",
-                    "description": "The path to the input image for 3D reconstruction. Can be a single image or the first image in a sequence."
+                    "type": "list",
+                    "description": "The list of the path to the input images for 3D reconstruction."
                 },
                 "azimuth_angle": {
                     "type": "number",
@@ -168,7 +168,7 @@ class Pi3Tool(Tool):
     
     def call(
         self, 
-        image_path: str,
+        image_path: List[str],
         azimuth_angle: float,
         elevation_angle: float
     ) -> Dict[str, Any]:
@@ -176,7 +176,7 @@ class Pi3Tool(Tool):
         Execute 3D reconstruction
         
         Args:
-            image_path: Path to the input image for 3D reconstruction
+            image_path: List of paths to the input images for 3D reconstruction
             azimuth_angle: Azimuth angle for custom viewpoint (required)
             elevation_angle: Elevation angle for custom viewpoint (required)
             
@@ -184,21 +184,22 @@ class Pi3Tool(Tool):
             3D reconstruction result dictionary
         """
         try:
-            # Validate image path
-            if not image_path:
+            # Validate image path list
+            if not image_path or len(image_path) == 0:
                 return {
                     "success": False,
-                    "error": "image_path is required"
+                    "error": "image_path list is required and cannot be empty"
                 }
             
-            logger.info(f"Running Pi3 3D reconstruction on image: {image_path}")
+            logger.info(f"Running Pi3 3D reconstruction on images: {image_path}")
             
-            # Check if image exists
-            if not Path(image_path).exists():
-                return {
-                    "success": False,
-                    "error": f"Image file not found: {image_path}"
-                }
+            # Check if all images exist
+            for img_path in image_path:
+                if not Path(img_path).exists():
+                    return {
+                        "success": False,
+                        "error": f"Image file not found: {img_path}"
+                    }
             
             # Convert angles to float and validate
             try:
@@ -225,10 +226,9 @@ class Pi3Tool(Tool):
             
             logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
             
-            # Execute 3D reconstruction with single image
-            # Note: Pi3Client expects image_paths (list) even for single image
+            # Execute 3D reconstruction with image list
             result = self._client.infer_from_images(
-                image_paths=[image_path],  # Convert single path to list
+                image_paths=image_path,  # Pass the list directly
                 conf_threshold=0.1,
                 rtol=0.03,
                 generate_views=True,
@@ -246,7 +246,8 @@ class Pi3Tool(Tool):
                 camera_views = result.get('camera_views', [])
                 
                 # Save generated images and get output path
-                output_path = self._save_generated_images(result, image_path)
+                # Use first image path for naming consistency
+                output_path = self._save_generated_images(result, image_path[0])
                 
                 response = {
                     "success": True,
@@ -257,6 +258,7 @@ class Pi3Tool(Tool):
                     "azimuth_angle": azimuth_angle,
                     "elevation_angle": elevation_angle,
                     "view_type": "custom_angle",
+                    "input_images_count": len(image_path),
                     "output_path": output_path  # This is what SPAgent looks for
                 }
                 

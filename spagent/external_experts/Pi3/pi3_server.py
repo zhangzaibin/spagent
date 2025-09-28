@@ -329,11 +329,11 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
         imgs_rgb_tensor: RGB图像张量
         
     Returns:
-        tuple: (points_sample, colors_sample, camera_centers, camera_poses, max_range)
+        tuple: (points_sample, colors_sample, camera_centers, camera_poses)
     """
     # 获取点云和相机位置
     points_3d = results['points'][0][masks].cpu().numpy()
-    camera_poses = results['camera_poses'][0].cpu().numpy()
+    camera_poses = results['camera_poses'][0].cpu().numpy()  # 这是camera-to-world矩阵
     colors_3d = imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu().numpy()  # 使用RGB颜色数据
     
     # 应用官方的场景旋转 (Y轴100°, X轴155°)
@@ -342,17 +342,12 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
     official_rotation = r_x * r_y
     points_3d = official_rotation.apply(points_3d)
     
-    # 提取相机位置并应用官方旋转
+    # 提取相机位置 - Pi3输出的是camera-to-world矩阵
     camera_centers = []
     for pose in camera_poses:
-        if pose.shape == (4, 4):
-            R_cam = pose[:3, :3]
-            t_cam = pose[:3, 3]
-        else:
-            R_cam = pose[:, :3]
-            t_cam = pose[:, 3]
-        
-        camera_center = -R_cam.T @ t_cam
+        # Pi3输出的camera_poses是camera-to-world变换矩阵
+        # 对于camera-to-world矩阵，相机中心就是平移部分
+        camera_center = pose[:3, 3]  # 直接取平移部分作为相机中心
         camera_center = official_rotation.apply(camera_center.reshape(1, -1))[0]
         camera_centers.append(camera_center)
     
@@ -380,8 +375,139 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
     return points_sample, colors_sample, camera_centers, camera_poses
 
 
+def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_cam_idx, 
+                              view_R_cam, view_t_cam, max_range, show_cameras=True):
+    """
+    专门的相机可视化函数，支持绘制多个相机的位置和位姿
+    
+    Args:
+        ax: matplotlib 3D轴对象
+        camera_centers: 所有相机的中心位置数组 (N, 3) - 已应用官方旋转
+        camera_poses: 所有相机的姿态矩阵数组 (N, 4, 4) - camera-to-world矩阵
+        current_view_cam_idx: 当前视角相机的索引
+        view_R_cam: 当前视角的旋转矩阵 (world-to-camera)
+        view_t_cam: 当前视角的平移向量
+        max_range: 场景的最大范围，用于计算坐标轴长度
+        show_cameras: 是否显示相机可视化
+        
+    Returns:
+        tuple: (x_min, x_max, y_min, y_max, z_min, z_max) 包含相机后的边界范围
+    """
+    if not show_cameras:
+        return None, None, None, None, None, None
+    
+    # 应用官方旋转
+    r_y = R.from_euler('y', 100, degrees=True)
+    r_x = R.from_euler('x', 155, degrees=True)
+    official_rotation = r_x * r_y
+    
+    # 计算坐标轴的长度
+    axis_length = max_range * 0.12
+    
+    # 用于边界计算的列表
+    all_x_coords = []
+    all_y_coords = []
+    all_z_coords = []
+    
+    # 为不同相机定义颜色
+    camera_colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
+    
+    # 遍历所有相机
+    for cam_idx, (cam_center, cam_pose) in enumerate(zip(camera_centers, camera_poses)):
+        # 选择相机颜色
+        cam_color = camera_colors[cam_idx % len(camera_colors)]
+        
+        # 将相机中心转换到当前视图坐标系
+        cam_center_in_view = (view_R_cam @ cam_center.T).T + view_t_cam
+        
+        # Pi3输出的是camera-to-world矩阵，提取旋转部分
+        R_cam2world = cam_pose[:3, :3]
+        
+        # 应用官方旋转到相机姿态
+        R_cam2world_rotated = official_rotation.as_matrix() @ R_cam2world
+        
+        # 转换到当前视图坐标系
+        R_pose_in_view = view_R_cam @ R_cam2world_rotated
+        
+        # 绘制相机锥形（视锥）
+        frustum_length = axis_length * 0.8  # 锥形长度（减小）
+        frustum_width = frustum_length * 0.3   # 锥形底面宽度的一半（减小）
+        frustum_height = frustum_length * 0.25  # 锥形底面高度的一半（减小）
+        
+        # 相机的朝向（-Z方向，因为相机看向负Z轴）
+        forward = -R_pose_in_view[:, 2]  # 相机朝向
+        right = R_pose_in_view[:, 0]     # 相机右方向
+        up = -R_pose_in_view[:, 1]       # 相机上方向（注意OpenCV坐标系Y向下）
+        
+        # 计算锥形的四个角点（在锥形底面，远离相机）
+        far_center = cam_center_in_view + forward * frustum_length
+        
+        # 锥形底面的四个角点（大面在远处）
+        corner1 = far_center + right * frustum_width + up * frustum_height     # 右上
+        corner2 = far_center - right * frustum_width + up * frustum_height     # 左上  
+        corner3 = far_center - right * frustum_width - up * frustum_height     # 左下
+        corner4 = far_center + right * frustum_width - up * frustum_height     # 右下
+        
+        # 线条粗细和透明度
+        line_width = 2 if cam_idx == current_view_cam_idx else 1
+        alpha = 0.8 if cam_idx == current_view_cam_idx else 0.6
+        
+        # 绘制从相机中心到四个角点的线条（锥形边缘）
+        for corner in [corner1, corner2, corner3, corner4]:
+            ax.plot([cam_center_in_view[0], corner[0]],
+                   [cam_center_in_view[1], corner[1]],
+                   [cam_center_in_view[2], corner[2]], 
+                   color=cam_color, linewidth=line_width, alpha=alpha)
+        
+        # 绘制锥形底面的矩形框架
+        corners = [corner1, corner2, corner3, corner4, corner1]  # 闭合矩形
+        for i in range(len(corners) - 1):
+            ax.plot([corners[i][0], corners[i+1][0]],
+                   [corners[i][1], corners[i+1][1]],
+                   [corners[i][2], corners[i+1][2]], 
+                   color=cam_color, linewidth=line_width, alpha=alpha)
+        
+        # 绘制相机中心点
+        marker_size = 60 if cam_idx == current_view_cam_idx else 40
+        ax.scatter(cam_center_in_view[0], cam_center_in_view[1], cam_center_in_view[2], 
+                  c=cam_color, s=marker_size, marker='o', alpha=1.0, depthshade=False,
+                  edgecolors='black', linewidth=1)
+        
+        # 添加相机编号标签
+        label_pos = cam_center_in_view + np.array([0, 0, axis_length * 0.3])
+        marker = '*' if cam_idx == current_view_cam_idx else ''  # 当前视角相机加星号标记
+        ax.text(label_pos[0], label_pos[1], label_pos[2], 
+               f'C{cam_idx+1}{marker}', fontsize=6, color='black', weight='bold',
+               bbox=dict(boxstyle="round,pad=0.1", facecolor=cam_color, alpha=0.6))
+        
+        # 收集边界坐标（包括锥形的所有角点）
+        coords_to_check = [
+            cam_center_in_view,
+            corner1, corner2, corner3, corner4,
+            far_center
+        ]
+        
+        for coord in coords_to_check:
+            all_x_coords.append(coord[0])
+            all_y_coords.append(coord[1])
+            all_z_coords.append(coord[2])
+    
+    # 计算包含所有相机的边界
+    if all_x_coords:
+        x_min_cam = min(all_x_coords)
+        x_max_cam = max(all_x_coords)
+        y_min_cam = min(all_y_coords)
+        y_max_cam = max(all_y_coords)
+        z_min_cam = min(all_z_coords)
+        z_max_cam = max(all_z_coords)
+        
+        return x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam
+    else:
+        return None, None, None, None, None, None
+
+
 def _create_view_image(points_sample, colors_sample, camera_centers, camera_poses, cam_idx, 
-                      azim_angle, elev_angle, view_name, show_camera_axes=True):
+                      azim_angle, elev_angle, view_name, show_camera_axes=True, show_all_cameras=True):
     """
     创建单个视角图片的共同函数
     
@@ -394,7 +520,8 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         azim_angle: 方位角
         elev_angle: 仰角
         view_name: 视角名称
-        show_camera_axes: 是否显示相机坐标轴
+        show_camera_axes: 是否显示相机坐标轴（仅显示当前相机）
+        show_all_cameras: 是否显示所有相机的位置和位姿
         
     Returns:
         str: base64编码的图片数据
@@ -476,65 +603,46 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
             ax.plot3D(points_cam[:, 0], points_cam[:, 1], points_cam[:, 2], 
                      'bo', markersize=1, alpha=0.5)
     
-    # 绘制相机坐标轴（如果需要）
-    if show_camera_axes:
-        # 应用官方旋转
-        r_y = R.from_euler('y', 100, degrees=True)
-        r_x = R.from_euler('x', 155, degrees=True)
-        official_rotation = r_x * r_y
+    # 使用新的相机可视化函数
+    if show_all_cameras:
+        # 显示所有相机
+        x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
+            ax, camera_centers, camera_poses, cam_idx, R_cam, t_cam, max_range, show_cameras=True
+        )
         
-        # 将相机中心转换到当前相机坐标系
-        cam_center_in_view = (R_cam @ cam_center.T).T + t_cam
-        
-        # 绘制相机位置（红色球体）- 修复matplotlib兼容性
-        ax.scatter(cam_center_in_view[0], cam_center_in_view[1], cam_center_in_view[2], 
-                  c='red', s=80, marker='o', alpha=1.0, depthshade=False)
-        
-        # 计算相机坐标系的轴向量
-        if cam_pose.shape == (4, 4):
-            R_pose = cam_pose[:3, :3]
+        # 计算包含点云和相机的边界
+        if x_min_cam is not None:
+            x_min = min(points_cam[:, 0].min(), x_min_cam)
+            x_max = max(points_cam[:, 0].max(), x_max_cam)
+            y_min = min(points_cam[:, 1].min(), y_min_cam)
+            y_max = max(points_cam[:, 1].max(), y_max_cam)
+            z_min = min(points_cam[:, 2].min(), z_min_cam)
+            z_max = max(points_cam[:, 2].max(), z_max_cam)
         else:
-            R_pose = cam_pose[:, :3]
+            x_min, x_max = points_cam[:, 0].min(), points_cam[:, 0].max()
+            y_min, y_max = points_cam[:, 1].min(), points_cam[:, 1].max()
+            z_min, z_max = points_cam[:, 2].min(), points_cam[:, 2].max()
+    elif show_camera_axes:
+        # 只显示当前相机（保持原有逻辑兼容性）
+        single_camera_centers = np.array([camera_centers[cam_idx]])
+        single_camera_poses = np.array([camera_poses[cam_idx]])
         
-        # 应用官方旋转到相机姿态
-        R_pose_rotated = official_rotation.as_matrix() @ R_pose
+        x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
+            ax, single_camera_centers, single_camera_poses, 0, R_cam, t_cam, max_range, show_cameras=True
+        )
         
-        # 转换到当前视图坐标系
-        R_pose_in_view = R_cam @ R_pose_rotated
-        
-        # 计算坐标轴的长度
-        axis_length = max_range * 0.12
-        
-        # 绘制相机坐标系的三个轴
-        # X轴 (红色)
-        x_axis = R_pose_in_view[:, 0] * axis_length
-        ax.plot([cam_center_in_view[0], cam_center_in_view[0] + x_axis[0]],
-               [cam_center_in_view[1], cam_center_in_view[1] + x_axis[1]],
-               [cam_center_in_view[2], cam_center_in_view[2] + x_axis[2]], 'r-', linewidth=2)
-        
-        # Y轴 (绿色)
-        y_axis = R_pose_in_view[:, 1] * axis_length
-        ax.plot([cam_center_in_view[0], cam_center_in_view[0] + y_axis[0]],
-               [cam_center_in_view[1], cam_center_in_view[1] + y_axis[1]],
-               [cam_center_in_view[2], cam_center_in_view[2] + y_axis[2]], 'g-', linewidth=2)
-        
-        # Z轴 (蓝色)
-        z_axis = R_pose_in_view[:, 2] * axis_length
-        ax.plot([cam_center_in_view[0], cam_center_in_view[0] + z_axis[0]],
-               [cam_center_in_view[1], cam_center_in_view[1] + z_axis[1]],
-               [cam_center_in_view[2], cam_center_in_view[2] + z_axis[2]], 'b-', linewidth=2)
-        
-        # 添加相机编号标签
-        ax.text(cam_center_in_view[0], cam_center_in_view[1], cam_center_in_view[2] + axis_length * 0.3, 
-               f'C{cam_idx+1}', fontsize=10, color='black', weight='bold')
-        
-        # 将相机位置考虑进边界计算
-        x_min = min(points_cam[:, 0].min(), cam_center_in_view[0] - axis_length)
-        x_max = max(points_cam[:, 0].max(), cam_center_in_view[0] + axis_length)
-        y_min = min(points_cam[:, 1].min(), cam_center_in_view[1] - axis_length)
-        y_max = max(points_cam[:, 1].max(), cam_center_in_view[1] + axis_length)
-        z_min = min(points_cam[:, 2].min(), cam_center_in_view[2] - axis_length)
-        z_max = max(points_cam[:, 2].max(), cam_center_in_view[2] + axis_length)
+        # 计算包含点云和相机的边界
+        if x_min_cam is not None:
+            x_min = min(points_cam[:, 0].min(), x_min_cam)
+            x_max = max(points_cam[:, 0].max(), x_max_cam)
+            y_min = min(points_cam[:, 1].min(), y_min_cam)
+            y_max = max(points_cam[:, 1].max(), y_max_cam)
+            z_min = min(points_cam[:, 2].min(), z_min_cam)
+            z_max = max(points_cam[:, 2].max(), z_max_cam)
+        else:
+            x_min, x_max = points_cam[:, 0].min(), points_cam[:, 0].max()
+            y_min, y_max = points_cam[:, 1].min(), points_cam[:, 1].max()
+            z_min, z_max = points_cam[:, 2].min(), points_cam[:, 2].max()
     else:
         # 不显示相机坐标轴时的边界
         x_min, x_max = points_cam[:, 0].min(), points_cam[:, 0].max()
@@ -674,10 +782,10 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
                 # 判断是否显示相机坐标轴（只在几个关键视角显示）
                 show_camera_axes = view_name in ["camera_front", "camera_left_30", "camera_right_30"]
                 
-                # 创建视角图片
+                # 创建视角图片（显示所有相机）
                 img_b64 = _create_view_image(
                     points_sample, colors_sample, camera_centers, camera_poses,
-                    cam_idx, azim_offset, elev_offset, view_name, show_camera_axes
+                    cam_idx, azim_offset, elev_offset, view_name, show_camera_axes, show_all_cameras=True
                 )
                 
                 view_images.append({
@@ -719,11 +827,10 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
         cam_idx = 0
         view_name = f"custom_azim_{azimuth_angle}_elev_{elevation_angle}"
         
-        # 创建自定义角度视角图片（与默认视角保持一致的边界计算）
-        # 注意：这里使用 show_camera_axes=False 确保与默认视角的边界计算一致
+        # 创建自定义角度视角图片（显示所有相机）
         img_b64 = _create_view_image(
             points_sample, colors_sample, camera_centers, camera_poses,
-            cam_idx, azimuth_angle, elevation_angle, view_name, show_camera_axes=False
+            cam_idx, azimuth_angle, elevation_angle, view_name, show_camera_axes=False, show_all_cameras=True
         )
         
         view_images.append({
