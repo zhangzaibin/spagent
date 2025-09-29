@@ -114,3 +114,26 @@ Question:
 Think step by step and use any available tools if they would help provide a better answer. You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call> and final choice in <answer></answer>. 
 
 """ 
+
+
+def create_fallback_prompt(question: str, initial_response: str) -> str:
+    """
+    Create fallback prompt when tools fail but initial response lacks <answer> tags
+    
+    Args:
+        question: Original question
+        initial_response: Initial model response
+        
+    Returns:
+        Fallback prompt string
+    """
+    return f"""The tools could not be executed successfully. Based on your initial analysis, please provide a final answer to the question.
+
+Original Question: {question}
+
+Your Initial Analysis: {initial_response}
+
+Since the tools are unavailable, please provide your best answer based on the original image analysis alone.
+
+You MUST output your thinking process in <think></think> and final choice in <answer></answer>.
+"""
