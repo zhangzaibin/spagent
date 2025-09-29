@@ -15,3 +15,5 @@ output/*
 *.json
 *.tsv
 *.csv
+test_data
+test_outputs
