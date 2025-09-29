@@ -21,7 +21,8 @@ from spagent.tools import (
     ObjectDetectionTool,
     SupervisionTool,
     YOLOETool,
-    MoondreamTool
+    MoondreamTool,
+    Pi3Tool
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -34,9 +35,10 @@ from spagent.utils.utils import (
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
 # Define server URLs
 TOOL_SERVERS = {
-    "depth": "http://10.7.8.94:20019",  # depth-anything-v2
-    "segmentation": "http://10.7.8.94:20010",  # sam
-    "detection": "http://10.7.8.94:20022"  # dino
+    "depth": "http://0.0.0.0:20019",  # depth-anything-v2
+    "segmentation": "http://0.0.0.0:20020",  # sam
+    "detection": "http://10.7.8.94:20022",  # dino
+    "pi3": "http://0.0.0.0:20030"  # pi3
 }
 
 TOOL_CONFIGS = {
@@ -44,9 +46,10 @@ TOOL_CONFIGS = {
     #     # Empty tool list - pure LLM baseline
     # ],
     "depth_detection_segmentation": [
-        DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
-        ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
-        SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"])
+        # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
+        # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
+        SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
+        # Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
     ]
 }
 

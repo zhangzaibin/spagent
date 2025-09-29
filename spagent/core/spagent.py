@@ -199,7 +199,8 @@ class SPAgent:
             # Include additional images in final inference if available (filter out None and invalid paths)
             # And ensure the order matches the original image_paths order
             valid_additional_images = self._sort_additional_images_by_input_order(image_paths, additional_images)
-            all_images = image_paths + valid_additional_images
+            # all_images = image_paths + valid_additional_images
+            all_images = valid_additional_images
             
             if len(all_images) == 1:
                 final_response = self.model.single_image_inference(
