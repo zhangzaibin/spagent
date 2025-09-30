@@ -123,51 +123,10 @@ result = agent.solve_problem(
 )
 ```
 
----
 ### 5. 图像数据集评测 (Image Dataset Evaluation)
+详细的图像数据集评测使用指南请参考：[Image Dataset Evaluation使用指南](examples/evaluation/EVALUATION.md)
 
-本节介绍如何在图像数据集上评测SPAgent的性能。所有数据集都需要先下载并转换为统一的JSONL格式，其中每条数据包含以下标准字段：
-- `id`: 数据样本的唯一标识符
-- `image`: 图片路径列表（支持多图像），若没有则为空
-- `video`：视频路径列表，若没有则为空
-- `conversations`: 对话格式的问答内容，需包含问题选项和答案，如（"conversations": [{"from": "human", "value": "{question}\nSelect from the following choices. (A) .. A (B) .."},{"from": "gpt", "value": "A"}],）
-- `task`: 任务类型（如Object_Localization, Depth, Count等）
-- `input_type`: 输入类型（通常为"Image"）
-- `output_type`: 输出类型（如"MCQ"表示多选题）
-- `data_source`: 数据集来源
-
-```bash
-# 创建样本数据（可选，用于快速测试）
-python dataset/create_json_sample.py --input_file dataset/ERQA_All_Data.jsonl --sample 30
-
-python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
-```
-#### 1. BLINK数据集
-
-```bash
-# 下载BLINK数据集并转换为JSONL格式
-python spagent/utils/download_blink.py
-```
-
-#### 2. CVBench数据集
-CVBench专注于计算机视觉的基础能力测试，包括深度估计、目标计数、空间关系等任务。
-
-```bash
-# 第一步：下载CVBench图片（需要先保存parquet文件到dataset目录）
-# 数据集地址：https://huggingface.co/datasets/nyu-visionx/CV-Bench
-python spagent/utils/cvbench_img.py --subset both --root dataset --out dataset/CVBench
-
-# 第二步：转换为JSONL格式
-python spagent/utils/download_cvbench.py
-```
-
-#### 3. ERQA數據集
-```bash
-# 第一步，下载ERQA原始数据（先保存tfrecord数据到dataset文件夹）
-# 数据集地址：https://github.com/embodiedreasoning/ERQA/blob/main/data/erqa.tfrecord
-python  python spagent/utils/download_erqa.py
-```
-
+---
 ## 🛠️ 安装和配置 (Installation & Setup)
 
 ### 1. 环境准备 (Environment Setup)
@@ -199,90 +158,17 @@ export MOONDREAM_API_KEY="your_api_key"
 python spagent/vllm_models/qwen.py
 ```
 
-### 3. 下载模型权重 (Download Model Weights)
+### 3. 部署外部专家服务 (Deploy External Expert Services)
 
-创建checkpoints目录：
-```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,sam2}
-```
-
-#### Depth-Anything V2 (深度估计)
-```bash
-# 选择一个模型 (推荐Base版本)
-cd checkpoints/depth_anything
-
-# Small (~25MB, 最快)
-wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth
-
-# Base (~100MB, 平衡) - 推荐
-wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth
-
-# Large (~350MB, 最高质量)
-wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth
-```
-
-#### SAM2 (图像分割)
-```bash
-cd checkpoints/sam2
-
-# 自动下载所有模型
-wget https://raw.githubusercontent.com/facebookresearch/sam2/main/checkpoints/download_ckpts.sh
-chmod +x download_ckpts.sh
-./download_ckpts.sh
-
-# 或手动下载推荐模型
-wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_plus.pt
-```
-
-#### GroundingDINO (目标检测)
-```bash
-cd checkpoints/grounding_dino
-wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
-
-```
-
-#### Pi3（3D重建）
-```bash
-cd checkpoints/pi3
-wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
-```
-
-### 4. 部署外部专家服务 (Deploy External Expert Services)
-
-如果要使用真实的专家服务而非mock模式：
-
-```bash
-# 需要GPU内存 >= 24G
-apt-get install tmux
-
-# 部署深度估计服务
-python spagent/external_experts/Depth_AnythingV2/depth_server.py \
-  --checkpoint_path checkpoints/depth_anything/depth_anything_v2_vitb.pth \
-  --port 20019
-
-# 部署SAM2分割服务，这里面需要将sam的权重名字rename成sam2.1_b.pt，否则会报错
-python spagent/external_experts/SAM2/sam2_server.py \
-  --checkpoint_path checkpoints/sam2/sam2.1_b.pt \
-  --port 20020
-
-
-# 部署grounding dino
-# sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
-export HF_ENDPOINT=https://hf-mirror.com
-
-python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
-  --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
-  --port 20022
-
-# 部署moondream
-python spagent/external_experts/Moondream/moondream_server.py \
-  --port 20024
-
-# 部署pi3
-python spagent/external_experts/Pi3/pi3_server.py \
-  --checkpoint_path checkpoints/pi3/model.safetensors \
-  --port 20030
-```
+详细的外部专家工具使用指南请参考：[External Experts工具使用指南](spagent/external_experts/TOOL_USING.md)
+| 工具 | 功能 | 主要用途 | 默认端口 |
+|------|------|----------|----------|
+| **Depth AnythingV2** | 深度估计 | 单目深度估计 | 20019 |
+| **SAM2** | 图像/视频分割 | 高精度分割任务 | 20020 |
+| **GroundingDINO** | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 |
+| **Moondream** | 视觉语言模型 | 图像理解和问答 | 20024 |
+| **Pi3** | 3D重建 | 从图像生成3D点云 | 20030 |
+| **Supervision** | 目标检测标注 | YOLO模型和可视化工具 | - |
 
 ---
 
@@ -409,12 +295,12 @@ result = agent.solve_problem(
 | 工具类 | 功能 | 用途 | 参数 |
 |--------|------|------|------|
 | `DepthEstimationTool` | 深度估计 | 分析图像的3D深度关系 | `image_path` |
-| `SegmentationTool` | 图像分割 | 精确分割图像中的对象 | `image_path`, `point_coords`(可选), `box`(可选) |
+| `SegmentationTool` | 图像分割 | 精确分割图像中的对象 | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
 | `ObjectDetectionTool` | 目标检测 | 基于文本描述检测对象 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| `MoondreamTool` | 视觉问答 | 基于图像内容回答自然语言问题 | `image_path`, `task`, `object_name` |
+| `Pi3Tool` | 3D重建 | 从单张图像生成3D点云和多视角渲染 | `image_path`, `azimuth_angle`, `elevation_angle` |
 | `SupervisionTool` | 监督检测 | 通用目标检测和分割 | `image_path`, `task` ("image_det"或"image_seg") |
 | `YOLOETool` | YOLO-E检测 | 自定义类别的高精度检测 | `image_path`, `task`, `class_names` |
-| `MoondreamTool` | 视觉问答 | 基于图像内容回答自然语言问题 | `image_path`, `question` |
-| `Pi3Tool` | 3D重建 | 从单张图像生成3D点云和多视角渲染 | `image_path`, `azimuth_angle`, `elevation_angle` |
 
 ## 🤖 可用模型 (Available Models)
 
