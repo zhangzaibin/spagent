@@ -1,6 +1,7 @@
 tmp
 checkpoints/
-dataset/
+dataset/*
+!dataset/**/*.py
 __pycache__/
 *.pyc
 outputs/*

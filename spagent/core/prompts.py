@@ -47,7 +47,7 @@ You can call multiple tools if needed by using multiple <tool_call> blocks.
 5. Be specific and detailed in your responses"""
 
 
-def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str]) -> str:
+def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str], description: str=None) -> str:
     """
     Create follow-up prompt after tool execution
     
@@ -57,6 +57,7 @@ def create_follow_up_prompt(question: str, initial_response: str, tool_results: 
         tool_results: Results from tool execution
         original_images: List of original image paths
         additional_images: List of additional image paths from tools
+        description: Optional description from tool execution
         
     Returns:
         Follow-up prompt string
@@ -71,7 +72,8 @@ def create_follow_up_prompt(question: str, initial_response: str, tool_results: 
     original_images_info = "\n".join([f"- {path}" for path in original_images])
     additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None"
     
-    return f"""Based on the tool results, please provide a comprehensive answer to the original question.
+    # 构建基本的 prompt
+    prompt = f"""Based on the tool results, please provide a comprehensive answer to the original question.
 
 Original Images:
 {original_images_info}
@@ -84,11 +86,21 @@ Original Question: {question}
 Your Initial Analysis: {initial_response}
 
 Tool Execution Summary:
-{chr(10).join(tool_summary)}
+{chr(10).join(tool_summary)}"""
+
+    # 只有当提供了 description 时才添加 Tool Description 部分
+    if description is not None:
+        prompt += f"""
+
+Tool Description: {description}"""
+
+    prompt += """
 
 Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response. 
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
+
+    return prompt
 
 # TODO 这块我总觉得有点奇怪，对于If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>.
 def create_user_prompt(question: str, image_paths: List[str]) -> str:

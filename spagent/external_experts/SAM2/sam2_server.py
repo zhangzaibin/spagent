@@ -163,22 +163,37 @@ def infer():
         if masks is None:
             return jsonify({"error": "未检测到目标"}), 400
             
-        # 将掩码转换为图像格式
-        mask_image = np.zeros(image.shape[:2], dtype=np.uint8)
-        for mask in masks:
+        # 将每个掩码单独处理并返回
+        mask_list = []
+        combined_mask = np.zeros(image.shape[:2], dtype=np.uint8)
+        
+        for i, mask in enumerate(masks):
             mask_array = mask.data.detach().cpu().numpy().squeeze()
-            mask_image = np.logical_or(mask_image, mask_array)
-        mask_image = (mask_image * 255).astype(np.uint8)
+            mask_uint8 = (mask_array * 255).astype(np.uint8)
+            
+            # 编码单个掩码
+            _, buffer = cv2.imencode('.png', mask_uint8)
+            mask_b64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
+            
+            mask_list.append({
+                'mask': mask_b64,
+                'id': i
+            })
+            
+            # 同时创建合并掩码用于向后兼容
+            combined_mask = np.logical_or(combined_mask, mask_array)
         
-        # 编码结果为base64
-        _, buffer = cv2.imencode('.png', mask_image)
-        mask_b64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
+        # 编码合并掩码
+        combined_mask = (combined_mask * 255).astype(np.uint8)
+        _, buffer = cv2.imencode('.png', combined_mask)
+        combined_mask_b64 = base64.b64encode(buffer.tobytes()).decode('utf-8')
         
-        logger.info("分割完成")
+        logger.info(f"分割完成，检测到 {len(mask_list)} 个对象")
         return jsonify({
             "success": True,
-            "mask": mask_b64,
-            "shape": mask_image.shape
+            "mask": combined_mask_b64,  # 向后兼容
+            "masks": mask_list,  # 单独的掩码列表
+            "shape": combined_mask.shape
         })
         
     except Exception as e:

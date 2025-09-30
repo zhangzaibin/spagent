@@ -103,20 +103,46 @@ class DepthClient:
                     cv2.IMREAD_COLOR if result.get('return_colored', True) else cv2.IMREAD_GRAYSCALE
                 )
                 
+                # 将原图和深度图调整为相同宽度
+                original_height, original_width = image.shape[:2]
+                depth_height, depth_width = depth_array.shape[:2]
+                
+                # 以原图宽度为准，调整深度图尺寸
+                if depth_width != original_width:
+                    depth_array = cv2.resize(depth_array, (original_width, depth_height * original_width // depth_width))
+                
+                # 确保原图和深度图都是3通道（彩色）
+                if len(image.shape) == 2:  # 原图是灰度图
+                    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                if len(depth_array.shape) == 2:  # 深度图是灰度图
+                    depth_array = cv2.cvtColor(depth_array, cv2.COLOR_GRAY2BGR)
+                
+                # 竖着拼接原图和深度图（原图在上，深度图在下）
+                combined_image = np.vstack([image, depth_array])
+                
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
-                output_filename = f"outputs/depth_{input_filename}"
-                if not output_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    output_filename += '.png'
+                name_without_ext = os.path.splitext(input_filename)[0]
                 
-                # 保存结果
-                cv2.imwrite(output_filename, depth_array)
-                logger.info(f"深度图已保存至: {output_filename}")
+                # 创建outputs目录（如果不存在）
+                os.makedirs("outputs", exist_ok=True)
+                
+                # 保存拼接后的图像
+                combined_filename = f"outputs/depth_combined_{name_without_ext}.png"
+                cv2.imwrite(combined_filename, combined_image)
+                logger.info(f"拼接图像已保存至: {combined_filename}")
+                
+                # 同时保存单独的深度图（可选）
+                depth_only_filename = f"outputs/depth_only_{name_without_ext}.png"
+                cv2.imwrite(depth_only_filename, depth_array)
+                logger.info(f"深度图已保存至: {depth_only_filename}")
                 
                 return {
                     'depth_array': depth_array,
+                    'combined_array': combined_image,
                     'shape': result['shape'],
-                    'output_path': output_filename,
+                    'output_path': combined_filename,
+                    'depth_only_path': depth_only_filename,
                     'success': True
                 }
             else:
@@ -130,7 +156,7 @@ class DepthClient:
 def main():
     """主程序"""
     # 服务器地址
-    SERVER_URL = "http://localhost:5000"
+    SERVER_URL = "http://0.0.0.0:20019"
     
     # 创建客户端
     client = DepthClient(SERVER_URL)
@@ -167,7 +193,8 @@ def main():
     if result:
         logger.info("图片处理成功！")
         logger.info(f"- 输入图片: {image_path}")
-        logger.info(f"- 输出图片: {result['output_path']}")
+        logger.info(f"- 拼接图像: {result['output_path']}")
+        logger.info(f"- 深度图像: {result['depth_only_path']}")
         logger.info(f"- 图片尺寸: {result['shape']}")
     else:
         logger.error("图片处理失败")

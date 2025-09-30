@@ -185,6 +185,10 @@ class SPAgent:
                     if Path(result['vis_path']).exists():
                         additional_images.append(result['vis_path'])
         
+        if result.get('description'):
+            tool_description = result.get('description')
+        else:
+            tool_description = None
         # Step 5: Generate final response with tool results
         if successful_tools:
             logger.info(f"Generating final response with results from {len(successful_tools)} tools...")
@@ -193,13 +197,15 @@ class SPAgent:
                 initial_response, 
                 tool_results,
                 image_paths,
-                additional_images
+                additional_images,
+                tool_description
             )
             
             # Include additional images in final inference if available (filter out None and invalid paths)
             # And ensure the order matches the original image_paths order
             valid_additional_images = self._sort_additional_images_by_input_order(image_paths, additional_images)
-            all_images = image_paths + valid_additional_images
+            # all_images = image_paths + valid_additional_images
+            all_images = valid_additional_images
             
             if len(all_images) == 1:
                 final_response = self.model.single_image_inference(
@@ -296,39 +302,39 @@ class SPAgent:
                 tool_groups[tool_name] = []
             tool_groups[tool_name].append((i, call))
         
-        # Execute tools in parallel, but Pi3Tool sequentially to avoid server issues
+        # Execute tools in parallel, but Pi3Tool and Pi3MultiimgTool sequentially to avoid server issues
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_tool = {}
             
-            # Handle Pi3Tool calls sequentially first
+            # Handle Pi3Tool and Pi3MultiimgTool calls sequentially first
             pi3_calls = []
             other_calls = {}
             
             for tool_name, calls in tool_groups.items():
-                if tool_name == 'pi3_tool':
+                if tool_name in ['pi3_tool', 'pi3_multiimg_tool']:
                     pi3_calls.extend(calls)
                 else:
                     other_calls[tool_name] = calls
             
-            # Execute Pi3Tool calls sequentially
+            # Execute Pi3Tool and Pi3MultiimgTool calls sequentially
             if pi3_calls:
-                logger.info(f"Executing {len(pi3_calls)} Pi3Tool calls sequentially...")
-                pi3_tool = self.tool_registry.get('pi3_tool')
-                if pi3_tool:
-                    for call_idx, call in pi3_calls:
-                        result = self._safe_tool_call(pi3_tool, call['arguments'])
-                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                logger.info(f"Executing {len(pi3_calls)} Pi3 tool calls sequentially...")
+                for call_idx, call in pi3_calls:
+                    tool_name = call['name']
+                    tool = self.tool_registry.get(tool_name)
+                    if tool:
+                        result = self._safe_tool_call(tool, call['arguments'])
+                        result_key = tool_name if len(pi3_calls) == 1 else f"{tool_name}_{call_idx}"
                         tool_results[result_key] = result
-                        # Add small delay between Pi3Tool calls
+                        # Add small delay between Pi3 tool calls
                         import time
                         time.sleep(1)
-                else:
-                    logger.error("Pi3Tool not found")
-                    for call_idx, call in pi3_calls:
-                        result_key = 'pi3_tool' if len(pi3_calls) == 1 else f"pi3_tool_{call_idx}"
+                    else:
+                        logger.error(f"{tool_name} not found")
+                        result_key = tool_name if len(pi3_calls) == 1 else f"{tool_name}_{call_idx}"
                         tool_results[result_key] = {
                             "success": False,
-                            "error": "Pi3Tool not found"
+                            "error": f"{tool_name} not found"
                         }
             
             # Execute other tools in parallel as before

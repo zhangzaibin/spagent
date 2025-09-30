@@ -52,11 +52,27 @@ class SegmentationTool(Tool):
                 # Fallback to creating a simple mock
                 class SimpleMockSAM2:
                     def infer(self, image_path, **kwargs):
+                        stem = Path(image_path).stem
+                        
+                        # 模拟多个掩码（2-4个随机数量的对象）
+                        import random
+                        num_objects = random.randint(2, 4)
+                        masks_data = []
+                        
+                        for i in range(num_objects):
+                            masks_data.append({
+                                'mask': f'mock_mask_data_{i}',
+                                'id': i
+                            })
+                        
                         return {
                             "success": True,
-                            "vis_path": f"outputs/sam2_mock_{Path(image_path).stem}.jpg",
-                            "shape": [1024, 1024],
-                            "masks": []
+                            "output_path": f"outputs/sam2_combined_{stem}.jpg",
+                            "overlay_path": f"outputs/sam2_overlay_{stem}.jpg",
+                            "mask_path": f"outputs/sam2_mask_{stem}.png",
+                            "vis_path": f"outputs/sam2_mock_{stem}.jpg",  # Backward compatibility
+                            "masks": masks_data,  # 多个掩码支持随机颜色
+                            "shape": [1024, 1024]
                         }
                 self._client = SimpleMockSAM2()
                 logger.info("Using simple mock SAM2 service")
@@ -152,7 +168,10 @@ class SegmentationTool(Tool):
                 return {
                     "success": True,
                     "result": result,
-                    "vis_path": result.get('vis_path'),
+                    "output_path": result.get('output_path'),  # Combined image
+                    "overlay_path": result.get('overlay_path'),  # Mask visualization
+                    "mask_path": result.get('mask_path'),  # Original mask
+                    "vis_path": result.get('vis_path'),  # Backward compatibility
                     "shape": result.get('shape'),
                     "masks": result.get('masks', [])
                 }

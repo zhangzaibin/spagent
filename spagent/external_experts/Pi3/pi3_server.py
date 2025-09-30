@@ -477,7 +477,7 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
         label_pos = cam_center_in_view + np.array([0, 0, axis_length * 0.3])
         marker = '*' if cam_idx == current_view_cam_idx else ''  # 当前视角相机加星号标记
         ax.text(label_pos[0], label_pos[1], label_pos[2], 
-               f'C{cam_idx+1}{marker}', fontsize=6, color='black', weight='bold',
+               f'Cam{cam_idx+1}{marker}', fontsize=5, color='black', weight='bold',
                bbox=dict(boxstyle="round,pad=0.1", facecolor=cam_color, alpha=0.6))
         
         # 收集边界坐标（包括锥形的所有角点）

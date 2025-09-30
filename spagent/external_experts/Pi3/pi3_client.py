@@ -387,7 +387,7 @@ if __name__ == "__main__":
     logger.info("\n=== 处理单张图片 ===")
     
     # 检查是否有可用的测试图片
-    test_images = ["/home/ubuntu/projects/spagent/dataset/BLINK/0ec2af0b0d5fc498743ebd74f94452fae426617a1597200fddfd9b4bacdd5824.jpg"]
+    test_images = ["dataset/BLINK_images/Multi-view_Reasoning_val_000065_img1.jpg", "dataset/BLINK_images/Multi-view_Reasoning_val_000065_img2.jpg"]
     
     single_image_path = None
     for test_image in test_images:
@@ -417,7 +417,7 @@ if __name__ == "__main__":
                 logger.error("单张图片结果保存失败")
         else:
             logger.error("单张图片3D重建失败")
-        
+
         # 4. 测试自定义角度
         logger.info("\n=== 测试自定义角度生成 ===")
         custom_result = client.infer_from_images(
@@ -426,7 +426,7 @@ if __name__ == "__main__":
             rtol=0.03,
             generate_views=True,
             azimuth_angle=0,  # 左右转
-            elevation_angle=10  # 上下转
+            elevation_angle=0  # 上下转
         )
         
         if custom_result:
@@ -452,45 +452,70 @@ if __name__ == "__main__":
         logger.info("可用的测试图片路径：")
         for test_image in test_images:
             logger.info(f"  - {test_image}")
+
+    # 5. 处理多张图片
+    logger.info("\n=== 处理多张图片 ===")
+    multi_result = client.infer_from_images(
+        image_paths=test_images,
+        conf_threshold=0.1,
+        rtol=0.03,
+        generate_views=True,
+        azimuth_angle=0,
+        elevation_angle=0
+    )
     
-    # 4. 处理视频文件
-    logger.info("\n=== 处理视频文件 ===")
-    
-    # 检查是否有可用的测试视频
-    test_videos = ["assets/cartoon_horse.mp4"]
-    
-    video_path = None
-    for test_video in test_videos:
-        if os.path.exists(test_video):
-            video_path = test_video
-            break
-    
-    if video_path:
-        logger.info(f"使用测试视频：{video_path}")
-        video_result = client.infer_from_video(
-            video_path=video_path,
-            interval=10,  # 每10帧提取一帧
-            conf_threshold=0.1,
-            rtol=0.03,
-            generate_views=True,
-            max_views_per_camera=4  # 每个相机最多4张视角图
-        )
+    if multi_result:
+        logger.info("多张图片3D重建成功！")
+        logger.info(f"- 点云数量: {multi_result.get('points_count', '未知')}")
+        logger.info(f"- PLY文件名: {multi_result.get('ply_filename', '未知')}")
+        logger.info(f"- 生成视角数: {len(multi_result.get('camera_views', []))}")
         
-        if video_result:
-            logger.info("视频3D重建成功！")
-            logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
-            logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
-            logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
-            
-            # 保存结果
-            if client.save_results(video_result, "outputs/video"):
-                logger.info("视频重建结果保存成功！")
-            else:
-                logger.error("视频重建结果保存失败")
+        # 保存结果
+        if client.save_results(multi_result, "outputs/multi_image"):
+            logger.info("多张图片结果保存成功！")
         else:
-            logger.error("视频3D重建失败")
+            logger.error("多张图片结果保存失败")
     else:
-        logger.warning("没有找到可用的测试视频")
-        logger.info("可用的测试视频路径：")
-        for test_video in test_videos:
-            logger.info(f"  - {test_video}")
+        logger.error("多张图片3D重建失败")
+
+    # # 4. 处理视频文件
+    # logger.info("\n=== 处理视频文件 ===")
+    
+    # # 检查是否有可用的测试视频
+    # test_videos = ["assets/cartoon_horse.mp4"]
+    
+    # video_path = None
+    # for test_video in test_videos:
+    #     if os.path.exists(test_video):
+    #         video_path = test_video
+    #         break
+    
+    # if video_path:
+    #     logger.info(f"使用测试视频：{video_path}")
+    #     video_result = client.infer_from_video(
+    #         video_path=video_path,
+    #         interval=10,  # 每10帧提取一帧
+    #         conf_threshold=0.1,
+    #         rtol=0.03,
+    #         generate_views=True,
+    #         max_views_per_camera=4  # 每个相机最多4张视角图
+    #     )
+        
+    #     if video_result:
+    #         logger.info("视频3D重建成功！")
+    #         logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
+    #         logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
+    #         logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
+            
+    #         # 保存结果
+    #         if client.save_results(video_result, "outputs/video"):
+    #             logger.info("视频重建结果保存成功！")
+    #         else:
+    #             logger.error("视频重建结果保存失败")
+    #     else:
+    #         logger.error("视频3D重建失败")
+    # else:
+    #     logger.warning("没有找到可用的测试视频")
+    #     logger.info("可用的测试视频路径：")
+    #     for test_video in test_videos:
+    #         logger.info(f"  - {test_video}")

@@ -5,6 +5,6 @@ This module provides depth estimation capabilities using the Depth-AnythingV2 mo
 """
 
 from .depth_client import DepthClient
-from .mock_depth_service import MockDepthService, MockOpenPIClient
+from .mock_depth_service import MockDepthService
 
-__all__ = ['DepthClient', 'DepthServer', 'MockDepthService', 'MockOpenPIClient'] 
+__all__ = ['DepthClient', 'MockDepthService'] 

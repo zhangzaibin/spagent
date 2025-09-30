@@ -31,7 +31,9 @@ class Pi3Tool(Tool):
         """
         super().__init__(
             name="pi3_tool",
-            description="Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles."
+            description="Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles. " \
+                        "The generated point cloud visualization uses cone-shaped markers to indicate camera positions. " \
+                        "Cameras are numbered starting from 1(cam1), representing the first frame's camera angle, and so on."
         )
         
         self.use_mock = use_mock
@@ -154,23 +156,23 @@ class Pi3Tool(Tool):
                     "type": "list",
                     "description": "The list of the path to the input images for 3D reconstruction."
                 },
-                "azimuth_angle": {
-                    "type": "number",
-                    "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Negative values rotate left, positive values rotate right."
-                },
-                "elevation_angle": {
-                    "type": "number", 
-                    "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Negative values look down, positive values look up."
-                }
+                # "azimuth_angle": {
+                #     "type": "number",
+                #     "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Negative values rotate left, positive values rotate right."
+                # },
+                # "elevation_angle": {
+                #     "type": "number", 
+                #     "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Negative values look down, positive values look up."
+                # }
             },
-            "required": ["image_path", "azimuth_angle", "elevation_angle"]
+            "required": ["image_path"]
         }
     
     def call(
         self, 
         image_path: List[str],
-        azimuth_angle: float,
-        elevation_angle: float
+        # azimuth_angle: float,
+        # elevation_angle: float
     ) -> Dict[str, Any]:
         """
         Execute 3D reconstruction
@@ -203,8 +205,10 @@ class Pi3Tool(Tool):
             
             # Convert angles to float and validate
             try:
-                azimuth_angle = float(azimuth_angle)
-                elevation_angle = float(elevation_angle)
+                # azimuth_angle = float(azimuth_angle)
+                # elevation_angle = float(elevation_angle)
+                azimuth_angle = 0
+                elevation_angle = 0
             except (ValueError, TypeError) as e:
                 return {
                     "success": False,
@@ -259,7 +263,15 @@ class Pi3Tool(Tool):
                     "elevation_angle": elevation_angle,
                     "view_type": "custom_angle",
                     "input_images_count": len(image_path),
-                    "output_path": output_path  # This is what SPAgent looks for
+                    "output_path": output_path,  # This is what SPAgent looks for
+                    "description": (
+                        f"Pi3 tool has completed 3D reconstruction, generating a point cloud visualization "
+                        f"with {len(image_path)} input images producing {len(image_path)} camera viewpoints. In the point cloud visualization, "
+                        f"camera positions are indicated by cone-shaped markers, with their shooting direction "
+                        f"pointing from the base towards the apex. The first input image corresponds to cam1 "
+                        f"camera view, the second image corresponds to cam2 camera view, and so on. The generated "
+                        f"multi-view renderings showcase the reconstructed 3D scene from different viewing angles."
+                    )
                 }
                 
                 return response

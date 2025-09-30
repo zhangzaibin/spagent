@@ -110,41 +110,119 @@ class SAM2Client:
             result = response.json()
             
             if result.get('success'):
-                # 解码掩码
-                mask_bytes = base64.b64decode(result['mask'])
-                mask_array = cv2.imdecode(
-                    np.frombuffer(mask_bytes, np.uint8),
-                    cv2.IMREAD_GRAYSCALE
-                )
+                # 创建可视化结果
+                overlay = image.copy()
+                
+                # 检查是否有多个掩码
+                if 'masks' in result and result['masks']:
+                    # 处理多个掩码，每个使用随机颜色
+                    import random
+                    
+                    # 预定义一些鲜艳的颜色，确保可见性
+                    bright_colors = [
+                        [255, 0, 0],     # 红色
+                        [0, 255, 0],     # 绿色
+                        [0, 0, 255],     # 蓝色
+                        [255, 255, 0],   # 黄色
+                        [255, 0, 255],   # 品红
+                        [0, 255, 255],   # 青色
+                        [255, 128, 0],   # 橙色
+                        [128, 0, 255],   # 紫色
+                        [255, 192, 203], # 粉色
+                        [0, 128, 255],   # 蓝绿
+                    ]
+                    
+                    for i, mask_info in enumerate(result['masks']):
+                        # 解码单个掩码
+                        mask_bytes = base64.b64decode(mask_info['mask'])
+                        mask_array = cv2.imdecode(
+                            np.frombuffer(mask_bytes, np.uint8),
+                            cv2.IMREAD_GRAYSCALE
+                        )
+                        
+                        # 生成随机颜色（优先使用预定义颜色）
+                        if i < len(bright_colors):
+                            # 使用预定义的鲜艳颜色（BGR格式）
+                            random_color = bright_colors[i][::-1]  # RGB转BGR
+                        else:
+                            # 超出预定义颜色时使用随机亮色
+                            random_color = [
+                                random.randint(100, 255),  # B (确保亮度)
+                                random.randint(100, 255),  # G
+                                random.randint(100, 255)   # R
+                            ]
+                        
+                        # 创建彩色掩码
+                        colored_mask = np.zeros_like(image)
+                        colored_mask[mask_array > 0] = random_color
+                        
+                        # 叠加到overlay上
+                        mask_indices = mask_array > 0
+                        overlay[mask_indices] = cv2.addWeighted(
+                            overlay[mask_indices], 0.6, 
+                            colored_mask[mask_indices], 0.4, 0
+                        )
+                    
+                    # 为了向后兼容，仍然创建一个合并的掩码
+                    mask_bytes = base64.b64decode(result['mask'])
+                    mask_array = cv2.imdecode(
+                        np.frombuffer(mask_bytes, np.uint8),
+                        cv2.IMREAD_GRAYSCALE
+                    )
+                else:
+                    # 单个掩码的处理（向后兼容）
+                    mask_bytes = base64.b64decode(result['mask'])
+                    mask_array = cv2.imdecode(
+                        np.frombuffer(mask_bytes, np.uint8),
+                        cv2.IMREAD_GRAYSCALE
+                    )
+                    
+                    # 使用固定红色
+                    colored_mask = cv2.cvtColor(mask_array, cv2.COLOR_GRAY2BGR)
+                    colored_mask[mask_array > 0] = [0, 0, 255]  # 红色，BGR格式
+                    cv2.addWeighted(colored_mask, 0.5, overlay, 0.5, 0, overlay)
+                
+                # 将原图和处理后的图调整为相同宽度并拼接
+                original_height, original_width = image.shape[:2]
+                overlay_height, overlay_width = overlay.shape[:2]
+                
+                # 以原图宽度为准，调整处理后图像尺寸（如果需要）
+                if overlay_width != original_width:
+                    overlay = cv2.resize(overlay, (original_width, overlay_height * original_width // overlay_width))
+                
+                # 竖着拼接原图和处理后的图像（原图在上，处理后的图在下）
+                combined_image = np.vstack([image, overlay])
                 
                 # 生成输出文件名（基于输入文件名）
                 input_filename = os.path.basename(image_path)
-                output_filename = f"outputs/mask_{input_filename}"
-                if not output_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    output_filename += '.png'
+                name_without_ext = os.path.splitext(input_filename)[0]
                 
-                # 保存结果
-                # cv2.imwrite(output_filename, mask_array)
-                # logger.info(f"掩码已保存至: {output_filename}")
+                # 创建outputs目录（如果不存在）
+                os.makedirs("outputs", exist_ok=True)
                 
-                # 可视化结果（将掩码叠加到原图上）
-                overlay = image.copy()
-                colored_mask = cv2.cvtColor(mask_array, cv2.COLOR_GRAY2BGR)
-                colored_mask[mask_array > 0] = [0, 0, 255]  # 红色 ，bgr
-                cv2.addWeighted(colored_mask, 0.5, overlay, 0.5, 0, overlay)
+                # 保存拼接后的图像
+                combined_filename = f"outputs/sam_combined_{name_without_ext}.png"
+                cv2.imwrite(combined_filename, combined_image)
+                logger.info(f"拼接图像已保存至: {combined_filename}")
                 
-                # 保存可视化结果
-                vis_filename = f"outputs/vis_{input_filename}"
-                if not vis_filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    vis_filename += '.png'
-                cv2.imwrite(vis_filename, overlay)
-                logger.info(f"可视化结果已保存至: {vis_filename}")
+                # 同时保存单独的掩码可视化图像（可选）
+                vis_only_filename = f"outputs/sam_overlay_{name_without_ext}.png"
+                cv2.imwrite(vis_only_filename, overlay)
+                logger.info(f"掩码可视化已保存至: {vis_only_filename}")
+                
+                # 保存原始掩码（可选）
+                mask_only_filename = f"outputs/sam_mask_{name_without_ext}.png"
+                cv2.imwrite(mask_only_filename, mask_array)
+                logger.info(f"原始掩码已保存至: {mask_only_filename}")
                 
                 return {
                     'mask_array': mask_array,
+                    'combined_array': combined_image,
+                    'overlay_array': overlay,
                     'shape': result['shape'],
-                    'mask_path': output_filename,
-                    'vis_path': vis_filename,
+                    'output_path': combined_filename,  # 主要输出：拼接图像
+                    'overlay_path': vis_only_filename,  # 单独的掩码可视化
+                    'mask_path': mask_only_filename,    # 原始掩码
                     'success': True
                 }
             else:
@@ -232,7 +310,7 @@ class SAM2Client:
 def main():
     """主程序"""
     # 服务器地址
-    SERVER_URL = "http://127.0.0.1:5001"
+    SERVER_URL = "http://0.0.0.0:20020"
     
     # 创建客户端
     client = SAM2Client(SERVER_URL)
@@ -264,7 +342,7 @@ def main():
     # 3. 处理图片示例
     logger.info("\n=== 处理图片示例 ===")
     # 使用点提示
-    image_path = "/home/ubuntu/projects/spagent/assets/example.png"  # 替换为实际的测试图片路径
+    image_path = "/home/ubuntu/projects/spagent/assets/dog.jpeg"  # 替换为实际的测试图片路径
     prompts = {
         'point_coords': [[900, 540]],  # 点击坐标
         'point_labels': [1]  # 1表示前景点
@@ -274,8 +352,9 @@ def main():
     if result:
         logger.info("图片处理成功！")
         logger.info(f"- 输入图片: {image_path}")
-        logger.info(f"- 掩码文件: {result['mask_path']}")
-        logger.info(f"- 可视化文件: {result['vis_path']}")
+        logger.info(f"- 拼接图像: {result['output_path']}")
+        logger.info(f"- 掩码可视化: {result['overlay_path']}")
+        logger.info(f"- 原始掩码: {result['mask_path']}")
         logger.info(f"- 掩码尺寸: {result['shape']}")
     else:
         logger.error("图片处理失败")
