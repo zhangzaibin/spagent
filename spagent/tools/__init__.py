@@ -12,7 +12,6 @@ from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
 from .moondream_tool import MoondreamTool
 from .pi3_tool import Pi3Tool
-from .pi3_multiimgtool import Pi3MultiimgTool
 
 __all__ = [
     'DepthEstimationTool',
@@ -21,6 +20,5 @@ __all__ = [
     'SupervisionTool',
     'YOLOETool',
     'MoondreamTool',
-    'Pi3Tool',
-    'Pi3MultiimgTool'
+    'Pi3Tool'
 ] 
