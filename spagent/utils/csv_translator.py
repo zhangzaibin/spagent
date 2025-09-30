@@ -11,11 +11,12 @@ from typing import Any
 
 # 尝试导入翻译库
 try:
-    from googletrans import Translator
+    import requests
+    import json
     TRANSLATOR_AVAILABLE = True
 except ImportError:
     TRANSLATOR_AVAILABLE = False
-    print("⚠️  警告: googletrans未安装，翻译功能不可用。运行 pip install googletrans==4.0.0rc1 安装")
+    print("⚠️  警告: requests未安装，翻译功能不可用。运行 pip install requests 安装")
 
 def translate_text(text: str, translator: Any = None) -> str:
     """
@@ -23,7 +24,7 @@ def translate_text(text: str, translator: Any = None) -> str:
     
     Args:
         text: 要翻译的文本
-        translator: 翻译器实例，如果为None会创建新实例
+        translator: 翻译器实例（此参数保留兼容性，实际不使用）
     
     Returns:
         翻译后的文本，如果翻译失败则返回原文本
@@ -40,24 +41,25 @@ def translate_text(text: str, translator: Any = None) -> str:
         text = text[:max_length] + "..."
     
     try:
-        if translator is None:
-            translator = Translator()
+        # 使用 Google Translate API（免费版本）
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            'client': 'gtx',
+            'sl': 'auto',  # 自动检测源语言
+            'tl': 'zh-cn',  # 目标语言：简体中文
+            'dt': 't',
+            'q': text
+        }
         
-        # 检测原语言，如果已经是中文则不翻译
-        detected = translator.detect(text)
-        if detected.lang in ['zh', 'zh-cn', 'zh-tw']:
-            return text
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
         
-        # 尝试不同的中文语言代码
-        for lang_code in ['zh-cn', 'zh']:
-            try:
-                result = translator.translate(text, dest=lang_code)
-                return result.text
-            except Exception as e:
-                print(f"⚠️  尝试语言代码 {lang_code} 失败: {e}")
-                continue
+        # 解析响应
+        result = response.json()
+        if result and len(result) > 0 and len(result[0]) > 0:
+            translated_text = ''.join([item[0] for item in result[0] if item[0]])
+            return translated_text
         
-        # 如果所有语言代码都失败，返回原文本
         return text
     
     except Exception as e:
@@ -118,9 +120,6 @@ def translate_csv_file(input_file: str, output_file: str = None, columns_to_tran
         
         print(f"✅ 将翻译以下列: {', '.join(existing_columns)}")
         
-        # 创建翻译器实例
-        translator = Translator()
-        
         # 复制DataFrame
         df_translated = df.copy()
         
@@ -133,7 +132,7 @@ def translate_csv_file(input_file: str, output_file: str = None, columns_to_tran
                 if pd.notna(value) and str(value).strip():
                     try:
                         original_text = str(value)
-                        translated_text = translate_text(original_text, translator)
+                        translated_text = translate_text(original_text)  # 移除translator参数
                         
                         # 只有翻译结果与原文不同时才更新
                         if translated_text != original_text:
@@ -183,7 +182,7 @@ def main():
     
     # 必需参数
     parser.add_argument(
-        "input_file",
+        "--input_csv",
         help="输入CSV文件路径"
     )
     
@@ -204,26 +203,26 @@ def main():
     args = parser.parse_args()
     
     print("🚀 CSV翻译工具")
-    print(f"📁 输入文件: {args.input_file}")
+    print(f"📁 输入文件: {args.input_csv}")
     print(f"📁 输出文件: {args.output or '自动生成'}")
     print(f"🌐 翻译列: {', '.join(args.columns)}")
     print(f"🔧 翻译库状态: {'可用' if TRANSLATOR_AVAILABLE else '不可用'}")
     print("=" * 60)
     
     if not TRANSLATOR_AVAILABLE:
-        print("❌ 请先安装翻译库: pip install googletrans==4.0.0rc1")
+        print("❌ 请先安装requests库: pip install requests")
         return
     
     # 执行翻译
     success = translate_csv_file(
-        input_file=args.input_file,
+        input_file=args.input_csv,
         output_file=args.output,
         columns_to_translate=args.columns
     )
     
     if success:
         print(f"\n🎉 翻译任务完成！")
-        print(f"📄 翻译结果已保存到: {args.output or (os.path.splitext(args.input_file)[0] + '_translated.csv')}")
+        print(f"📄 翻译结果已保存到: {args.output or (os.path.splitext(args.input_csv)[0] + '_translated.csv')}")
     else:
         print(f"\n❌ 翻译任务失败")
 

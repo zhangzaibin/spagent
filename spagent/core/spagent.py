@@ -185,6 +185,10 @@ class SPAgent:
                     if Path(result['vis_path']).exists():
                         additional_images.append(result['vis_path'])
         
+        if result.get('description'):
+            tool_description = result.get('description')
+        else:
+            tool_description = None
         # Step 5: Generate final response with tool results
         if successful_tools:
             logger.info(f"Generating final response with results from {len(successful_tools)} tools...")
@@ -193,7 +197,8 @@ class SPAgent:
                 initial_response, 
                 tool_results,
                 image_paths,
-                additional_images
+                additional_images,
+                tool_description
             )
             
             # Include additional images in final inference if available (filter out None and invalid paths)

@@ -136,14 +136,17 @@ result = agent.solve_problem(
 - `output_type`: 输出类型（如"MCQ"表示多选题）
 - `data_source`: 数据集来源
 
+```bash
+# 创建样本数据（可选，用于快速测试）
+python dataset/create_json_sample.py --input_file dataset/ERQA_All_Data.jsonl --sample 30
+
+python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
+```
 #### 1. BLINK数据集
 
 ```bash
 # 下载BLINK数据集并转换为JSONL格式
 python spagent/utils/download_blink.py
-
-# 运行评测
-python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
 ```
 
 #### 2. CVBench数据集
@@ -156,12 +159,6 @@ python spagent/utils/cvbench_img.py --subset both --root dataset --out dataset/C
 
 # 第二步：转换为JSONL格式
 python spagent/utils/download_cvbench.py
-
-# 第三步：创建样本数据（可选，用于快速测试）
-python dataset/create_cvbench_sample.py
-
-# 运行评测
-python evaluate_img.py --data_path dataset/cvbench_data.jsonl --max_samples 30 --max_workers 4 --image_base_path dataset --model gpt-4o-mini
 ```
 
 #### 3. ERQA數據集
