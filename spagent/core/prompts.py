@@ -39,12 +39,27 @@ When you need to use a tool, return a JSON object with the function name and arg
 
 You can call multiple tools if needed by using multiple <tool_call> blocks.
 
+# Multi-Step Workflow
+You can perform MULTIPLE rounds of tool calls and analysis:
+1. Call tools to gather information (e.g., generate 3D reconstruction with specific viewing angles)
+2. Analyze the results
+3. If you need more information or different perspectives, call tools again with different parameters
+4. Continue this process until you have sufficient information
+5. Finally, provide your comprehensive answer in <answer></answer> tags
+
+For 3D reconstruction tools like pi3_tool:
+- You can specify different viewing angles using azimuth_angle (left-right rotation, -180° to 180°) and elevation_angle (up-down rotation, -90° to 90°)
+- Example: Start with front view (azimuth=0, elevation=0), then check left side (azimuth=-45, elevation=0), top view (azimuth=0, elevation=45), etc.
+- Each call generates a new visualization from that specific viewpoint
+
 # Instructions
 1. First analyze the user's question and the image(s) provided
 2. Determine if you need to use any tools to answer the question properly
 3. If tools are needed, call them with appropriate parameters
-4. Provide a comprehensive answer based on your analysis and any tool results
-5. Be specific and detailed in your responses"""
+4. After seeing tool results, decide if you need MORE information from different angles or perspectives
+5. You can make multiple tool calls across multiple rounds to gather comprehensive information
+6. When you have sufficient information, provide your final answer in <answer></answer> tags
+7. Be specific and detailed in your responses"""
 
 
 def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str], description: str=None) -> str:
@@ -123,7 +138,15 @@ Images to analyze:
 Question:
 {question}
 
-Think step by step and use any available tools if they would help provide a better answer. You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call> and final choice in <answer></answer>. 
+Think step by step and use any available tools if they would help provide a better answer.
+
+Important Notes:
+- You can call tools MULTIPLE times with different parameters to gather comprehensive information
+- For 3D reconstruction, you can request different viewing angles (e.g., front, left, right, top, bottom views)
+- After each tool execution, you'll see the results and can decide if you need more information
+- Only provide your final <answer></answer> when you have gathered sufficient information
+
+You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call>. When you have enough information, output your final choice in <answer></answer>. 
 
 """ 
 
