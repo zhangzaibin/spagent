@@ -16,7 +16,7 @@ def download_vsibench(test_mode=False, max_samples=5, start_index=0):
     print(f"开始处理VSI-Bench数据集... {'(测试模式，从索引' + str(start_index) + '开始处理' + str(max_samples) + '条数据)' if test_mode else ''}")
     
     # 源视频文件夹路径
-    source_video_base = "/home/ubuntu/datasets/spatial-reasoning/VSI-Bench"
+    source_video_base = "/home/ubuntun/datasets/VSI-Bench"
     
     # 目标文件夹路径
     target_video_folder = "dataset/VSI_videos"

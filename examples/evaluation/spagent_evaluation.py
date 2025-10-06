@@ -116,7 +116,7 @@ def evaluate_single_video(
     
     try:
         # Extract video frames
-        frame_paths = extract_video_frames(result["path"], target_fps)
+        frame_paths = extract_video_frames(result["path"][0], target_fps) # 暂时只支持单个视频
         
         # Run inference using SPAgent
         start_time = time.time()
@@ -312,7 +312,7 @@ def evaluate_tool_config(
             result = evaluate_single_sample(agent, sample, image_base_path, config_name)
         elif has_video and not has_image:
             # Video sample
-            result = evaluate_single_video(agent, sample, image_base_path, target_fps=0.5, config_name=config_name)
+            result = evaluate_single_video(agent, sample, image_base_path, target_fps=0.05, config_name=config_name)
         else:
             # Invalid sample
             result = {
