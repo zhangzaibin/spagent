@@ -312,7 +312,14 @@ def evaluate_tool_config(
             result = evaluate_single_sample(agent, sample, image_base_path, config_name)
         elif has_video and not has_image:
             # Video sample
-            result = evaluate_single_video(agent, sample, image_base_path, target_fps=0.05, config_name=config_name)
+            if sample['data_source'] == "VSI-Bench":
+                target_fps = 0.05
+            elif sample['data_source'] == "VLM4D":
+                target_fps = 1.00
+            else:
+                target_fps = 1.00
+                print(f"The target fps parameter has not been specified for the {sample['data_source']} dataset yet, and the default value of 1.00 will be adopted")
+            result = evaluate_single_video(agent, sample, image_base_path, target_fps=target_fps, config_name=config_name)
         else:
             # Invalid sample
             result = {
