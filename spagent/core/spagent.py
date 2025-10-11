@@ -94,6 +94,8 @@ class SPAgent:
         self, 
         image_path: Union[str, List[str]], 
         question: str,
+        video_path: Optional[str] = None,
+        pi3_target_fps: float = 1.0,
         **model_kwargs
     ) -> Dict[str, Any]:
         """
@@ -102,6 +104,8 @@ class SPAgent:
         Args:
             image_path: Path to image or list of image paths
             question: User's question about the image(s)
+            video_path: Optional path to original video (for pi3 tool re-sampling)
+            pi3_target_fps: Target FPS for pi3 tool frame extraction (default 1.0)
             **model_kwargs: Additional arguments for model inference
             
         Returns:
@@ -169,7 +173,7 @@ class SPAgent:
         
         # Step 3: Execute tools
         logger.info(f"Executing {len(tool_calls)} tool calls...")
-        tool_results = self._execute_tools(tool_calls)
+        tool_results = self._execute_tools(tool_calls, video_path, pi3_target_fps)
         
         # Step 4: Collect successful tool results and additional images
         successful_tools = []
@@ -241,6 +245,9 @@ class SPAgent:
                         **model_kwargs
                     )
         
+        # Clean up temporary pi3 frames
+        self._cleanup_pi3_frames()
+        
         return {
             "answer": final_response,
             "initial_response": initial_response,
@@ -283,12 +290,14 @@ class SPAgent:
         
         return tool_calls
     
-    def _execute_tools(self, tool_calls: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _execute_tools(self, tool_calls: List[Dict[str, Any]], video_path: Optional[str] = None, pi3_target_fps: float = 1.0) -> Dict[str, Any]:
         """
         Execute tool calls in parallel when possible
         
         Args:
             tool_calls: List of tool call dictionaries
+            video_path: Optional path to original video (for pi3 tool re-sampling)
+            pi3_target_fps: Target FPS for pi3 tool frame extraction
             
         Returns:
             Dictionary of tool_name -> result
@@ -320,11 +329,26 @@ class SPAgent:
             # Execute Pi3Tool and Pi3MultiimgTool calls sequentially
             if pi3_calls:
                 logger.info(f"Executing {len(pi3_calls)} Pi3 tool calls sequentially...")
+                
+                # Extract more frames for pi3 if video_path is provided
+                pi3_frame_paths = []
+                if video_path and Path(video_path).exists():
+                    logger.info(f"Extracting frames for pi3 tool from video: {video_path} at {pi3_target_fps} fps")
+                    pi3_frame_paths = self._extract_frames_for_pi3(video_path, pi3_target_fps)
+                
                 for call_idx, call in pi3_calls:
                     tool_name = call['name']
                     tool = self.tool_registry.get(tool_name)
                     if tool:
-                        result = self._safe_tool_call(tool, call['arguments'])
+                        # If we extracted frames for pi3, update the arguments
+                        arguments = call['arguments'].copy()
+                        if pi3_frame_paths:
+                            # Update image_path in arguments
+                            if 'image_path' in arguments:
+                                logger.info(f"Updating pi3 tool arguments with {len(pi3_frame_paths)} newly extracted frames")
+                                arguments['image_path'] = pi3_frame_paths
+                        
+                        result = self._safe_tool_call(tool, arguments)
                         result_key = tool_name if len(pi3_calls) == 1 else f"{tool_name}_{call_idx}"
                         tool_results[result_key] = result
                         # Add small delay between Pi3 tool calls
@@ -471,3 +495,68 @@ class SPAgent:
             True if response contains <answer> tags, False otherwise
         """
         return '<answer>' in response and '</answer>' in response
+    
+    def _extract_frames_for_pi3(self, video_path: str, target_fps: float = 1.0) -> List[str]:
+        """
+        Extract frames from video for pi3 tool
+        
+        Args:
+            video_path: Path to video file
+            target_fps: Target frame rate
+            
+        Returns:
+            List of paths to extracted frame images
+        """
+        try:
+            import cv2
+            import numpy as np
+        except ImportError:
+            logger.error("cv2 is required for video frame extraction. Please install opencv-python.")
+            return []
+        
+        cap = cv2.VideoCapture(video_path)
+        
+        # Get video info
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        original_fps = cap.get(cv2.CAP_PROP_FPS)
+        total_duration = total_frames / original_fps
+        
+        # Calculate frames to extract based on target fps
+        num_frames = int(total_duration * target_fps)
+        frame_interval = total_frames / num_frames
+        
+        frame_paths = []
+        temp_dir = Path("temp_frames_pi3")
+        temp_dir.mkdir(exist_ok=True)
+        
+        # Extract video filename (without extension)
+        video_filename = Path(video_path).stem
+        
+        # Extract frames evenly
+        for i in range(num_frames):
+            frame_idx = int(i * frame_interval)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if ret:
+                frame_path = temp_dir / f"{video_filename}_pi3_frame_{i}.jpg"
+                cv2.imwrite(str(frame_path), frame)
+                frame_paths.append(str(frame_path))
+        
+        cap.release()
+        logger.info(f"Extracted {len(frame_paths)} frames from video for pi3 tool (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, target fps: {target_fps})")
+        return frame_paths
+    
+    def _cleanup_pi3_frames(self):
+        """
+        Clean up temporary frames extracted for pi3 tool
+        """
+        import os
+        import shutil
+        
+        temp_dir = Path("temp_frames_pi3")
+        if temp_dir.exists():
+            try:
+                shutil.rmtree(temp_dir)
+                logger.info("Cleaned up temporary pi3 frames")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary pi3 frames: {e}")

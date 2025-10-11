@@ -31,7 +31,8 @@ class Pi3Tool(Tool):
         """
         super().__init__(
             name="pi3_tool",
-            description="Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles. " \
+            description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis." \
+                        "Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles. " \
                         "The generated point cloud visualization uses cone-shaped markers to indicate camera positions. " \
                         "Cameras are numbered starting from 1(cam1), representing the first frame's camera angle, and so on."
         )
