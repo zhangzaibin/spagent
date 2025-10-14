@@ -14,7 +14,7 @@ from collections import defaultdict
 def download_vlm4d(test_mode=False, max_samples=5, start_index=0):
     """下载VLM4D数据集并转换为JSONL格式"""
 
-    source_base = "/home/ubuntun/datasets/VLM4D"
+    source_base = "/media/zzb/AI_save/zzb/spagent/dataset/VLM4D/shijiezhou/VLM4D"
     qa_folder = os.path.join(source_base, "QA")
     video_real = os.path.join(source_base, "videos_real")
     video_synth = os.path.join(source_base, "videos_synthetic")

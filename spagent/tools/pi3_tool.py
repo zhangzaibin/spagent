@@ -31,10 +31,15 @@ class Pi3Tool(Tool):
         """
         super().__init__(
             name="pi3_tool",
-            description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis." \
-                        "Perform 3D reconstruction from a single image to generate point clouds and multi-view visualizations with customizable viewing angles. " \
-                        "The generated point cloud visualization uses cone-shaped markers to indicate camera positions. " \
-                        "Cameras are numbered starting from 1(cam1), representing the first frame's camera angle, and so on."
+            description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis," \
+                        "perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
+                        "You can specify azimuth_angle (-180° to 180°, controls left-right rotation) and elevation_angle (-90° to 90°, controls up-down rotation) " \
+                        "to view the reconstructed 3D scene from any angle. By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input " \
+                        "image viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: azimuth rotates left/right around the camera's " \
+                        "vertical axis; elevation rotates up/down around the camera's right axis. Common angles: front (0,0), left (-45,0), right (45,0), top (0,45), " \
+                        "bottom (0,-45). You can call this tool MULTIPLE times with DIFFERENT angles to analyze the 3D structure comprehensively; the MLLM is encouraged " \
+                        "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. The generated visualization uses cone-shaped markers " \
+                        "to indicate camera positions, numbered from 1 (cam1, cam2, etc.)."
         )
         
         self.use_mock = use_mock
@@ -157,14 +162,14 @@ class Pi3Tool(Tool):
                     "type": "list",
                     "description": "The list of the path to the input images for 3D reconstruction."
                 },
-                # "azimuth_angle": {
-                #     "type": "number",
-                #     "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Negative values rotate left, positive values rotate right."
-                # },
-                # "elevation_angle": {
-                #     "type": "number", 
-                #     "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Negative values look down, positive values look up."
-                # }
+                "azimuth_angle": {
+                    "type": "number",
+                    "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Default is 0 (front view). Negative values rotate left, positive values rotate right."
+                },
+                "elevation_angle": {
+                    "type": "number", 
+                    "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
+                }
             },
             "required": ["image_path"]
         }
@@ -172,16 +177,16 @@ class Pi3Tool(Tool):
     def call(
         self, 
         image_path: List[str],
-        # azimuth_angle: float,
-        # elevation_angle: float
+        azimuth_angle: float = 0,
+        elevation_angle: float = 0
     ) -> Dict[str, Any]:
         """
         Execute 3D reconstruction
         
         Args:
             image_path: List of paths to the input images for 3D reconstruction
-            azimuth_angle: Azimuth angle for custom viewpoint (required)
-            elevation_angle: Elevation angle for custom viewpoint (required)
+            azimuth_angle: Azimuth angle for custom viewpoint (default: 0)
+            elevation_angle: Elevation angle for custom viewpoint (default: 0)
             
         Returns:
             3D reconstruction result dictionary
@@ -206,10 +211,8 @@ class Pi3Tool(Tool):
             
             # Convert angles to float and validate
             try:
-                # azimuth_angle = float(azimuth_angle)
-                # elevation_angle = float(elevation_angle)
-                azimuth_angle = 0
-                elevation_angle = 0
+                azimuth_angle = float(azimuth_angle)
+                elevation_angle = float(elevation_angle)
             except (ValueError, TypeError) as e:
                 return {
                     "success": False,

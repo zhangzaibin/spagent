@@ -333,7 +333,7 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
     """
     # 获取点云和相机位置
     points_3d = results['points'][0][masks].cpu().numpy()
-    camera_poses = results['camera_poses'][0].cpu().numpy()  # 这是camera-to-world矩阵
+    original_camera_poses = results['camera_poses'][0].cpu().numpy()  # 原始的camera-to-world矩阵
     colors_3d = imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu().numpy()  # 使用RGB颜色数据
     
     # 应用官方的场景旋转 (Y轴100°, X轴155°)
@@ -342,16 +342,23 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
     official_rotation = r_x * r_y
     points_3d = official_rotation.apply(points_3d)
     
-    # 提取相机位置 - Pi3输出的是camera-to-world矩阵
+    # 旋转相机位姿并提取相机中心 - 与官方场景旋转保持一致
+    rotated_camera_poses = []
     camera_centers = []
-    for pose in camera_poses:
-        # Pi3输出的camera_poses是camera-to-world变换矩阵
-        # 对于camera-to-world矩阵，相机中心就是平移部分
-        camera_center = pose[:3, 3]  # 直接取平移部分作为相机中心
-        camera_center = official_rotation.apply(camera_center.reshape(1, -1))[0]
-        camera_centers.append(camera_center)
-    
+    for pose in original_camera_poses:
+        R_cw = pose[:3, :3]
+        t_cw = pose[:3, 3]
+        # 将相机位姿同样应用官方旋转，使得点云与相机位姿在同一坐标系中
+        R_cw_rot = official_rotation.as_matrix() @ R_cw
+        t_cw_rot = official_rotation.apply(t_cw.reshape(1, -1))[0]
+        new_pose = np.eye(4)
+        new_pose[:3, :3] = R_cw_rot
+        new_pose[:3, 3] = t_cw_rot
+        rotated_camera_poses.append(new_pose)
+        camera_centers.append(t_cw_rot)
+
     camera_centers = np.array(camera_centers)
+    camera_poses = np.array(rotated_camera_poses)  # 使用旋转后的camera-to-world矩阵
     
     # 子采样点云以提高渲染性能
     max_points_to_visualize = 100000
@@ -396,11 +403,6 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
     if not show_cameras:
         return None, None, None, None, None, None
     
-    # 应用官方旋转
-    r_y = R.from_euler('y', 100, degrees=True)
-    r_x = R.from_euler('x', 155, degrees=True)
-    official_rotation = r_x * r_y
-    
     # 计算坐标轴的长度
     axis_length = max_range * 0.12
     
@@ -420,14 +422,11 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
         # 将相机中心转换到当前视图坐标系
         cam_center_in_view = (view_R_cam @ cam_center.T).T + view_t_cam
         
-        # Pi3输出的是camera-to-world矩阵，提取旋转部分
+        # 相机姿态：camera-to-world旋转部分
         R_cam2world = cam_pose[:3, :3]
         
-        # 应用官方旋转到相机姿态
-        R_cam2world_rotated = official_rotation.as_matrix() @ R_cam2world
-        
-        # 转换到当前视图坐标系
-        R_pose_in_view = view_R_cam @ R_cam2world_rotated
+        # 转换到当前视图坐标系（view为某个参考相机的坐标系）
+        R_pose_in_view = view_R_cam @ R_cam2world
         
         # 绘制相机锥形（视锥）
         frustum_length = axis_length * 0.8  # 锥形长度（减小）
@@ -529,16 +528,37 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     cam_center = camera_centers[cam_idx]
     cam_pose = camera_poses[cam_idx]
     
-    # 提取相机的旋转矩阵和平移
+    # 提取相机的旋转矩阵和平移（camera-to-world）
     if cam_pose.shape == (4, 4):
-        R_cam = cam_pose[:3, :3]
-        t_cam = cam_pose[:3, 3]
+        R_cw = cam_pose[:3, :3]
+        t_cw = cam_pose[:3, 3]
     else:
-        R_cam = cam_pose[:3, :3]
-        t_cam = cam_pose[:3, 3]
-    
-    # 将点云从世界坐标系转换到相机坐标系
-    points_cam = (R_cam @ points_sample.T).T + t_cam
+        R_cw = cam_pose[:3, :3]
+        t_cw = cam_pose[:3, 3]
+
+    # 计算world-to-camera变换，将点云从世界坐标系转换到相机坐标系
+    R_wc = R_cw.T
+    t_wc = -R_wc @ t_cw
+    points_cam = (R_wc @ points_sample.T).T + t_wc
+
+    # 使方位角/仰角作为相对于该相机视角的拖动（在相机坐标系内做旋转）
+    # yaw: 绕相机Y轴（左右），pitch: 绕相机X轴（上下）
+    try:
+        if abs(azim_angle) > 1e-6 or abs(elev_angle) > 1e-6:
+            R_yaw = R.from_euler('y', azim_angle, degrees=True).as_matrix()
+            R_pitch = R.from_euler('x', elev_angle, degrees=True).as_matrix()
+            R_rel = R_yaw @ R_pitch
+            points_cam = (R_rel @ points_cam.T).T
+            # 更新视图变换：在world-to-camera的基础上叠加相对旋转
+            view_R_cam = R_rel @ R_wc
+            view_t_cam = R_rel @ t_wc
+        else:
+            view_R_cam = R_wc
+            view_t_cam = t_wc
+    except Exception:
+        # 若旋转计算失败，回退为不旋转
+        view_R_cam = R_wc
+        view_t_cam = t_wc
     
     # 计算点云的实际范围，用于自适应缩放
     x_range = points_cam[:, 0].max() - points_cam[:, 0].min()
@@ -607,7 +627,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     if show_all_cameras:
         # 显示所有相机
         x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
-            ax, camera_centers, camera_poses, cam_idx, R_cam, t_cam, max_range, show_cameras=True
+            ax, camera_centers, camera_poses, cam_idx, view_R_cam, view_t_cam, max_range, show_cameras=True
         )
         
         # 计算包含点云和相机的边界
@@ -628,7 +648,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         single_camera_poses = np.array([camera_poses[cam_idx]])
         
         x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
-            ax, single_camera_centers, single_camera_poses, 0, R_cam, t_cam, max_range, show_cameras=True
+            ax, single_camera_centers, single_camera_poses, 0, view_R_cam, view_t_cam, max_range, show_cameras=True
         )
         
         # 计算包含点云和相机的边界
@@ -649,18 +669,9 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         y_min, y_max = points_cam[:, 1].min(), points_cam[:, 1].max()
         z_min, z_max = points_cam[:, 2].min(), points_cam[:, 2].max()
     
-    # 设置视角，添加一些默认偏移以避免完全正视的空白视图
-    base_elev = 15.0
-    elev = base_elev + elev_angle
-    azim = 225.0 + azim_angle
-    
-    # 如果角度导致完全正视或者在特殊位置，稍作调整
-    if abs(elev_angle) < 1e-3 and abs(azim_angle) < 1e-3:
-        # 当两个角度都为0时，稍作调整避免空白视图
-        elev += 5.0  # 稍微向上倾斜
-        azim += 5.0  # 稍微旋转
-    
-    ax.view_init(elev=elev, azim=azim)
+    # 固定matplotlib观察方向，使(azim,elev) = (0,0)尽量对应相机视角
+    # 在mplot3d中，elev=0, azim=-90 近似沿着 -Z 方向观察
+    ax.view_init(elev=0.0, azim=-90.0)
     
     # 计算边界框
     margin_factor = 0.12
@@ -816,6 +827,26 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
         生成的视角图片列表
     """
     try:
+        # 如果角度为0°/0°，直接返回第一张输入图片，严格对齐起始视角
+        if abs(azimuth_angle) < 1e-6 and abs(elevation_angle) < 1e-6:
+            try:
+                img0 = imgs_rgb_tensor[0].detach().cpu().numpy()  # C,H,W in [0,1]
+                img0 = (np.clip(img0.transpose(1, 2, 0), 0, 1) * 255).astype(np.uint8)
+                buf = io.BytesIO()
+                Image.fromarray(img0).save(buf, format='PNG')
+                buf.seek(0)
+                img_b64 = base64.b64encode(buf.read()).decode('utf-8')
+                buf.close()
+                return [{
+                    "camera": 1,
+                    "view": "custom_azim_0_elev_0",
+                    "azimuth_angle": azimuth_angle,
+                    "elevation_angle": elevation_angle,
+                    "image": img_b64
+                }]
+            except Exception as e_img:
+                logger.warning(f"返回原始首图失败，回退到点云渲染: {e_img}")
+
         # 准备点云和相机数据（复用共同逻辑）
         points_sample, colors_sample, camera_centers, camera_poses = _prepare_points_and_cameras(
             results, masks, imgs_rgb_tensor
@@ -823,7 +854,7 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
         
         view_images = []
         
-        # 只处理第一个相机的视角
+        # 只处理第一个相机的视角（以第一张图片为基准）
         cam_idx = 0
         view_name = f"custom_azim_{azimuth_angle}_elev_{elevation_angle}"
         

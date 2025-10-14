@@ -48,8 +48,8 @@ TOOL_CONFIGS = {
     "depth_detection_segmentation": [
         # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
         # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
-        SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
-        # Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
+        # SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
+        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
     ]
 }
 
@@ -68,6 +68,8 @@ def main():
                         help='Path to the image base directory (default: dataset)')
     parser.add_argument('--model', type=str, default='gpt-4o',
                         help='Model to use for evaluation (default: gpt-4o-mini)')
+    parser.add_argument('--max_iterations', type=int, default=3,
+                        help='Maximum number of tool-call iterations (default: 3)')
 
     args = parser.parse_args()
     
@@ -90,7 +92,8 @@ def main():
             image_base_path=args.image_base_path,
             model=args.model,
             max_samples=args.max_samples,
-            max_workers=args.max_workers
+            max_workers=args.max_workers,
+            max_iterations=args.max_iterations
         )
         all_results[config_name] = results
         
