@@ -33,10 +33,12 @@ class Pi3Tool(Tool):
             name="pi3_tool",
             description="Perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
                         "You can specify azimuth_angle (-180° to 180°, controls left-right rotation) and elevation_angle (-90° to 90°, controls up-down rotation) " \
-                        "to view the reconstructed 3D scene from any angle. Default is front view (azimuth=0, elevation=0). " \
-                        "Common angles: front (0,0), left (-45,0), right (45,0), top (0,45), bottom (0,-45). " \
-                        "You can call this tool MULTIPLE times with DIFFERENT angles to analyze the 3D structure comprehensively. " \
-                        "The generated visualization uses cone-shaped markers to indicate camera positions, numbered from 1 (cam1, cam2, etc.)."
+                        "to view the reconstructed 3D scene from any angle. By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input " \
+                        "image viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: azimuth rotates left/right around the camera's " \
+                        "vertical axis; elevation rotates up/down around the camera's right axis. Common angles: front (0,0), left (-45,0), right (45,0), top (0,45), " \
+                        "bottom (0,-45). You can call this tool MULTIPLE times with DIFFERENT angles to analyze the 3D structure comprehensively; the MLLM is encouraged " \
+                        "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. The generated visualization uses cone-shaped markers " \
+                        "to indicate camera positions, numbered from 1 (cam1, cam2, etc.)."
         )
         
         self.use_mock = use_mock

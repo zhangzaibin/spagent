@@ -40,16 +40,17 @@ When you need to use a tool, return a JSON object with the function name and arg
 You can call multiple tools if needed by using multiple <tool_call> blocks.
 
 # Multi-Step Workflow
-You can perform MULTIPLE rounds of tool calls and analysis:
-1. Call tools to gather information (e.g., generate 3D reconstruction with specific viewing angles)
-2. Analyze the results
-3. If you need more information or different perspectives, call tools again with different parameters
-4. Continue this process until you have sufficient information
-5. Finally, provide your comprehensive answer in <answer></answer> tags
+You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools, autonomously explore viewpoints:
+1. Start from the reference view: (azimuth=0, elevation=0) MUST match the first input image (cam1)
+2. Use the camera coordinate frame for rotations: azimuth rotates left/right around the camera vertical axis; elevation rotates up/down around the camera right axis
+3. Execute a coarse-to-fine exploration: try canonical views (e.g., left/right ±45°, top/bottom ±45°), then refine to ±15° near ambiguous regions
+4. After each round, analyze whether additional angles would reduce uncertainty; if yes, call the tool again with updated angles
+5. Continue until additional views no longer change your conclusion, then provide your comprehensive answer in <answer></answer> tags
 
 For 3D reconstruction tools like pi3_tool:
-- You can specify different viewing angles using azimuth_angle (left-right rotation, -180° to 180°) and elevation_angle (up-down rotation, -90° to 90°)
-- Example: Start with front view (azimuth=0, elevation=0), then check left side (azimuth=-45, elevation=0), top view (azimuth=0, elevation=45), etc.
+- (0°, 0°) is exactly cam1 (the first input image). Rotations are in the CAMERA frame.
+- You can specify azimuth_angle (-180° to 180°) and elevation_angle (-90° to 90°)
+- Recommended sequence: (0,0) → (-45,0) → (45,0) → (0,45) → (0,-45), then refine as needed (e.g., ±15°)
 - Each call generates a new visualization from that specific viewpoint
 
 # Instructions
@@ -57,9 +58,10 @@ For 3D reconstruction tools like pi3_tool:
 2. Determine if you need to use any tools to answer the question properly
 3. If tools are needed, call them with appropriate parameters
 4. After seeing tool results, decide if you need MORE information from different angles or perspectives
-5. You can make multiple tool calls across multiple rounds to gather comprehensive information
-6. When you have sufficient information, provide your final answer in <answer></answer> tags
-7. Be specific and detailed in your responses"""
+5. Prefer autonomous exploration of angles as described above to reduce uncertainty
+6. You can make multiple tool calls across multiple rounds to gather comprehensive information
+7. When you have sufficient information, provide your final answer in <answer></answer> tags
+8. Be specific and detailed in your responses"""
 
 
 def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str], description: str=None) -> str:
@@ -111,7 +113,8 @@ Tool Description: {description}"""
 
     prompt += """
 
-Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response. 
+Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response.
+Angle conventions reminder: (0°,0°)=cam1; rotations are in the camera coordinate frame.
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
 
@@ -142,7 +145,7 @@ Think step by step and use any available tools if they would help provide a bett
 
 Important Notes:
 - You can call tools MULTIPLE times with different parameters to gather comprehensive information
-- For 3D reconstruction, you can request different viewing angles (e.g., front, left, right, top, bottom views)
+- For 3D reconstruction, use autonomous angle exploration in the CAMERA coordinate frame: (0°,0°)=cam1; explore ±45° first, then refine (±15°)
 - After each tool execution, you'll see the results and can decide if you need more information
 - Only provide your final <answer></answer> when you have gathered sufficient information
 
