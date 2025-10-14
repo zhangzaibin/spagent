@@ -17,8 +17,4 @@ output/*
 *.csv
 test_data
 test_outputs
-<<<<<<< HEAD
 results
-=======
-output*
->>>>>>> 7d0fa4b7bd1efe06a1b11dab93f690b86dab04c2
