@@ -131,6 +131,7 @@ class SPAgent:
         # Create system prompt with available tools
         tool_schemas = self.tool_registry.get_function_schemas()
         system_prompt = create_system_prompt(tool_schemas)
+        # system_prompt += '\nThis time, you need to call the function anyway in <tool_call></tool_call> format.' # Debug Only!
         user_prompt = create_user_prompt(question, image_paths)
         
         # Initialize tracking variables for multi-step workflow

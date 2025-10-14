@@ -41,3 +41,17 @@ python spagent/utils/download_cvbench.py
 # 数据集地址：https://github.com/embodiedreasoning/ERQA/blob/main/data/erqa.tfrecord
 python  python spagent/utils/download_erqa.py
 ```
+
+## 3. VSI-Bench数据集
+```bash
+# 下载VSI-Bench原始数据并转为jsonl格式。
+# 数据集地址：https://huggingface.co/datasets/nyu-visionx/VSI-Bench
+python spagent/utils/download_vsibench.py
+```
+
+## 4. VLM4D数据集
+```bash
+# 下载VLM4D原始数据并转为jsonl格式。
+# 数据集地址：https://huggingface.co/datasets/shijiezhou/VLM4D
+python spagent/utils/download_vlm4d.py
+```
