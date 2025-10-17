@@ -99,6 +99,7 @@ def evaluate_single_video(
     sample: Dict[str, Any], 
     video_base_path: str,
     target_fps: float = 1.0,
+    max_iterations: int = 3,
     pi3_target_fps: float = None,
     config_name: str = "default"
 ) -> Dict[str, Any]:
@@ -134,6 +135,7 @@ def evaluate_single_video(
         agent_result = agent.solve_problem(
             frame_paths,
             f"Based on these {len(frame_paths)} frames from a video (sampled at {target_fps} fps), please answer: {result['question']}",
+            max_iterations=max_iterations,
             video_path=video_path,
             pi3_target_fps=actual_pi3_fps
         )

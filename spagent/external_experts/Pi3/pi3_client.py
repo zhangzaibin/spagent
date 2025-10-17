@@ -62,10 +62,15 @@ class Pi3Client:
                 logger.error(f"图片文件不存在：{image_path}")
                 return None
                 
-            with open(image_path, 'rb') as f:
-                image_bytes = f.read()
-                
-            return base64.b64encode(image_bytes).decode('utf-8')
+            # 使用cv2读取图片，确保格式一致（BGR格式）
+            image_bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+            if image_bgr is None:
+                logger.error(f"无法读取图片：{image_path}")
+                return None
+            
+            # 编码为JPEG格式（与视频处理保持一致）
+            _, buffer = cv2.imencode('.jpg', image_bgr)
+            return base64.b64encode(buffer).decode('utf-8')
         except Exception as e:
             logger.error(f"编码图片失败：{e}")
             return None
@@ -201,7 +206,7 @@ class Pi3Client:
             
             if response.status_code == 200:
                 result = response.json()
-                if result.get("success"):
+                if result.get("success"):                    
                     return result
                 else:
                     logger.error(f"3D重建失败：{result.get('error', '未知错误')}")
@@ -383,10 +388,10 @@ if __name__ == "__main__":
         logger.error("测试推理失败，退出程序")
         exit(1)
     
-    # 3. 处理单张图片
-    logger.info("\n=== 处理单张图片 ===")
+    # # 3. 处理单张图片
+    # logger.info("\n=== 处理单张图片 ===")
     
-    # 检查是否有可用的测试图片
+    # # 检查是否有可用的测试图片
     test_images = ["dataset/BLINK_images/Multi-view_Reasoning_val_000065_img1.jpg", "dataset/BLINK_images/Multi-view_Reasoning_val_000065_img2.jpg"]
     
     single_image_path = None
@@ -478,44 +483,44 @@ if __name__ == "__main__":
     else:
         logger.error("多张图片3D重建失败")
 
-    # # 4. 处理视频文件
-    # logger.info("\n=== 处理视频文件 ===")
+    # 4. 处理视频文件
+    logger.info("\n=== 处理视频文件 ===")
     
-    # # 检查是否有可用的测试视频
-    # test_videos = ["assets/cartoon_horse.mp4"]
+    # 检查是否有可用的测试视频
+    test_videos = ["dataset/VLM4D_videos/real_davis_dogs-jump.mp4"]
     
-    # video_path = None
-    # for test_video in test_videos:
-    #     if os.path.exists(test_video):
-    #         video_path = test_video
-    #         break
+    video_path = None
+    for test_video in test_videos:
+        if os.path.exists(test_video):
+            video_path = test_video
+            break
     
-    # if video_path:
-    #     logger.info(f"使用测试视频：{video_path}")
-    #     video_result = client.infer_from_video(
-    #         video_path=video_path,
-    #         interval=10,  # 每10帧提取一帧
-    #         conf_threshold=0.1,
-    #         rtol=0.03,
-    #         generate_views=True,
-    #         max_views_per_camera=4  # 每个相机最多4张视角图
-    #     )
+    if video_path:
+        logger.info(f"使用测试视频：{video_path}")
+        video_result = client.infer_from_video(
+            video_path=video_path,
+            interval=25,  # 每10帧提取一帧
+            conf_threshold=0.06,
+            rtol=0.03,
+            generate_views=True,
+            max_views_per_camera=7  # 每个相机最多4张视角图
+        )
         
-    #     if video_result:
-    #         logger.info("视频3D重建成功！")
-    #         logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
-    #         logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
-    #         logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
+        if video_result:
+            logger.info("视频3D重建成功！")
+            logger.info(f"- 点云数量: {video_result.get('points_count', '未知')}")
+            logger.info(f"- PLY文件名: {video_result.get('ply_filename', '未知')}")
+            logger.info(f"- 生成视角数: {len(video_result.get('camera_views', []))}")
             
-    #         # 保存结果
-    #         if client.save_results(video_result, "outputs/video"):
-    #             logger.info("视频重建结果保存成功！")
-    #         else:
-    #             logger.error("视频重建结果保存失败")
-    #     else:
-    #         logger.error("视频3D重建失败")
-    # else:
-    #     logger.warning("没有找到可用的测试视频")
-    #     logger.info("可用的测试视频路径：")
-    #     for test_video in test_videos:
-    #         logger.info(f"  - {test_video}")
+            # 保存结果
+            if client.save_results(video_result, "outputs/video"):
+                logger.info("视频重建结果保存成功！")
+            else:
+                logger.error("视频重建结果保存失败")
+        else:
+            logger.error("视频3D重建失败")
+    else:
+        logger.warning("没有找到可用的测试视频")
+        logger.info("可用的测试视频路径：")
+        for test_video in test_videos:
+            logger.info(f"  - {test_video}")
