@@ -101,7 +101,7 @@ def evaluate_single_video(
     target_fps: float = 1.0,
     max_iterations: int = 3,
     pi3_target_fps: float = None,
-    config_name: str = "default"
+    config_name: str = "default",
 ) -> Dict[str, Any]:
     """Evaluate a single video sample
     
@@ -109,6 +109,7 @@ def evaluate_single_video(
         agent: SPAgent instance
         sample: Data sample
         video_base_path: Base path for videos
+        max_iterations: Maximum number of tool-call iterations
         target_fps: Target frame rate for initial model judgment, default 1 fps
         pi3_target_fps: Target frame rate for pi3 tool (if None, uses target_fps)
         config_name: Configuration name for saving results
@@ -204,7 +205,8 @@ def evaluate_single_sample(
     agent: SPAgent,
     sample: Dict[str, Any], 
     image_base_path: str,
-    config_name: str = "default"
+    config_name: str = "default",
+    max_iterations: int = 3
 ) -> Dict[str, Any]:
     """Evaluate a single image sample
     
@@ -212,6 +214,8 @@ def evaluate_single_sample(
         agent: SPAgent instance
         sample: Data sample
         image_base_path: Base path for images
+        config_name: Configuration name for saving results
+        max_iterations: Maximum number of tool-call iterations
         
     Returns:
         Evaluation result dictionary
@@ -225,7 +229,8 @@ def evaluate_single_sample(
         start_time = time.time()
         agent_result = agent.solve_problem(
             result["path"],
-            result["question"]
+            result["question"],
+            max_iterations=max_iterations
         )
         inference_time = time.time() - start_time
         
@@ -279,7 +284,8 @@ def evaluate_tool_config(
     image_base_path: str,
     model: str = "gpt-4o-mini",
     max_samples: int = None,
-    max_workers: int = 4
+    max_workers: int = 4,
+    max_iterations: int = 3
 ) -> Dict[str, Any]:
     """Evaluate a specific tool configuration
     
@@ -291,6 +297,7 @@ def evaluate_tool_config(
         model: Model name to use
         max_samples: Maximum number of samples to evaluate
         max_workers: Maximum number of parallel workers
+        max_iterations: Maximum number of tool-call iterations
         
     Returns:
         Evaluation results dictionary
@@ -324,7 +331,7 @@ def evaluate_tool_config(
         
         if has_image and not has_video:
             # Image sample
-            result = evaluate_single_sample(agent, sample, image_base_path, config_name)
+            result = evaluate_single_sample(agent, sample, image_base_path, config_name, max_iterations)
         elif has_video and not has_image:
             # Video sample
             if sample['data_source'] == "VSI-Bench":
@@ -337,7 +344,7 @@ def evaluate_tool_config(
                 target_fps = 1.00
                 pi3_target_fps = 3.0
                 print(f"The target fps parameter has not been specified for the {sample['data_source']} dataset yet, and the default value of 1.00 will be adopted")
-            result = evaluate_single_video(agent, sample, image_base_path, target_fps=target_fps, pi3_target_fps=pi3_target_fps, config_name=config_name)
+            result = evaluate_single_video(agent, sample, image_base_path, target_fps=target_fps, pi3_target_fps=pi3_target_fps, config_name=config_name, max_iterations=max_iterations)
         else:
             # Invalid sample
             result = {

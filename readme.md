@@ -172,6 +172,11 @@ python spagent/vllm_models/qwen.py
 
 ---
 
+## 评测
+```bash
+python examples/evaluation/evaluate_img.py --data_path dataset/Multi-view_Reasoning_BLINK_subset.jsonl --max_samples 20 --model gpt-4.1 --max_iterations 4
+```
+
 ## 🎯 运行示例 (Run Examples)
 
 ### 新SPAgent示例 (New SPAgent Examples)
