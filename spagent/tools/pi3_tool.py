@@ -31,13 +31,15 @@ class Pi3Tool(Tool):
         """
         super().__init__(
             name="pi3_tool",
-            description="Perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
+            description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis," \
+                        "perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
                         "You can specify azimuth_angle (-180° to 180°, controls left-right rotation) and elevation_angle (-90° to 90°, controls up-down rotation) " \
                         "to view the reconstructed 3D scene from any angle. By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input " \
                         "image viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: azimuth rotates left/right around the camera's " \
                         "vertical axis; elevation rotates up/down around the camera's right axis. Common angles: front (0,0), left (-45,0), right (45,0), top (0,45), " \
                         "bottom (0,-45). You can call this tool MULTIPLE times with DIFFERENT angles to analyze the 3D structure comprehensively; the MLLM is encouraged " \
-                        "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. The generated visualization uses cone-shaped markers " \
+                        "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. Additionally, you can provide scale_factor (>0, default 1.0) " \
+                        "to ZOOM the rendered point cloud at the specified angle for clearer inspection (e.g., 1.5, 2.0). The generated visualization uses cone-shaped markers " \
                         "to indicate camera positions, numbered from 1 (cam1, cam2, etc.)."
         )
         
@@ -58,7 +60,7 @@ class Pi3Tool(Tool):
             except ImportError:
                 # Create a simple mock client
                 class SimpleMockPi3:
-                    def infer_from_images(self, image_paths, azimuth_angle=None, elevation_angle=None, **kwargs):
+                    def infer_from_images(self, image_paths, azimuth_angle=None, elevation_angle=None, scale_factor=1.0, **kwargs):
                         """Mock 3D reconstruction"""
                         import os
                         import base64
@@ -89,14 +91,15 @@ class Pi3Tool(Tool):
                             "camera_views": []
                         }
                         
-                        # Add angle information as text with larger font
+                        # Add angle and scale information as text with larger font
                         if azimuth_angle is not None and elevation_angle is not None:
                             # Draw text background
-                            draw.rectangle([20, 20, 280, 120], fill='white', outline='black', width=2)
+                            draw.rectangle([20, 20, 320, 140], fill='white', outline='black', width=2)
                             draw.text((30, 30), f"Azimuth: {azimuth_angle}°", fill='black')
                             draw.text((30, 50), f"Elevation: {elevation_angle}°", fill='black')
-                            draw.text((30, 70), "Pi3 Mock Render", fill='gray')
-                            draw.text((30, 90), f"Points: {result['points_count']}", fill='blue')
+                            draw.text((30, 70), f"Scale: {scale_factor}x", fill='black')
+                            draw.text((30, 90), "Pi3 Mock Render", fill='gray')
+                            draw.text((30, 110), f"Points: {result['points_count']}", fill='blue')
                         
                         # Add some visual noise to make it look more realistic
                         for i in range(100):
@@ -119,6 +122,7 @@ class Pi3Tool(Tool):
                                 "view": f"custom_azim_{azimuth_angle}_elev_{elevation_angle}",
                                 "azimuth_angle": azimuth_angle,
                                 "elevation_angle": elevation_angle,
+                                "scale_factor": scale_factor,
                                 "image": img_base64
                             }]
                         else:
@@ -128,6 +132,7 @@ class Pi3Tool(Tool):
                                 "view": "default_view",
                                 "azimuth_angle": 0,
                                 "elevation_angle": 0,
+                                "scale_factor": 1.0,
                                 "image": img_base64
                             }]
                         
@@ -168,6 +173,10 @@ class Pi3Tool(Tool):
                 "elevation_angle": {
                     "type": "number", 
                     "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
+                },
+                "scale_factor": {
+                    "type": "number",
+                    "description": "Zoom scale for rendered point cloud (>0, default 1.0). 1.0 = no zoom; >1.0 = zoom in."
                 }
             },
             "required": ["image_path"]
@@ -177,7 +186,8 @@ class Pi3Tool(Tool):
         self, 
         image_path: List[str],
         azimuth_angle: float = 0,
-        elevation_angle: float = 0
+        elevation_angle: float = 0,
+        scale_factor: float = 1.0
     ) -> Dict[str, Any]:
         """
         Execute 3D reconstruction
@@ -212,6 +222,7 @@ class Pi3Tool(Tool):
             try:
                 azimuth_angle = float(azimuth_angle)
                 elevation_angle = float(elevation_angle)
+                scale_factor = float(scale_factor)
             except (ValueError, TypeError) as e:
                 return {
                     "success": False,
@@ -231,7 +242,14 @@ class Pi3Tool(Tool):
                     "error": "elevation_angle must be between -90 and 90 degrees"
                 }
             
-            logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
+            # Validate scale factor
+            if not (scale_factor > 0):
+                return {
+                    "success": False,
+                    "error": "scale_factor must be > 0"
+                }
+            
+            logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°, scale_factor={scale_factor}x")
             
             # Execute 3D reconstruction with image list
             result = self._client.infer_from_images(
@@ -241,7 +259,8 @@ class Pi3Tool(Tool):
                 generate_views=True,
                 use_filename=True,
                 azimuth_angle=azimuth_angle,
-                elevation_angle=elevation_angle
+                elevation_angle=elevation_angle,
+                scale_factor=scale_factor
             )
             
             if result and result.get('success'):
@@ -264,6 +283,7 @@ class Pi3Tool(Tool):
                     "view_count": len(camera_views),
                     "azimuth_angle": azimuth_angle,
                     "elevation_angle": elevation_angle,
+                    "scale_factor": scale_factor,
                     "view_type": "custom_angle",
                     "input_images_count": len(image_path),
                     "output_path": output_path,  # This is what SPAgent looks for
@@ -329,10 +349,11 @@ class Pi3Tool(Tool):
                     view_name = view_data.get("view", f"view_{i}")
                     azimuth = view_data.get("azimuth_angle", 0)
                     elevation = view_data.get("elevation_angle", 0)
+                    scale = view_data.get("scale_factor", 1.0)
                     
                     # Debug: log view data info
                     # Create filename with input image name, angles
-                    img_filename = f"pi3_{input_name}_azim{azimuth}_elev{elevation}.png"
+                    img_filename = f"pi3_{input_name}_azim{azimuth}_elev{elevation}_scale{scale}.png"
                     img_path = os.path.join(output_dir, img_filename)
                     
                     # Decode and save image
