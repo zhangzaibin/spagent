@@ -20,6 +20,7 @@ from pi3.models.pi3 import Pi3
 from pi3.utils.basic import load_images_as_tensor, write_ply
 from pi3.utils.geometry import depth_edge
 from safetensors.torch import load_file
+from sklearn.neighbors import NearestNeighbors
 
 # 配置日志格式
 logging.basicConfig(
@@ -110,6 +111,72 @@ def load_model(checkpoint_path=None):
         logger.error(f"模型加载失败：{e}")
         return False
 
+def remove_outliers(points, colors, k_neighbors=20, std_threshold=2.0):
+    """
+    使用统计离群点移除方法过滤点云中的离群点
+    
+    Args:
+        points: 点云坐标数组 (N, 3)
+        colors: 点云颜色数组 (N, 3) 或 (N, C)
+        k_neighbors: 用于计算的最近邻数量，默认20
+        std_threshold: 标准差阈值，默认2.0（越大保留越多点）
+        
+    Returns:
+        filtered_points: 过滤后的点云坐标
+        filtered_colors: 过滤后的点云颜色
+        inlier_mask: 内点的布尔掩码
+    """
+    try:
+        if len(points) < k_neighbors:
+            logger.warning(f"点云数量({len(points)})小于k_neighbors({k_neighbors})，跳过离群点移除")
+            return points, colors, np.ones(len(points), dtype=bool)
+        
+        # 转换为numpy数组（如果是tensor）
+        if torch.is_tensor(points):
+            points_np = points.cpu().numpy()
+        else:
+            points_np = np.array(points)
+            
+        if torch.is_tensor(colors):
+            colors_np = colors.cpu().numpy()
+        else:
+            colors_np = np.array(colors)
+        
+        # 使用KNN计算每个点到其k个最近邻的平均距离
+        nbrs = NearestNeighbors(n_neighbors=k_neighbors + 1, algorithm='auto').fit(points_np)
+        distances, indices = nbrs.kneighbors(points_np)
+        
+        # 排除自身（第一个邻居是点自己），计算到其他k个邻居的平均距离
+        mean_distances = np.mean(distances[:, 1:], axis=1)
+        
+        # 计算全局均值和标准差
+        global_mean = np.mean(mean_distances)
+        global_std = np.std(mean_distances)
+        
+        # 确定离群点阈值
+        threshold = global_mean + std_threshold * global_std
+        
+        # 创建内点掩码（保留距离小于阈值的点）
+        inlier_mask = mean_distances < threshold
+        
+        # 过滤点云
+        filtered_points = points_np[inlier_mask]
+        filtered_colors = colors_np[inlier_mask]
+        
+        removed_count = len(points_np) - len(filtered_points)
+        removed_percentage = (removed_count / len(points_np)) * 100
+        
+        logger.info(f"离群点移除完成: 原始点数={len(points_np)}, "
+                   f"移除点数={removed_count} ({removed_percentage:.2f}%), "
+                   f"保留点数={len(filtered_points)}")
+        
+        return filtered_points, filtered_colors, inlier_mask
+        
+    except Exception as e:
+        logger.error(f"离群点移除失败: {e}")
+        # 失败时返回原始数据
+        return points, colors, np.ones(len(points), dtype=bool)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """健康检查接口"""
@@ -193,11 +260,16 @@ def infer():
         if 'images' not in data:
             return jsonify({"error": "缺少图像序列数据"}), 400
         
-        # 获取可选参数
-        conf_threshold = data.get('conf_threshold', 0.1)  # 置信度阈值
-        rtol = data.get('rtol', 0.03)  # 深度边缘检测阈值
+        # 获取可选参数 - 优化后的默认值以提升质量
+        conf_threshold = data.get('conf_threshold', 0.08)  # 置信度阈值 - 提高到25%获得更高质量
+        rtol = data.get('rtol', 0.02)  # 深度边缘检测阈值 - 更严格的边缘过滤
         generate_views = data.get('generate_views', True)  # 是否生成多视角图片
         max_views_per_camera = data.get('max_views_per_camera', 7)  # 减少默认视角数量以提高性能
+        
+        # 离群点移除参数
+        remove_outliers_flag = data.get('remove_outliers', True)  # 是否移除离群点，默认开启
+        k_neighbors = data.get('k_neighbors', 50)  # KNN邻居数量
+        std_threshold = data.get('std_threshold', 2.0)  # 标准差阈值
         
         # 新增：支持自定义角度参数
         azimuth_angle = data.get('azimuth_angle', None)  # 左右旋转角度（方位角）
@@ -222,8 +294,10 @@ def infer():
                 new_h = ((h + patch_size - 1) // patch_size) * patch_size
                 new_w = ((w + patch_size - 1) // patch_size) * patch_size
                 
+                # 优化：使用高质量插值方法调整尺寸
                 if new_h != h or new_w != w:
-                    image_bgr = cv2.resize(image_bgr, (new_w, new_h))
+                    # INTER_LANCZOS4 提供最高质量的插值
+                    image_bgr = cv2.resize(image_bgr, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
                 
                 # 转换BGR到RGB用于显示
                 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
@@ -262,6 +336,23 @@ def infer():
         non_edge = ~depth_edge(results['local_points'][..., 2], rtol=rtol)
         masks = torch.logical_and(masks, non_edge)[0]
         
+        # 获取初步过滤后的点云和颜色
+        points_filtered = results['points'][0][masks].cpu()
+        colors_filtered = imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu()
+        
+        # 应用离群点移除（如果启用）
+        if remove_outliers_flag:
+            logger.info(f"开始移除离群点 (k_neighbors={k_neighbors}, std_threshold={std_threshold})...")
+            points_filtered, colors_filtered, _ = remove_outliers(
+                points_filtered, 
+                colors_filtered, 
+                k_neighbors=k_neighbors, 
+                std_threshold=std_threshold
+            )
+            # 转换回tensor以便后续处理
+            points_filtered = torch.from_numpy(points_filtered) if isinstance(points_filtered, np.ndarray) else points_filtered
+            colors_filtered = torch.from_numpy(colors_filtered) if isinstance(colors_filtered, np.ndarray) else colors_filtered
+        
         # 生成基于图片名称或内容的文件名
         import hashlib
         if image_names and len(image_names) > 0:
@@ -280,20 +371,57 @@ def infer():
         os.makedirs("outputs", exist_ok=True)
         
         write_ply(
-            results['points'][0][masks].cpu(), 
-            imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu(),  # 使用RGB版本的颜色数据
+            points_filtered, 
+            colors_filtered,  # 使用过滤后的颜色数据
             ply_path
         )
         
         # 编码PLY文件为base64
         with open(ply_path, 'rb') as f:
             ply_b64 = base64.b64encode(f.read()).decode('utf-8')
+
+        # 提取原始相机位姿信息（未经旋转）
+        original_camera_poses = results['camera_poses'][0].cpu().numpy()
+        camera_poses_list = []
+        
+        # 获取第一个相机作为参考
+        reference_pose = original_camera_poses[0]
+        R_ref = reference_pose[:3, :3]  # 参考相机的旋转矩阵
+        
+        from scipy.spatial.transform import Rotation as R_scipy
+        
+        for i, pose in enumerate(original_camera_poses):
+            R_cw = pose[:3, :3]  # 旋转矩阵
+            t_cw = pose[:3, 3]   # 相机位置（世界坐标系）
+            
+            # 计算相对于第一个相机的旋转角度（用于 azimuth_angle 和 elevation_angle）
+            R_relative = R_cw @ R_ref.T  # 相对旋转矩阵
+            rotation_relative = R_scipy.from_matrix(R_relative)
+            
+            # 使用 YX 欧拉角分解得到方位角和仰角
+            try:
+                euler_yx = rotation_relative.as_euler('yx', degrees=True)
+                azimuth_from_cam1 = euler_yx[0]   # 方位角（左右）
+                elevation_from_cam1 = euler_yx[1]  # 仰角（上下）
+            except:
+                # 如果YX分解失败，使用近似方法
+                euler_xyz_rel = rotation_relative.as_euler('xyz', degrees=True)
+                azimuth_from_cam1 = euler_xyz_rel[1]   # Y轴旋转
+                elevation_from_cam1 = euler_xyz_rel[0]  # X轴旋转
+            
+            camera_poses_list.append({
+                "camera_id": i + 1,
+                "position": t_cw.tolist(),  # 相机中心位置 [x, y, z]
+                "azimuth_angle": float(azimuth_from_cam1),    # 方位角（相对于相机1），可直接用于 API
+                "elevation_angle": float(elevation_from_cam1)  # 仰角（相对于相机1），可直接用于 API
+            })
         
         response_data = {
             "success": True,
             "ply_file": ply_b64,
             "ply_filename": ply_filename,
-            "points_count": masks.sum().item(),
+            "points_count": len(points_filtered) if isinstance(points_filtered, np.ndarray) else points_filtered.shape[0],
+            "camera_poses": camera_poses_list,  # 添加原始相机位姿信息
             "camera_views": []
         }
         
@@ -303,11 +431,13 @@ def infer():
                 if azimuth_angle is not None and elevation_angle is not None:
                     # 使用自定义角度生成图片
                     logger.info(f"使用自定义角度生成视角图片: 方位角={azimuth_angle}°, 仰角={elevation_angle}°")
-                    view_images = generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, elevation_angle)
+                    view_images = generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, elevation_angle, 
+                                                             points_filtered, colors_filtered)
                 else:
                     # 使用默认的多视角生成
                     logger.info("使用默认多视角生成图片")
-                    view_images = generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera)  # 传递视角限制参数
+                    view_images = generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera, 
+                                                       points_filtered, colors_filtered)  # 传递视角限制参数和过滤后的点云
                 response_data["camera_views"] = view_images
             except Exception as e:
                 logger.warning(f"生成多视角图片失败：{e}")
@@ -319,7 +449,7 @@ def infer():
         logger.error(f"推理失败：{e}")
         return jsonify({"error": f"推理失败：{str(e)}"}), 500
 
-def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
+def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor, points_filtered=None, colors_filtered=None):
     """
     准备点云和相机数据的共同函数
     
@@ -327,41 +457,45 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor):
         results: Pi3模型的推理结果
         masks: 点云掩码
         imgs_rgb_tensor: RGB图像张量
+        points_filtered: 可选的预过滤点云（已移除离群点）
+        colors_filtered: 可选的预过滤颜色（已移除离群点）
         
     Returns:
         tuple: (points_sample, colors_sample, camera_centers, camera_poses)
     """
     # 获取点云和相机位置
-    points_3d = results['points'][0][masks].cpu().numpy()
+    if points_filtered is not None and colors_filtered is not None:
+        # 使用预过滤的点云（已经移除离群点）
+        if isinstance(points_filtered, np.ndarray):
+            points_3d = points_filtered
+        else:
+            points_3d = points_filtered.cpu().numpy() if hasattr(points_filtered, 'cpu') else np.array(points_filtered)
+        
+        if isinstance(colors_filtered, np.ndarray):
+            colors_3d = colors_filtered
+        else:
+            colors_3d = colors_filtered.cpu().numpy() if hasattr(colors_filtered, 'cpu') else np.array(colors_filtered)
+    else:
+        # 使用原始的点云提取方式
+        points_3d = results['points'][0][masks].cpu().numpy()
+        colors_3d = imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu().numpy()  # 使用RGB颜色数据
+    
     original_camera_poses = results['camera_poses'][0].cpu().numpy()  # 原始的camera-to-world矩阵
-    colors_3d = imgs_rgb_tensor.permute(0, 2, 3, 1)[masks].cpu().numpy()  # 使用RGB颜色数据
     
-    # 应用官方的场景旋转 (Y轴100°, X轴155°)
-    r_y = R.from_euler('y', 100, degrees=True)
-    r_x = R.from_euler('x', 155, degrees=True)
-    official_rotation = r_x * r_y
-    points_3d = official_rotation.apply(points_3d)
-    
-    # 旋转相机位姿并提取相机中心 - 与官方场景旋转保持一致
-    rotated_camera_poses = []
+    # 不应用官方旋转 - 直接使用原始相机视角
+    # 这样 (0,0) 角度就对应第一张输入图的真实视角
     camera_centers = []
+    camera_poses_list = []
     for pose in original_camera_poses:
-        R_cw = pose[:3, :3]
-        t_cw = pose[:3, 3]
-        # 将相机位姿同样应用官方旋转，使得点云与相机位姿在同一坐标系中
-        R_cw_rot = official_rotation.as_matrix() @ R_cw
-        t_cw_rot = official_rotation.apply(t_cw.reshape(1, -1))[0]
-        new_pose = np.eye(4)
-        new_pose[:3, :3] = R_cw_rot
-        new_pose[:3, 3] = t_cw_rot
-        rotated_camera_poses.append(new_pose)
-        camera_centers.append(t_cw_rot)
+        camera_centers.append(pose[:3, 3])
+        camera_poses_list.append(pose)
 
     camera_centers = np.array(camera_centers)
-    camera_poses = np.array(rotated_camera_poses)  # 使用旋转后的camera-to-world矩阵
+    camera_poses = np.array(camera_poses_list)  # 使用原始的camera-to-world矩阵
     
     # 子采样点云以提高渲染性能
-    max_points_to_visualize = 100000
+    # 优化：增加到50万个点以提升细节（原30万）
+    max_points_to_visualize = 500000
     if len(points_3d) > max_points_to_visualize:
         # 使用确定性的采样方法，基于点云数据本身而不是随机数
         # 这确保相同的点云总是产生相同的子集
@@ -419,19 +553,22 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
         # 选择相机颜色
         cam_color = camera_colors[cam_idx % len(camera_colors)]
         
-        # 将相机中心转换到当前视图坐标系
+        # 将相机中心转换到当前视图坐标系，并应用Y/Z翻转
+        flip_transform = np.diag([1, -1, -1])  # 与点云保持一致的翻转
         cam_center_in_view = (view_R_cam @ cam_center.T).T + view_t_cam
+        cam_center_in_view = (flip_transform @ cam_center_in_view.T).T
         
         # 相机姿态：camera-to-world旋转部分
         R_cam2world = cam_pose[:3, :3]
         
-        # 转换到当前视图坐标系（view为某个参考相机的坐标系）
+        # 转换到当前视图坐标系，并应用翻转
         R_pose_in_view = view_R_cam @ R_cam2world
+        R_pose_in_view = flip_transform @ R_pose_in_view
         
         # 绘制相机锥形（视锥）
-        frustum_length = axis_length * 0.8  # 锥形长度（减小）
-        frustum_width = frustum_length * 0.3   # 锥形底面宽度的一半（减小）
-        frustum_height = frustum_length * 0.25  # 锥形底面高度的一半（减小）
+        frustum_length = axis_length * 0.8  # 锥形长度
+        frustum_width = frustum_length * 0.3   # 锥形底面宽度的一半
+        frustum_height = frustum_length * 0.3  # 锥形底面高度的一半
         
         # 相机的朝向（-Z方向，因为相机看向负Z轴）
         forward = -R_pose_in_view[:, 2]  # 相机朝向
@@ -448,8 +585,8 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
         corner4 = far_center + right * frustum_width - up * frustum_height     # 右下
         
         # 线条粗细和透明度
-        line_width = 2 if cam_idx == current_view_cam_idx else 1
-        alpha = 0.8 if cam_idx == current_view_cam_idx else 0.6
+        line_width = 1.2 if cam_idx == current_view_cam_idx else 1
+        alpha = 0.65 if cam_idx == current_view_cam_idx else 0.5
         
         # 绘制从相机中心到四个角点的线条（锥形边缘）
         for corner in [corner1, corner2, corner3, corner4]:
@@ -467,17 +604,17 @@ def _draw_cameras_visualization(ax, camera_centers, camera_poses, current_view_c
                    color=cam_color, linewidth=line_width, alpha=alpha)
         
         # 绘制相机中心点
-        marker_size = 60 if cam_idx == current_view_cam_idx else 40
+        marker_size = 35 if cam_idx == current_view_cam_idx else 20
         ax.scatter(cam_center_in_view[0], cam_center_in_view[1], cam_center_in_view[2], 
-                  c=cam_color, s=marker_size, marker='o', alpha=1.0, depthshade=False,
-                  edgecolors='black', linewidth=1)
+                  c=cam_color, s=marker_size, marker='o', alpha=0.8, depthshade=False,
+                  edgecolors='black', linewidth=0.8)
         
         # 添加相机编号标签
-        label_pos = cam_center_in_view + np.array([0, 0, axis_length * 0.3])
+        label_pos = cam_center_in_view + np.array([axis_length * 0.3, 0, axis_length * 0.2])
         marker = '*' if cam_idx == current_view_cam_idx else ''  # 当前视角相机加星号标记
         ax.text(label_pos[0], label_pos[1], label_pos[2], 
                f'Cam{cam_idx+1}{marker}', fontsize=5, color='black', weight='bold',
-               bbox=dict(boxstyle="round,pad=0.1", facecolor=cam_color, alpha=0.6))
+               bbox=dict(boxstyle="round,pad=0.05", facecolor=cam_color, alpha=0.6))
         
         # 收集边界坐标（包括锥形的所有角点）
         coords_to_check = [
@@ -541,17 +678,95 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     t_wc = -R_wc @ t_cw
     points_cam = (R_wc @ points_sample.T).T + t_wc
 
-    # 使方位角/仰角作为相对于该相机视角的拖动（在相机坐标系内做旋转）
-    # yaw: 绕相机Y轴（左右），pitch: 绕相机X轴（上下）
+    # OpenCV相机坐标系: X右, Y下, Z前
+    # 为了正确显示，需要翻转Y和Z轴以适配标准的右手坐标系
+    # 这样可以将OpenCV坐标系 (X右,Y下,Z前) 转换为 (X右,Y上,Z后)
+    flip_transform = np.diag([1, -1, -1])  # 翻转Y和Z轴
+    points_cam = (flip_transform @ points_cam.T).T
+    
+    # 使方位角/仰角作为相对于第一个相机坐标轴的旋转
+    # 水平旋转（azimuth）：绕第一个相机的垂直轴（Y轴）
+    # 竖直旋转（elevation）：绕第一个相机的水平轴（X轴）
+    # 关键：旋转围绕第一帧相机的中心点，并使用第一个相机的坐标轴系统
+    # 同时旋转点云和相机，保持它们的相对位置关系
     try:
         if abs(azim_angle) > 1e-6 or abs(elev_angle) > 1e-6:
-            R_yaw = R.from_euler('y', azim_angle, degrees=True).as_matrix()
-            R_pitch = R.from_euler('x', elev_angle, degrees=True).as_matrix()
-            R_rel = R_yaw @ R_pitch
-            points_cam = (R_rel @ points_cam.T).T
-            # 更新视图变换：在world-to-camera的基础上叠加相对旋转
+            # 获取第一个相机（参考相机）的世界坐标位置和姿态
+            first_cam_world_pos = camera_poses[0][:3, 3]
+            first_cam_R_cw = camera_poses[0][:3, :3]  # 第一个相机的旋转矩阵（camera-to-world）
+            
+            # 将第一个相机的位置转换到当前相机坐标系
+            first_cam_in_current = (R_wc @ first_cam_world_pos.T).T + t_wc
+            
+            # 应用Y/Z翻转变换（与点云保持一致）
+            first_cam_center = (flip_transform @ first_cam_in_current.T).T
+            
+            # 获取第一个相机的坐标轴（在当前视图坐标系中）
+            # 将第一个相机的旋转矩阵转换到当前相机坐标系
+            first_cam_R_in_current = R_wc @ first_cam_R_cw
+            first_cam_R_in_current = flip_transform @ first_cam_R_in_current  # 应用翻转
+            
+            # 提取第一个相机的坐标轴
+            first_cam_x_axis = first_cam_R_in_current[:, 0]  # 第一个相机的X轴（水平轴）
+            first_cam_y_axis = first_cam_R_in_current[:, 1]  # 第一个相机的Y轴（垂直轴）
+            first_cam_z_axis = first_cam_R_in_current[:, 2]  # 第一个相机的Z轴（朝向）
+            
+            # 将点云移到原点（以第一个相机中心为基准）
+            points_centered = points_cam - first_cam_center
+            
+            # 按照第一个相机的坐标轴进行旋转
+            # 1. 先绕第一个相机的Y轴（垂直轴）旋转 - 水平旋转（方位角）
+            if abs(azim_angle) > 1e-6:
+                R_azim = R.from_rotvec(np.radians(azim_angle) * first_cam_y_axis).as_matrix()
+                points_centered = (R_azim @ points_centered.T).T
+            
+            # 2. 再绕第一个相机的X轴（水平轴）旋转 - 竖直旋转（仰角）
+            if abs(elev_angle) > 1e-6:
+                R_elev = R.from_rotvec(np.radians(elev_angle) * first_cam_x_axis).as_matrix()
+                points_centered = (R_elev @ points_centered.T).T
+            
+            # 将点云移回（加上第一个相机中心）
+            points_cam = points_centered + first_cam_center
+            
+            # 组合旋转矩阵（用于相机和视图变换）
+            R_azim_full = R.from_rotvec(np.radians(azim_angle) * first_cam_y_axis).as_matrix() if abs(azim_angle) > 1e-6 else np.eye(3)
+            R_elev_full = R.from_rotvec(np.radians(elev_angle) * first_cam_x_axis).as_matrix() if abs(elev_angle) > 1e-6 else np.eye(3)
+            R_rel = R_elev_full @ R_azim_full
+            
+            # 更新视图变换
             view_R_cam = R_rel @ R_wc
             view_t_cam = R_rel @ t_wc
+            
+            # 旋转所有相机的位置和姿态（围绕第一个相机中心）
+            rotated_camera_centers = []
+            rotated_camera_poses = []
+            for i, (cam_center, cam_pose) in enumerate(zip(camera_centers, camera_poses)):
+                # 将相机中心转换到当前相机坐标系并应用翻转
+                cam_center_in_current = (R_wc @ cam_center.T).T + t_wc
+                cam_center_flipped = (flip_transform @ cam_center_in_current.T).T
+                
+                # 围绕第一个相机中心旋转
+                cam_center_centered = cam_center_flipped - first_cam_center
+                cam_center_rotated = (R_rel @ cam_center_centered.T).T
+                cam_center_final = cam_center_rotated + first_cam_center
+                
+                # 旋转相机姿态矩阵
+                cam_R = cam_pose[:3, :3]
+                cam_R_in_current = R_wc @ cam_R
+                cam_R_flipped = flip_transform @ cam_R_in_current
+                cam_R_rotated = R_rel @ cam_R_flipped
+                
+                # 构建旋转后的相机姿态矩阵
+                rotated_pose = np.eye(4)
+                rotated_pose[:3, :3] = cam_R_rotated
+                rotated_pose[:3, 3] = cam_center_final
+                
+                rotated_camera_centers.append(cam_center_final)
+                rotated_camera_poses.append(rotated_pose)
+            
+            # 用旋转后的相机数据替换原始数据
+            camera_centers = np.array(rotated_camera_centers)
+            camera_poses = np.array(rotated_camera_poses)
         else:
             view_R_cam = R_wc
             view_t_cam = t_wc
@@ -561,19 +776,25 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         view_t_cam = t_wc
     
     # 计算点云的实际范围，用于自适应缩放
-    x_range = points_cam[:, 0].max() - points_cam[:, 0].min()
-    y_range = points_cam[:, 1].max() - points_cam[:, 1].min()
-    z_range = points_cam[:, 2].max() - points_cam[:, 2].min()
+    # 使用百分位数去除离群点影响(参考官方demo_gradio.py)
+    # 优化：使用5%/95%（官方配置）获得更准确的场景范围
+    lower_percentile = np.percentile(points_cam, 7, axis=0)
+    upper_percentile = np.percentile(points_cam, 93, axis=0)
+    
+    x_range = upper_percentile[0] - lower_percentile[0]
+    y_range = upper_percentile[1] - lower_percentile[1]
+    z_range = upper_percentile[2] - lower_percentile[2]
     max_range = max(x_range, y_range, z_range)
     
-    # 计算点的大小
+    # 计算点的大小 - 优化：更细腻的点云显示
     if max_range > 0:
-        point_size = max(0.5, min(3.0, 50.0 / max_range))
+        # 增加点的密度范围，使点云更细腻
+        point_size = max(0.03, min(0.15, 40.0 / max_range))
     else:
         point_size = 1.0
     
     # 创建图形 - 配置兼容模式，使用更大的尺寸和更高的DPI
-    fig = plt.figure(figsize=(12, 10), dpi=150)
+    fig = plt.figure(figsize=(12, 10), dpi=500)
     ax = fig.add_subplot(111, projection='3d')
     
     # 禁用可能导致问题的3D效果，确保matplotlib兼容性
@@ -592,7 +813,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
             points_cam[:, 0], points_cam[:, 1], points_cam[:, 2],
             c=colors_normalized,
             s=point_size,
-            alpha=0.8,
+            alpha=0.8, 
             edgecolors='none',
             depthshade=True,  # 重新启用深度阴影
             linewidth=0
@@ -624,10 +845,13 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
                      'bo', markersize=1, alpha=0.5)
     
     # 使用新的相机可视化函数
+    # 注意：相机数据已经在上面旋转好了，这里使用恒等变换直接绘制
     if show_all_cameras:
-        # 显示所有相机
+        # 显示所有相机（相机已经旋转过，使用恒等变换直接绘制）
+        identity_R = np.eye(3)
+        identity_t = np.zeros(3)
         x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
-            ax, camera_centers, camera_poses, cam_idx, view_R_cam, view_t_cam, max_range, show_cameras=True
+            ax, camera_centers, camera_poses, cam_idx, identity_R, identity_t, max_range, show_cameras=True
         )
         
         # 计算包含点云和相机的边界
@@ -643,12 +867,14 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
             y_min, y_max = points_cam[:, 1].min(), points_cam[:, 1].max()
             z_min, z_max = points_cam[:, 2].min(), points_cam[:, 2].max()
     elif show_camera_axes:
-        # 只显示当前相机（保持原有逻辑兼容性）
+        # 只显示当前相机（保持原有逻辑兼容性，相机已经旋转过）
         single_camera_centers = np.array([camera_centers[cam_idx]])
         single_camera_poses = np.array([camera_poses[cam_idx]])
         
+        identity_R = np.eye(3)
+        identity_t = np.zeros(3)
         x_min_cam, x_max_cam, y_min_cam, y_max_cam, z_min_cam, z_max_cam = _draw_cameras_visualization(
-            ax, single_camera_centers, single_camera_poses, 0, view_R_cam, view_t_cam, max_range, show_cameras=True
+            ax, single_camera_centers, single_camera_poses, 0, identity_R, identity_t, max_range, show_cameras=True
         )
         
         # 计算包含点云和相机的边界
@@ -674,7 +900,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     ax.view_init(elev=0.0, azim=-90.0)
     
     # 计算边界框
-    margin_factor = 0.12
+    margin_factor = 0.02
     x_margin = (x_max - x_min) * margin_factor
     y_margin = (y_max - y_min) * margin_factor
     z_margin = (z_max - z_min) * margin_factor
@@ -683,6 +909,11 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     ax.set_xlim(x_min - x_margin, x_max + x_margin)
     ax.set_ylim(y_min - y_margin, y_max + y_margin)
     ax.set_zlim(z_min - z_margin, z_max + z_margin)
+    
+    # 设置坐标轴标签和颜色
+    ax.set_xlabel('X', fontsize=14, fontweight='bold', color='red')
+    ax.set_ylabel('Y', fontsize=14, fontweight='bold', color='green')
+    ax.set_zlabel('Z', fontsize=14, fontweight='bold', color='blue')
     
     # 设置坐标轴颜色
     ax.xaxis.label.set_color('red')
@@ -718,7 +949,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         except Exception as render_e:
             pass  # 忽略渲染警告
         
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', 
+        plt.savefig(buf, format='png', dpi=500, bbox_inches='tight', 
                    pad_inches=0.05, facecolor='white', edgecolor='none',
                    transparent=False)
         buf.seek(0)
@@ -738,7 +969,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
             
             temp_buf = io.BytesIO()
             temp_fig.canvas.draw()  # 强制渲染
-            plt.savefig(temp_buf, format='png', dpi=150, bbox_inches='tight')
+            plt.savefig(temp_buf, format='png', dpi=300, bbox_inches='tight')
             temp_buf.seek(0)
             img_b64 = base64.b64encode(temp_buf.read()).decode('utf-8')
             
@@ -764,23 +995,22 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     return img_b64
 
 
-def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=15):
+def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=15, points_filtered=None, colors_filtered=None):
     """生成多视角图片"""
     try:
         # 准备点云和相机数据
         points_sample, colors_sample, camera_centers, camera_poses = _prepare_points_and_cameras(
-            results, masks, imgs_rgb_tensor
+            results, masks, imgs_rgb_tensor, points_filtered, colors_filtered
         )
         
         # 生成关键视角
         view_angles = [
             (0, 0, "camera_front"),           # 正面
-            (-30, 0, "camera_left_30"),       # 左30度
-            (30, 0, "camera_right_30"),       # 右30度
             (-45, 0, "camera_left_45"),       # 左45度
             (45, 0, "camera_right_45"),       # 右45度
-            (0, 10, "camera_front_up"),       # 正面向上10度
-            (0, -10, "camera_front_down"),    # 正面向下10度
+            (0, -45, "camera_front_down"),    # 正面向下45度
+            (0, 45, "camera_front_up"),    # 正面向上45度
+
         ]
         
         view_images = []
@@ -793,10 +1023,13 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
                 # 判断是否显示相机坐标轴（只在几个关键视角显示）
                 show_camera_axes = view_name in ["camera_front", "camera_left_30", "camera_right_30"]
                 
+                # 补偿90度：由于坐标系翻转，需要在仰角上加90度使(0,0)对应正面
+                adjusted_elev = elev_offset + 100.0
+                
                 # 创建视角图片（显示所有相机）
                 img_b64 = _create_view_image(
                     points_sample, colors_sample, camera_centers, camera_poses,
-                    cam_idx, azim_offset, elev_offset, view_name, show_camera_axes, show_all_cameras=True
+                    cam_idx, azim_offset, adjusted_elev, view_name, show_camera_axes, show_all_cameras=True
                 )
                 
                 view_images.append({
@@ -812,7 +1045,7 @@ def generate_camera_views(results, masks, imgs_rgb_tensor, max_views_per_camera=
         return []
 
 
-def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, elevation_angle):
+def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, elevation_angle, points_filtered=None, colors_filtered=None):
     """
     根据自定义角度生成视角图片
     
@@ -822,6 +1055,8 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
         imgs_rgb_tensor: RGB图像张量
         azimuth_angle: 方位角（左右旋转），单位：度
         elevation_angle: 仰角（上下旋转），单位：度
+        points_filtered: 可选的预过滤点云（已移除离群点）
+        colors_filtered: 可选的预过滤颜色（已移除离群点）
         
     Returns:
         生成的视角图片列表
@@ -849,7 +1084,7 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
 
         # 准备点云和相机数据（复用共同逻辑）
         points_sample, colors_sample, camera_centers, camera_poses = _prepare_points_and_cameras(
-            results, masks, imgs_rgb_tensor
+            results, masks, imgs_rgb_tensor, points_filtered, colors_filtered
         )
         
         view_images = []
@@ -857,11 +1092,14 @@ def generate_custom_angle_views(results, masks, imgs_rgb_tensor, azimuth_angle, 
         # 只处理第一个相机的视角（以第一张图片为基准）
         cam_idx = 0
         view_name = f"custom_azim_{azimuth_angle}_elev_{elevation_angle}"
+
+        # 补偿100度：由于坐标系翻转，需要在仰角上加100度使(0,0)对应正面
+        adjusted_elevation = elevation_angle + 100.0
         
         # 创建自定义角度视角图片（显示所有相机）
         img_b64 = _create_view_image(
             points_sample, colors_sample, camera_centers, camera_poses,
-            cam_idx, azimuth_angle, elevation_angle, view_name, show_camera_axes=False, show_all_cameras=True
+            cam_idx, azimuth_angle, adjusted_elevation, view_name, show_camera_axes=False, show_all_cameras=True
         )
         
         view_images.append({

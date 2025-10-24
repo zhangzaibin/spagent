@@ -101,7 +101,7 @@ def evaluate_single_video(
     target_fps: float = 1.0,
     max_iterations: int = 3,
     pi3_target_fps: float = None,
-    config_name: str = "default"
+    config_name: str = "default",
 ) -> Dict[str, Any]:
     """Evaluate a single video sample
     
