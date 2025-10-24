@@ -16,6 +16,7 @@ from pathlib import Path
 from .tool import Tool, ToolRegistry
 from .model import Model
 from .prompts import create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt
+from .data_collector import DataCollector
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,8 @@ class SPAgent:
         self, 
         model: Model,
         tools: Optional[List[Tool]] = None,
-        max_workers: int = 4
+        max_workers: int = 4,
+        data_collector: Optional[DataCollector] = None
     ):
         """
         Initialize SPAgent
@@ -41,10 +43,12 @@ class SPAgent:
             model: VLLM model wrapper to use
             tools: List of external expert tools (optional)
             max_workers: Maximum number of parallel tool executions
+            data_collector: Optional DataCollector for training data collection
         """
         self.model = model
         self.tool_registry = ToolRegistry()
         self.max_workers = max_workers
+        self.data_collector = data_collector
         
         # Register provided tools
         if tools:
@@ -52,6 +56,8 @@ class SPAgent:
                 self.add_tool(tool)
         
         logger.info(f"Initialized SPAgent with model: {model.model_name}")
+        if data_collector:
+            logger.info("Data collection enabled")
     
     def add_tool(self, tool: Tool):
         """
@@ -136,6 +142,10 @@ class SPAgent:
             if not Path(path).exists():
                 raise FileNotFoundError(f"Image not found: {path}")
         
+        # Start data collection session if enabled
+        if self.data_collector:
+            self.data_collector.start_session(question, image_paths)
+        
         # Create system prompt with available tools
         tool_schemas = self.tool_registry.get_function_schemas()
         system_prompt = create_system_prompt(tool_schemas)
@@ -196,6 +206,20 @@ class SPAgent:
             if iteration == 1:
                 initial_response = current_response
             last_response = current_response
+            
+            # Record inference data if collection is enabled
+            if self.data_collector:
+                self.data_collector.record_inference(
+                    iteration=iteration,
+                    images=current_images,
+                    prompt=prompt,
+                    response=current_response,
+                    context={
+                        "tool_calls_history": all_tool_calls,
+                        "tool_results_history": all_tool_results,
+                        "additional_images_history": all_additional_images
+                    }
+                )
             
             # Step 2: Parse tool calls from response
             tool_calls = self._parse_tool_calls(current_response)
@@ -283,6 +307,22 @@ class SPAgent:
                     follow_up_prompt,
                     **model_kwargs
                 )
+            
+            # Record final synthesis inference if collection is enabled
+            if self.data_collector:
+                self.data_collector.record_inference(
+                    iteration=iteration + 1,  # Final synthesis is an additional step
+                    images=final_images,
+                    prompt=follow_up_prompt,
+                    response=final_response,
+                    context={
+                        "type": "final_synthesis",
+                        "tool_calls_history": all_tool_calls,
+                        "tool_results_history": all_tool_results,
+                        "additional_images_history": all_additional_images
+                    }
+                )
+                
         elif not self._has_answer_tags(last_response):
             # Generate fallback if no answer tags
             logger.warning("No answer tags found, generating fallback response")
@@ -299,12 +339,27 @@ class SPAgent:
                     fallback_prompt,
                     **model_kwargs
                 )
+            
+            # Record fallback inference if collection is enabled
+            if self.data_collector:
+                self.data_collector.record_inference(
+                    iteration=iteration + 1,
+                    images=current_images,
+                    prompt=fallback_prompt,
+                    response=final_response,
+                    context={
+                        "type": "fallback",
+                        "tool_calls_history": all_tool_calls,
+                        "tool_results_history": all_tool_results
+                    }
+                )
         else:
             final_response = last_response
         
         # Synthesize final answer with baseline comparison if enabled
         if use_baseline_comparison and baseline_answer is not None:
             logger.info("Synthesizing final answer from tool-based and baseline responses...")
+            baseline_response = final_response  # Save pre-synthesis response
             final_response = self._synthesize_with_baseline(
                 question, 
                 final_response, 
@@ -313,9 +368,45 @@ class SPAgent:
                 all_additional_images,
                 **model_kwargs
             )
+            
+            # Record baseline synthesis inference if collection is enabled
+            if self.data_collector:
+                valid_additional_images = self._sort_additional_images_by_input_order(image_paths, all_additional_images)
+                final_images = valid_additional_images if valid_additional_images else image_paths
+                self.data_collector.record_inference(
+                    iteration=iteration + 2,  # Baseline synthesis is an additional step
+                    images=final_images,
+                    prompt=f"Synthesizing tool-based and baseline answers for: {question}",
+                    response=final_response,
+                    context={
+                        "type": "baseline_synthesis",
+                        "tool_based_answer": baseline_response,
+                        "baseline_answer": baseline_answer,
+                        "tool_calls_history": all_tool_calls,
+                        "tool_results_history": all_tool_results
+                    }
+                )
         
         # Clean up temporary pi3 frames
         self._cleanup_pi3_frames()
+        
+        # End data collection session if enabled
+        if self.data_collector:
+            # Extract final answer from response
+            extracted_answer = self._extract_answer(final_response)
+            success = extracted_answer is not None  # Success if we have an answer
+            
+            self.data_collector.end_session(
+                success=success,
+                final_answer=extracted_answer or final_response,
+                error_message=None if success else "No answer tags found",
+                metadata={
+                    "iterations": iteration,
+                    "num_tool_calls": len(all_tool_calls),
+                    "used_tools": all_successful_tools,
+                    "num_additional_images": len(all_additional_images)
+                }
+            )
         
         return {
             "answer": final_response,
@@ -567,6 +658,22 @@ class SPAgent:
         """
         return '<answer>' in response and '</answer>' in response
     
+    def _extract_answer(self, response: str) -> Optional[str]:
+        """
+        Extract answer content from <answer> tags
+        
+        Args:
+            response: Response text to extract from
+            
+        Returns:
+            Extracted answer text or None if no answer tags found
+        """
+        pattern = r'<answer>(.*?)</answer>'
+        match = re.search(pattern, response, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return None
+    
     def _create_continuation_prompt(
         self, 
         question: str, 
@@ -613,6 +720,7 @@ class SPAgent:
         tool_summary_text = "\n".join(tool_summary) if tool_summary else "None yet"
         angle_info_text = "\n".join(angle_info) if angle_info else ""
         
+        original_images_info = "\n".join([f"- {path}" for path in original_images]) if original_images else "None"
         additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None yet"
         
         remaining = max_iterations - current_iteration
@@ -627,6 +735,9 @@ Your Previous Response:
 Tool Execution Summary:
 {tool_summary_text}
 {angle_info_text}
+
+Original Images:
+{original_images_info}
 
 Generated Images Available for Analysis:
 {additional_images_info}
