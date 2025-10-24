@@ -587,6 +587,7 @@ class SPAgent:
         tool_summary_text = "\n".join(tool_summary) if tool_summary else "None yet"
         angle_info_text = "\n".join(angle_info) if angle_info else ""
         
+        original_images_info = "\n".join([f"- {path}" for path in original_images]) if original_images else "None"
         additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None yet"
         
         remaining = max_iterations - current_iteration
@@ -601,6 +602,9 @@ Your Previous Response:
 Tool Execution Summary:
 {tool_summary_text}
 {angle_info_text}
+
+Original Images:
+{original_images_info}
 
 Generated Images Available for Analysis:
 {additional_images_info}
