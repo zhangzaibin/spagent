@@ -2,7 +2,7 @@
 
 This repository provides **SPAgent** - a flexible and modular **Spatial Intelligence Agent** that integrates **agentic skills** into **multi-modal understanding** using external expert models and LLMs.
 
-## 🆕 **New SPAgent Architecture (v2.0)**
+## 🆕 **SPAgent Features**
 
 **SPAgent** replaces the old workflow system with a modern, modular architecture:
 
@@ -12,6 +12,7 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 - ✅ **Multi-Image Analysis** - Handle single or multiple images seamlessly
 - ✅ **Multiple Model Support** - GPT, Qwen, and local VLLM models
 - ✅ **Flexible Configuration** - Easy to customize and extend
+- ✅ **Reinforcement Learning** - Support reinforcement learning
 
 ---
 
@@ -21,7 +22,7 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | 🆕 Main agent architecture:<br>- SPAgent class<br>- Tool base classes<br>- Model wrappers<br>- Unified prompt system |
 | **Tools** | `spagent/tools/` | 🆕 Modular expert tools:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool |
-| **Models** | `spagent/models/` | 🆕 Model wrappers:<br>- GPTModel<br>- QwenModel<br>- QwenVLLMModel |
+| **Models** | `spagent/models/` | 🆕 Model wrappers:<br>- GPTModel<br>- QwenModel |
 | **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Visual Question Answering (**Moondream**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
 | **Examples** | `spagent/examples/` | Example scripts and usage tutorials |
@@ -29,21 +30,48 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 
 ---
 
-## Evaluation
+## 🛠️ 安装和配置 (Installation & Setup)
+
+### 1. 环境准备 (Environment Setup)
 
 ```bash
-# 正常评测
-python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3
+# 创建Python 3.11环境 (其他版本可能有兼容性问题)
+conda create -n spagent python=3.11
+conda activate spagent
 
-#评测不使用工具的纯净版本
-python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 1
-
-# 收集数据做sft
-python examples/evaluation/evaluate_img_with_data_collection.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --enable_data_collection
-
-
-
+# 安装依赖
+pip install -r requirements.txt
+pip install "httpx[socks]"
 ```
+
+### 2. API配置 (API Configuration)
+
+```bash
+# OpenAI API
+export OPENAI_API_KEY="your_api_key"
+export OPENAI_BASE_URL="your_base_url"
+
+# Qwen API (申请地址: https://bailian.console.aliyun.com)
+export DASHSCOPE_API_KEY="your_api_key"
+
+# moondream API（申请地址：https://moondream.ai）
+export MOONDREAM_API_KEY="your_api_key"
+
+# 测试API连接
+python spagent/vllm_models/qwen.py
+```
+
+### 3. 部署外部专家服务 (Deploy External Expert Services)
+
+详细的外部专家工具使用指南请参考：[External Experts工具使用指南](docs/Tool/TOOL_USING.md)
+| 工具 | 功能 | 主要用途 | 默认端口 |
+|------|------|----------|----------|
+| **Depth AnythingV2** | 深度估计 | 单目深度估计 | 20019 |
+| **SAM2** | 图像/视频分割 | 高精度分割任务 | 20020 |
+| **GroundingDINO** | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 |
+| **Moondream** | 视觉语言模型 | 图像理解和问答 | 20024 |
+| **Pi3** | 3D重建 | 从图像生成3D点云 | 20030 |
+| **Supervision** | 目标检测标注 | YOLO模型和可视化工具 | - |
 
 ## 🚀 Quick Start
 
@@ -140,53 +168,29 @@ result = agent.solve_problem(
 ```
 
 ### 5. 图像数据集评测 (Image Dataset Evaluation)
-详细的图像数据集评测使用指南请参考：[Image Dataset Evaluation使用指南](examples/evaluation/EVALUATION.md)
+详细的图像数据集评测使用指南请参考：[Image Dataset Evaluation使用指南](docs/Evaluation/EVALUATION.md)
 
 ---
-## 🛠️ 安装和配置 (Installation & Setup)
 
-### 1. 环境准备 (Environment Setup)
-
-```bash
-# 创建Python 3.11环境 (其他版本可能有兼容性问题)
-conda create -n spagent python=3.11
-conda activate spagent
-
-# 安装依赖
-pip install -r requirements.txt
-pip install "httpx[socks]"
-```
-
-### 2. API配置 (API Configuration)
-
-```bash
-# OpenAI API
-export OPENAI_API_KEY="your_api_key"
-export OPENAI_BASE_URL="http://35.220.164.252:3888/v1/"
-
-# Qwen API (申请地址: https://bailian.console.aliyun.com)
-export DASHSCOPE_API_KEY="your_api_key"
-
-# moondream API（申请地址：https://moondream.ai）
-export MOONDREAM_API_KEY="your_api_key"
-
-# 测试API连接
-python spagent/vllm_models/qwen.py
-```
-
-### 3. 部署外部专家服务 (Deploy External Expert Services)
-
-详细的外部专家工具使用指南请参考：[External Experts工具使用指南](spagent/external_experts/TOOL_USING.md)
-| 工具 | 功能 | 主要用途 | 默认端口 |
-|------|------|----------|----------|
-| **Depth AnythingV2** | 深度估计 | 单目深度估计 | 20019 |
-| **SAM2** | 图像/视频分割 | 高精度分割任务 | 20020 |
-| **GroundingDINO** | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 |
-| **Moondream** | 视觉语言模型 | 图像理解和问答 | 20024 |
-| **Pi3** | 3D重建 | 从图像生成3D点云 | 20030 |
-| **Supervision** | 目标检测标注 | YOLO模型和可视化工具 | - |
 
 ---
+
+## Evaluation
+
+```bash
+# 正常评测
+python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3
+
+#评测不使用工具的纯净版本
+python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 1
+
+# 收集数据做sft
+python examples/evaluation/evaluate_img_with_data_collection.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --enable_data_collection
+
+
+
+```
+
 
 ## 评测
 ```bash
@@ -347,32 +351,6 @@ result = agent.solve_problem(
 
 ---
 
-## 🔄 从旧系统迁移 (Migration from Old System)
-
-详细迁移指南请查看：[MIGRATION_GUIDE.md](spagent/MIGRATION_GUIDE.md)
-
-### 快速迁移示例：
-
-**旧代码:**
-```python
-from workflows.mix_workflow import MixedExpertWorkflow
-workflow = MixedExpertWorkflow(use_mock=True)
-result = workflow.run_workflow("image.jpg", "分析图片")
-```
-
-**新代码:**
-```python
-from spagent import SPAgent
-from spagent.models import GPTModel
-from spagent.tools import DepthEstimationTool, SegmentationTool, ObjectDetectionTool
-
-model = GPTModel()
-tools = [DepthEstimationTool(use_mock=True), SegmentationTool(use_mock=True), ObjectDetectionTool(use_mock=True)]
-agent = SPAgent(model=model, tools=tools)
-result = agent.solve_problem("image.jpg", "分析图片")
-```
-
----
 
 ## 🧪 测试和开发 (Testing & Development)
 
@@ -419,12 +397,7 @@ tools = [
 
 ## 📈 Future Roadmap
 
-- [ ] 支持更多专家工具
-- [ ] 添加工具执行策略配置
-- [ ] 实现工具结果缓存
-- [ ] 支持流式处理
-- [ ] 添加性能监控
-- [ ] 完善文档和教程
+- [ ] 支持强化学习
 
 
 

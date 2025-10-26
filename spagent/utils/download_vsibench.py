@@ -16,7 +16,7 @@ def download_vsibench(test_mode=False, max_samples=5, start_index=0):
     print(f"开始处理VSI-Bench数据集... {'(测试模式，从索引' + str(start_index) + '开始处理' + str(max_samples) + '条数据)' if test_mode else ''}")
     
     # 源视频文件夹路径
-    source_video_base = "/home/ubuntun/datasets/VSI-Bench"
+    source_video_base = "dataset/VSI-Bench"
     
     # 目标文件夹路径
     target_video_folder = "dataset/VSI_videos"
@@ -37,11 +37,21 @@ def download_vsibench(test_mode=False, max_samples=5, start_index=0):
     
     print(f"✅ 源文件夹存在，开始处理...")
     
-    # 加载VSI-Bench数据集
+    # 加载VSI-Bench数据集（从本地路径加载）
     try:
-        ds = load_dataset("nyu-visionx/VSI-Bench")
-        test_data = ds['test']
-        print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
+        # 先尝试从本地parquet文件加载
+        parquet_path = os.path.join(source_video_base, "test-00000-of-00001.parquet")
+        if os.path.exists(parquet_path):
+            print(f"📂 从本地加载数据集: {parquet_path}")
+            ds = load_dataset("parquet", data_files={"test": parquet_path})
+            test_data = ds['test']
+            print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
+        else:
+            # 如果本地没有parquet文件，尝试从Hub加载
+            print(f"⚠️  本地parquet文件不存在，尝试从Hub加载...")
+            ds = load_dataset("nyu-visionx/VSI-Bench")
+            test_data = ds['test']
+            print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
     except Exception as e:
         print(f"❌ 加载数据集失败: {e}")
         return

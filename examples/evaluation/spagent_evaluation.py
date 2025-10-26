@@ -337,8 +337,8 @@ def evaluate_tool_config(
         elif has_video and not has_image:
             # Video sample
             if sample['data_source'] == "VSI-Bench":
-                target_fps = 0.5
-                pi3_target_fps = 1.0  # Use more frames for pi3 reconstruction
+                target_fps = 0.1
+                pi3_target_fps = 0.5  # Use more frames for pi3 reconstruction
             elif sample['data_source'] == "VLM4D":
                 target_fps = 1.00
                 pi3_target_fps = 5.0  # Use more frames for pi3 reconstruction

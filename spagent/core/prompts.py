@@ -45,6 +45,7 @@ You can perform MULTIPLE rounds of tool calls and analysis. When using 3D recons
 2. Use the camera coordinate frame for rotations: azimuth rotates left/right around the camera vertical axis; elevation rotates up/down around the camera right axis
 3. After each round, analyze whether additional angles would reduce uncertainty; if yes, call the tool again with updated angles
 4. Continue until additional views no longer change your conclusion, then provide your comprehensive answer in <answer></answer> tags
+5. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
 
 """
 
@@ -137,11 +138,11 @@ Important Notes:
 - After each tool execution, you'll see the results and can decide if you need more information
 - Only provide your final <answer></answer> when you have gathered sufficient information
 
-You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call>. When you have enough information, output your final choice in <answer></answer>."""
+You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call>. When you have enough information, output your final choice in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
     else:
         base_prompt += """
 
-You MUST output your thinking process in <think></think> and your final answer in <answer></answer>."""
+You MUST output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
 
     return base_prompt 
 
@@ -165,5 +166,5 @@ Your Initial Analysis: {initial_response}
 
 Since the tools are unavailable, please provide your best answer based on the original image analysis alone.
 
-You MUST output your thinking process in <think></think> and final choice in <answer></answer>.
+You MUST output your thinking process in <think></think> and final choice in <answer></answer>. Only put Options (A,B,C,D) in <answer></answer> tags, do not put any other text.
 """
