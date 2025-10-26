@@ -750,17 +750,24 @@ Generated Images Available for Analysis:
 You have {remaining} more iteration(s) available. You can:
 
 1. **Continue investigating** - Call tools with DIFFERENT parameters:
-   - For Pi3 tools: Try different viewing angles to understand the 3D structure better
-   - Example angles: front (0,0), left (-45,0), right (45,0), top (0,45), bottom (0,-45), back (180,0)
-   - Each angle reveals different aspects of the 3D structure
+   - **IMPORTANT**: Your original input images are already at (azimuth=0°, elevation=0°). DO NOT call Pi3 tools with (0°, 0°) again!
+   - For Pi3 tools: Try NEW viewing angles to understand the 3D structure better
+   - Recommended NEW angles (NOT 0°,0°!):
+     * Left: (-45°, 0°) or (-90°, 0°)
+     * Right: (45°, 0°) or (90°, 0°)
+     * Top: (0°, 45°) or (0°, 60°)
+     * Bottom: (0°, -45°)
+     * Back: (180°, 0°) or (±135°, 0°)
+     * Diagonal: (45°, 30°) or (-45°, 30°)
+   - Each NEW angle reveals different aspects of the 3D structure
 
 2. **Provide final answer** - If you have sufficient information from current viewpoints:
-   - Output your comprehensive analysis in <think></think> tags.
+   - Output your comprehensive analysis in <think></think> tags
    - Reference the specific viewpoints that helped you understand the structure
 
 Instructions:
-- Think: Do you need to see the object from another angle to answer the question better?
-- If YES: Use <tool_call></tool_call> to request a different viewing angle
+- Think: Do you need to see the object from another NEW angle (NOT 0°,0°!) to answer the question better?
+- If YES: Use <tool_call></tool_call> to request a DIFFERENT viewing angle (avoid 0°,0° as you already have it!)
 - If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text.
 
 Please continue:"""

@@ -35,12 +35,14 @@ from spagent.utils.utils import (
 )
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
 from datetime import datetime  # NEW: For timestamp
+from collections import Counter  # NEW: For angle distribution statistics
+
 # Define server URLs
 TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://0.0.0.0:20030"  # pi3
+    "pi3": "http://10.8.131.51:30948"  # pi3
 }
 
 TOOL_CONFIGS = {
@@ -54,6 +56,44 @@ TOOL_CONFIGS = {
         Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
     ]
 }
+
+def print_pi3_angle_statistics(results: Dict[str, Any]):
+    """
+    Print Pi3 tool angle distribution statistics
+    
+    Args:
+        results: Evaluation results dictionary
+    """
+    if "pi3_angle_distribution" not in results:
+        print("\nNo Pi3 tool calls detected in this evaluation.")
+        return
+    
+    pi3_stats = results["pi3_angle_distribution"]
+    
+    print(f"\n{'='*70}")
+    print("Pi3 Tool Angle Distribution Statistics")
+    print(f"{'='*70}")
+    print(f"Total Pi3 calls:              {pi3_stats['total_pi3_calls']}")
+    print(f"Unique angle combinations:    {pi3_stats['unique_angle_combinations']}")
+    
+    print(f"\n{'Top 5 Most Used Angle Combinations:':<50}")
+    print(f"{'Angle (azimuth, elevation)':<35} {'Count':<10} {'Percentage':<15}")
+    print("-" * 70)
+    
+    for item in pi3_stats['top_5_combinations']:
+        angle = item['angle']
+        count = item['count']
+        percentage = item['percentage']
+        print(f"{angle:<35} {count:<10} {percentage:<15}")
+    
+    print(f"\n{'Full Distribution:':<50}")
+    print(f"{'Angle (azimuth, elevation)':<35} {'Count':<10}")
+    print("-" * 70)
+    
+    for angle, count in pi3_stats['distribution'].items():
+        print(f"{angle:<35} {count:<10}")
+    
+    print(f"{'='*70}\n")
 
 def main():
     """Main function"""
@@ -125,6 +165,9 @@ def main():
         # Print individual config results
         print(f"\nResults for {config_name}:")
         print_evaluation_results(results)
+        
+        # Print Pi3 angle statistics if available
+        print_pi3_angle_statistics(results)
     
     # Save all results to file
     output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}.json"

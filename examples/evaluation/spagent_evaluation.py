@@ -7,6 +7,7 @@ import time
 from tqdm import tqdm
 import cv2
 import numpy as np
+from collections import Counter
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -50,6 +51,31 @@ TOOL_CONFIGS = {
         SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"])
     ]
 }
+
+def extract_pi3_angles(agent_result: Dict[str, Any]) -> List[Tuple[int, int]]:
+    """
+    Extract Pi3 tool angle parameters from agent result
+    
+    Args:
+        agent_result: Result dictionary from agent.solve_problem()
+        
+    Returns:
+        List of (azimuth_angle, elevation_angle) tuples
+    """
+    angles = []
+    tool_calls = agent_result.get("tool_calls", [])
+    
+    for call in tool_calls:
+        if call.get("name") == "pi3_tool":
+            arguments = call.get("arguments", {})
+            azimuth = arguments.get("azimuth_angle", 0)
+            elevation = arguments.get("elevation_angle", 0)
+            # Convert to int for cleaner statistics
+            azimuth_int = int(round(azimuth))
+            elevation_int = int(round(elevation))
+            angles.append((azimuth_int, elevation_int))
+    
+    return angles
 
 
 def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
@@ -151,9 +177,8 @@ def evaluate_single_video(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        # Save errors to TSV
-        # Check correctness
-        is_correct = normalized_prediction == normalized_ground_truth
+        # Extract Pi3 angle parameters
+        pi3_angles = extract_pi3_angles(agent_result)
         
         task_data = {
             'question': result["question"],
@@ -179,7 +204,8 @@ def evaluate_single_video(
             "is_correct": is_correct,
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
-            "used_tools": agent_result.get("used_tools", [])
+            "used_tools": agent_result.get("used_tools", []),
+            "pi3_angles": pi3_angles  # NEW: Pi3 angle combinations
         }      
         
     except Exception as e:
@@ -243,6 +269,9 @@ def evaluate_single_sample(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
+        # Extract Pi3 angle parameters
+        pi3_angles = extract_pi3_angles(agent_result)
+        
         task_data = {
             'question': result["question"],
             'path': result["path"],
@@ -267,7 +296,8 @@ def evaluate_single_sample(
             "is_correct": is_correct,
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
-            "used_tools": agent_result.get("used_tools", [])
+            "used_tools": agent_result.get("used_tools", []),
+            "pi3_angles": pi3_angles  # NEW: Pi3 angle combinations
         }
         
     except Exception as e:
@@ -325,6 +355,9 @@ def evaluate_tool_config(
     correct_count = 0
     total_time = 0
     
+    # NEW: Track Pi3 angle combinations
+    all_pi3_angles = []
+    
     # Use tqdm for progress tracking
     for sample in tqdm(data, desc="Evaluating"):
         # Determine sample type and choose evaluation function
@@ -338,7 +371,7 @@ def evaluate_tool_config(
             # Video sample
             if sample['data_source'] == "VSI-Bench":
                 target_fps = 0.1
-                pi3_target_fps = 0.5  # Use more frames for pi3 reconstruction
+                pi3_target_fps = 0.3  # Use more frames for pi3 reconstruction
             elif sample['data_source'] == "VLM4D":
                 target_fps = 1.00
                 pi3_target_fps = 5.0  # Use more frames for pi3 reconstruction
@@ -361,6 +394,9 @@ def evaluate_tool_config(
             if result["is_correct"]:
                 correct_count += 1
             total_time += result["inference_time"]
+            # Collect Pi3 angles
+            pi3_angles = result.get("pi3_angles", [])
+            all_pi3_angles.extend(pi3_angles)
     
     # Calculate statistics
     successful_results = [r for r in results if r["success"]]
@@ -397,6 +433,25 @@ def evaluate_tool_config(
             if tool not in tool_usage_stats:
                 tool_usage_stats[tool] = 0
             tool_usage_stats[tool] += 1
+    
+    # NEW: Pi3 angle distribution statistics
+    pi3_angle_distribution = {}
+    if all_pi3_angles:
+        angle_counter = Counter(all_pi3_angles)
+        # Sort by count (descending) then by angle
+        sorted_angles = sorted(angle_counter.items(), key=lambda x: (-x[1], x[0]))
+        pi3_angle_distribution = {
+            "total_pi3_calls": len(all_pi3_angles),
+            "unique_angle_combinations": len(angle_counter),
+            "distribution": {
+                f"({azim}, {elev})": count 
+                for (azim, elev), count in sorted_angles
+            },
+            "top_5_combinations": [
+                {"angle": f"({azim}, {elev})", "count": count, "percentage": f"{count/len(all_pi3_angles)*100:.1f}%"}
+                for (azim, elev), count in sorted_angles[:5]
+            ]
+        }
     
     # NEW: Export collected data if DataCollector was provided
     if data_collector:
@@ -455,7 +510,7 @@ def evaluate_tool_config(
             import traceback
             traceback.print_exc()
     
-    return {
+    result_dict = {
         "config_name": config_name,
         "total_samples": len(data),
         "successful_samples": len(successful_results),
@@ -469,6 +524,12 @@ def evaluate_tool_config(
         "failed_samples_details": failed_results,
         "model": model
     }
+    
+    # Add Pi3 angle distribution if available
+    if pi3_angle_distribution:
+        result_dict["pi3_angle_distribution"] = pi3_angle_distribution
+    
+    return result_dict
 
 def main():
     """Main function"""
