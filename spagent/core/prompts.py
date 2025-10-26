@@ -40,12 +40,31 @@ When you need to use a tool, return a JSON object with the function name and arg
 You can call multiple tools if needed by using multiple <tool_call> blocks.
 
 # Multi-Step Workflow
-You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools, autonomously explore viewpoints:
-1. Start from the reference view: (azimuth=0, elevation=0) MUST match the first input image (cam1)
-2. Use the camera coordinate frame for rotations: azimuth rotates left/right around the camera vertical axis; elevation rotates up/down around the camera right axis
-3. After each round, analyze whether additional angles would reduce uncertainty; if yes, call the tool again with updated angles
-4. Continue until additional views no longer change your conclusion, then provide your comprehensive answer in <answer></answer> tags
-5. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools (Pi3), autonomously explore viewpoints:
+
+**IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!**
+
+Angle conventions:
+- (azimuth=0°, elevation=0°) = Front view = YOUR INPUT IMAGE(S) - Already available, NO NEED to call tool!
+- Azimuth: rotates left/right around the camera vertical axis (positive = rotate right/clockwise)
+- Elevation: rotates up/down around the camera right axis (positive = look up)
+
+Recommended NEW viewing angles to explore:
+- Left views: azimuth=-45° or -90°
+- Right views: azimuth=45° or 90°
+- Top views: elevation=30° to 60°
+- Bottom views: elevation=-30° to -45°
+- Back views: azimuth=180° or ±135°
+- Diagonal views: combine azimuth and elevation (e.g., 45°, 30°)
+
+Workflow:
+1. Analyze the current view(s) you have
+2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
+3. Call tools with specific angles that are DIFFERENT from (0°,0°)
+4. After each round, analyze whether additional angles would reduce uncertainty
+5. Continue until additional views no longer change your conclusion
+6. Provide your comprehensive answer in <answer></answer> tags
+7. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
 
 """
 
@@ -100,8 +119,11 @@ Tool Description: {description}"""
     prompt += """
 
 Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response.
-Angle conventions reminder: (0°,0°)=cam1 (the first frame); rotations are in the camera coordinate frame.
+
+**Reminder: The original input image(s) are at (0°,0°). When calling pi3_tool again, explore DIFFERENT angles (NOT 0°,0°!) such as ±45°, ±90°, 180° for azimuth, or ±30° to ±60° for elevation.**
+
 When calling pi3_tool, aggressively explore scale_factor (>0, default 1.0). Try multiple scales (0.5–3.0) at each key angle until further scaling no longer improves clarity.
+
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
 
