@@ -14,7 +14,6 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from spagent import SPAgent
-from spagent.core import DataCollector  # NEW: Import DataCollector
 from spagent.models import GPTModel, QwenModel
 from spagent.tools import (
     DepthEstimationTool,
@@ -34,7 +33,6 @@ from spagent.utils.utils import (
     save_result_to_csv
 )
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
-from datetime import datetime  # NEW: For timestamp
 # Define server URLs
 TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
@@ -44,15 +42,15 @@ TOOL_SERVERS = {
 }
 
 TOOL_CONFIGS = {
-    # "baseline_no_tools": [
-    #     # Empty tool list - pure LLM baseline
-    # ],
-    "depth_detection_segmentation": [
-        # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
-        # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
-        # SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
-        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
-    ]
+    "baseline_no_tools": [
+        # Empty tool list - pure LLM baseline
+    ],
+    # "depth_detection_segmentation": [
+    #     # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
+    #     # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
+    #     # SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
+    #     Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
+    # ]
 }
 
 def main():
@@ -72,12 +70,6 @@ def main():
                         help='Model to use for evaluation (default: gpt-4o-mini)')
     parser.add_argument('--max_iterations', type=int, default=3,
                         help='Maximum number of tool-call iterations (default: 3)')
-    
-    # NEW: Data collection arguments
-    parser.add_argument('--enable_data_collection', action='store_true',
-                        help='Enable training data collection')
-    parser.add_argument('--data_output_dir', type=str, default=None,
-                        help='Directory for training data (auto-generated if not specified)')
 
     args = parser.parse_args()
     
@@ -93,22 +85,6 @@ def main():
     # Run evaluation for each tool configuration
     all_results = {}
     for config_name, tools in TOOL_CONFIGS.items():
-        # NEW: Create DataCollector if enabled
-        data_collector = None
-        if args.enable_data_collection:
-            if args.data_output_dir is None:
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                data_output_dir = f"training_data/{config_name}_{args.model.replace('-', '_')}_{timestamp}"
-            else:
-                data_output_dir = args.data_output_dir
-            
-            data_collector = DataCollector(
-                output_dir=data_output_dir,
-                save_images=True,
-                auto_save=True
-            )
-            print(f"✓ Data collection enabled: {data_output_dir}")
-        
         results = evaluate_tool_config(
             config_name=config_name,
             tools=tools,
@@ -117,8 +93,7 @@ def main():
             model=args.model,
             max_samples=args.max_samples,
             max_workers=args.max_workers,
-            max_iterations=args.max_iterations,
-            data_collector=data_collector  # NEW: Pass DataCollector
+            max_iterations=args.max_iterations
         )
         all_results[config_name] = results
         

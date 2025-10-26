@@ -13,7 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
 from spagent import SPAgent
-from spagent.models import GPTModel, QwenModel
+from spagent.models import GPTModel, QwenModel, QwenVLLMModel
 from spagent.tools import (
     DepthEstimationTool,
     SegmentationTool,
@@ -285,7 +285,8 @@ def evaluate_tool_config(
     model: str = "gpt-4o-mini",
     max_samples: int = None,
     max_workers: int = 4,
-    max_iterations: int = 3
+    max_iterations: int = 3,
+    data_collector=None  # NEW: Optional DataCollector
 ) -> Dict[str, Any]:
     """Evaluate a specific tool configuration
     
@@ -314,7 +315,8 @@ def evaluate_tool_config(
     agent = SPAgent(
         model=GPTModel(model_name=model),
         tools=tools,
-        max_workers=max_workers
+        max_workers=max_workers,
+        data_collector=data_collector  # NEW: Pass DataCollector
     )
     
     print(f"Evaluating {len(data)} samples with {model}")
@@ -335,8 +337,8 @@ def evaluate_tool_config(
         elif has_video and not has_image:
             # Video sample
             if sample['data_source'] == "VSI-Bench":
-                target_fps = 0.5
-                pi3_target_fps = 1.0  # Use more frames for pi3 reconstruction
+                target_fps = 0.1
+                pi3_target_fps = 0.5  # Use more frames for pi3 reconstruction
             elif sample['data_source'] == "VLM4D":
                 target_fps = 1.00
                 pi3_target_fps = 5.0  # Use more frames for pi3 reconstruction
@@ -395,6 +397,63 @@ def evaluate_tool_config(
             if tool not in tool_usage_stats:
                 tool_usage_stats[tool] = 0
             tool_usage_stats[tool] += 1
+    
+    # NEW: Export collected data if DataCollector was provided
+    if data_collector:
+        print(f"\n{'='*60}")
+        print("Data Collection Summary")
+        print(f"{'='*60}")
+        
+        stats = data_collector.get_statistics()
+        print(f"Total sessions:      {stats['total_sessions']}")
+        print(f"Successful sessions: {stats['successful_sessions']}")
+        print(f"Failed sessions:     {stats['failed_sessions']}")
+        print(f"Total samples:       {stats['total_samples']}")
+        print(f"Success rate:        {stats['success_rate']:.1%}")
+        
+        # Save statistics
+        data_collector.save_statistics()
+        
+        # Export training data
+        output_dir = data_collector.output_dir
+        try:
+            # Export in multiple formats
+            
+            # 1. Simple format (most concise)
+            data_collector.export_for_training(
+                output_file=f"{output_dir}/train_simple.jsonl",
+                format="simple"
+            )
+            print(f"✓ Exported to {output_dir}/train_simple.jsonl (SIMPLE format)")
+            
+            # 2. Full JSONL format
+            data_collector.export_for_training(
+                output_file=f"{output_dir}/train_full.jsonl",
+                format="jsonl"
+            )
+            print(f"✓ Exported to {output_dir}/train_full.jsonl (FULL format)")
+            
+            # 3. ShareGPT format with simple prompt
+            data_collector.export_for_training(
+                output_file=f"{output_dir}/train_sharegpt_simple.json",
+                format="sharegpt",
+                simple_format=True
+            )
+            print(f"✓ Exported to {output_dir}/train_sharegpt_simple.json (ShareGPT SIMPLE)")
+            
+            # 4. ShareGPT format with full prompt
+            data_collector.export_for_training(
+                output_file=f"{output_dir}/train_sharegpt_full.json",
+                format="sharegpt",
+                simple_format=False
+            )
+            print(f"✓ Exported to {output_dir}/train_sharegpt_full.json (ShareGPT FULL)")
+            
+            print(f"\n📁 Training data saved to: {output_dir}/")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to export training data: {e}")
+            import traceback
+            traceback.print_exc()
     
     return {
         "config_name": config_name,

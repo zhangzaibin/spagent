@@ -15,6 +15,7 @@ ultralytics
 pandas
 matplotlib
 scipy
+scikit-learn
 transformers
 Flask
 clip
