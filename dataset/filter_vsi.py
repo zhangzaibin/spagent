@@ -13,7 +13,8 @@ def filter_vsi_by_task(
     input_jsonl="dataset/VSI_Bench.jsonl",
     output_jsonl="dataset/VSI_Bench_filtered.jsonl",
     samples_per_task=20,
-    random_seed=42
+    random_seed=42,
+    selected_tasks=None
 ):
     """
     从VSI_Bench.jsonl中每个task类别选取指定数量的样本
@@ -23,6 +24,7 @@ def filter_vsi_by_task(
         output_jsonl (str): 输出的JSONL文件路径
         samples_per_task (int): 每个task类别选取的样本数量
         random_seed (int): 随机种子，用于可重复的随机选择
+        selected_tasks (list): 要筛选的task列表，如果为None则处理所有task
     """
     
     # 设置随机种子
@@ -53,6 +55,19 @@ def filter_vsi_by_task(
     print(f"\n📊 各task类别统计:")
     for task, samples in sorted(task_data.items()):
         print(f"  {task}: {len(samples)} 条")
+    
+    # 如果指定了selected_tasks，过滤task_data
+    if selected_tasks is not None:
+        print(f"\n🔍 筛选指定的task类别: {selected_tasks}")
+        filtered_task_data = {task: samples for task, samples in task_data.items() if task in selected_tasks}
+        # 检查是否有指定的task不存在
+        missing_tasks = set(selected_tasks) - set(task_data.keys())
+        if missing_tasks:
+            print(f"⚠️  警告: 以下task在数据中不存在: {missing_tasks}")
+        task_data = filtered_task_data
+        if not task_data:
+            print(f"❌ 错误: 没有找到任何匹配的task")
+            return
     
     # 从每个task类别中随机选取样本
     filtered_data = []
@@ -111,13 +126,23 @@ def filter_vsi_by_task(
 
 
 if __name__ == "__main__":
-    # 默认从每个task类别选取20个样本
+    # 示例1: 从每个task类别选取120个样本（处理所有task）
     filter_vsi_by_task(
         input_jsonl="dataset/VSI_Bench.jsonl",
-        output_jsonl="dataset/VSI_Bench_filtered.jsonl",
-        samples_per_task=20,
-        random_seed=42
+        output_jsonl="dataset/VSI_Bench_filtered_120.jsonl",
+        samples_per_task=120,
+        random_seed=42,
+        selected_tasks=["object_rel_direction_easy", "object_rel_distance", "route_planning"]  # 替换为实际的task名称
     )
+    
+    # 示例2: 只筛选指定的task类别
+    # filter_vsi_by_task(
+    #     input_jsonl="dataset/VSI_Bench.jsonl",
+    #     output_jsonl="dataset/VSI_Bench_filtered_specific.jsonl",
+    #     samples_per_task=20,
+    #     random_seed=42,
+    #     selected_tasks=["task1", "task2", "task3"]  # 替换为实际的task名称
+    # )
 
 
 
