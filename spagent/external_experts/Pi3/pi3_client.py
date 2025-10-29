@@ -172,7 +172,7 @@ class Pi3Client:
                 if encoded:
                     encoded_images.append(encoded)
                     if use_filename:
-                        image_names.append(os.path.basename(img_path))
+                        image_names.append(img_path)
                 else:
                     logger.error(f"无法编码图片：{img_path}")
                     return None

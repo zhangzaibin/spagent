@@ -34,6 +34,39 @@ app = Flask(__name__)
 # 全局变量存储模型
 model = None
 
+def extract_scene_id(image_path: str) -> str:
+    """
+    从图片路径中提取scene ID，适配多种数据集格式
+    
+    Args:
+        image_path: 图片路径，支持多种格式:
+            - VLM-3R/scannet: "VLM-3R/scannet_frames_25k/scene0296_01/color/000000.jpg" -> "scene0296_01"
+            - VLM-3R/arkitscenes: "VLM-3R/scannet_frames_25k/arkitscenes_47333899/frame_0.jpg" -> "arkitscenes_47333899_frame_0"
+            - 其他数据集: "dataset/images/file.jpg" -> "file" (仅文件名)
+        
+    Returns:
+        scene ID字符串，VLM-3R返回scene ID，其他数据集返回文件名
+    """
+    # For VLM-3R datasets only, extract scene ID
+    if 'vlm-3r' in image_path.lower():
+        # 1. Try to extract scene ID for scannet format first
+        parts = image_path.split('/')
+        for part in parts:
+            if part.startswith('scene') and '_' in part:
+                return part
+        
+        # 2. For arkitscenes or other VLM-3R subdatasets (not scannet)
+        path_parts = image_path.split('/')
+        for part in reversed(path_parts[:-1]):  # From back to front, skip filename
+            if any(c.isdigit() for c in part) or part.lower() in ['scene', 'view', 'camera']:
+                filename = os.path.splitext(os.path.basename(image_path))[0]
+                if filename and filename != part:
+                    return f"{part}_{filename}"
+                return part
+    
+    # For other datasets, just return the filename (original logic)
+    return os.path.splitext(os.path.basename(image_path))[0]
+
 def load_model(checkpoint_path=None):
     """
     加载Pi3模型
@@ -356,10 +389,10 @@ def infer():
         # 生成基于图片名称或内容的文件名
         import hashlib
         if image_names and len(image_names) > 0:
-            # 使用第一张图片的文件名（去掉扩展名）
-            first_name = os.path.splitext(image_names[0])[0]
+            # 使用extract_scene_id提取scene ID
+            scene_id = extract_scene_id(image_names[0])
             # 清理文件名，移除非法字符
-            safe_name = "".join(c for c in first_name if c.isalnum() or c in ('-', '_'))
+            safe_name = "".join(c for c in scene_id if c.isalnum() or c in ('-', '_'))
             ply_filename = f"result_{safe_name}.ply"
         else:
             # 回退到使用哈希值
