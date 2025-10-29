@@ -270,6 +270,7 @@ class Pi3Tool(Tool):
             
             logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
             
+            
             # Check if cached result already exists
             cached_result = self._check_cache(image_path[0], azimuth_angle, elevation_angle)
             if cached_result:
@@ -353,9 +354,11 @@ class Pi3Tool(Tool):
             import os
             
             # Generate expected cache filename
-            output_dir = "outputs"
-            input_name = Path(image_path).stem
-            cache_filename = f"pi3_{input_name}_azim{int(azimuth_angle)}_elev{int(elevation_angle)}.png"
+            tool_file = Path(__file__).resolve()
+            project_root = tool_file.parent.parent.parent
+            output_dir = project_root / "outputs"
+            scene_id = extract_scene_id(image_path)
+            cache_filename = f"pi3_{scene_id}_azim{azimuth_angle:.1f}_elev{elevation_angle:.1f}.png"
             cache_path = os.path.join(output_dir, cache_filename)
             
             # Check if cache file exists
@@ -374,7 +377,7 @@ class Pi3Tool(Tool):
                 "success": True,
                 "result": {
                     "success": True,
-                    "ply_filename": f"cached_result_{input_name}.ply",
+                    "ply_filename": f"cached_result_{scene_id}.ply",
                     "points_count": 50000,  # Default value for cached results
                     "camera_views": [{
                         "camera": 1,
@@ -385,7 +388,7 @@ class Pi3Tool(Tool):
                     }]
                 },
                 "points_count": 50000,
-                "ply_filename": f"cached_result_{input_name}.ply",
+                "ply_filename": f"cached_result_{scene_id}.ply",
                 "view_count": 1,
                 "azimuth_angle": azimuth_angle,
                 "elevation_angle": elevation_angle,
