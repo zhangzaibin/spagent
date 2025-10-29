@@ -78,12 +78,12 @@ def extract_pi3_angles(agent_result: Dict[str, Any]) -> List[Tuple[int, int]]:
     return angles
 
 
-def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
-    """Extract frames from video
+def extract_video_frames(video_path: str, num_frames: int = 10) -> List[str]:
+    """Extract frames from video by uniformly sampling a fixed number of frames
     
     Args:
         video_path: Path to video file
-        target_fps: Target frame rate, default 1 fps
+        num_frames: Number of frames to extract uniformly from the video, default 10
         
     Returns:
         List of paths to extracted frame images
@@ -95,8 +95,7 @@ def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
     original_fps = cap.get(cv2.CAP_PROP_FPS)
     total_duration = total_frames / original_fps
     
-    # Calculate frames to extract based on target fps
-    num_frames = int(total_duration * target_fps)
+    # Use the specified number of frames directly
     frame_interval = total_frames / num_frames
     
     frame_paths = []
@@ -117,16 +116,16 @@ def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
             frame_paths.append(str(frame_path))
     
     cap.release()
-    print(f"Extracted {len(frame_paths)} frames from video (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, target fps: {target_fps})")
+    print(f"Extracted {len(frame_paths)} frames from video (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, uniformly sampled {num_frames} frames)")
     return frame_paths
 
 def evaluate_single_video(
     agent: SPAgent,
     sample: Dict[str, Any], 
     video_base_path: str,
-    target_fps: float = 1.0,
+    num_frames: int = 10,
     max_iterations: int = 3,
-    pi3_target_fps: float = None,
+    pi3_num_frames: int = None,
     config_name: str = "default",
 ) -> Dict[str, Any]:
     """Evaluate a single video sample
@@ -136,8 +135,8 @@ def evaluate_single_video(
         sample: Data sample
         video_base_path: Base path for videos
         max_iterations: Maximum number of tool-call iterations
-        target_fps: Target frame rate for initial model judgment, default 1 fps
-        pi3_target_fps: Target frame rate for pi3 tool (if None, uses target_fps)
+        num_frames: Number of frames to uniformly sample for initial model judgment, default 10
+        pi3_num_frames: Number of frames to uniformly sample for pi3 tool (if None, uses num_frames)
         config_name: Configuration name for saving results
         
     Returns:
@@ -149,22 +148,22 @@ def evaluate_single_video(
         return result
     
     try:
-        # Extract video frames (fewer frames for initial model judgment)
+        # Extract video frames (uniformly sample specified number of frames)
         video_path = result["path"][0]  # 暂时只支持单个视频
-        frame_paths = extract_video_frames(video_path, target_fps)
+        frame_paths = extract_video_frames(video_path, num_frames)
         
-        # Use pi3_target_fps if provided, otherwise use target_fps
-        actual_pi3_fps = pi3_target_fps if pi3_target_fps is not None else target_fps
+        # Use pi3_num_frames if provided, otherwise use num_frames
+        actual_pi3_num_frames = pi3_num_frames if pi3_num_frames is not None else num_frames
         
         # Run inference using SPAgent
         # Pass video_path so that if pi3 tool is called, more frames can be extracted
         start_time = time.time()
         agent_result = agent.solve_problem(
             frame_paths,
-            f"Based on these {len(frame_paths)} frames from a video (sampled at {target_fps} fps), please answer: {result['question']}",
+            f"Based on these {len(frame_paths)} uniformly sampled frames from a video, please answer: {result['question']}",
             max_iterations=max_iterations,
             video_path=video_path,
-            pi3_target_fps=actual_pi3_fps
+            pi3_num_frames=actual_pi3_num_frames
         )
         inference_time = time.time() - start_time
         
@@ -370,16 +369,16 @@ def evaluate_tool_config(
         elif has_video and not has_image:
             # Video sample
             if sample['data_source'] == "VSI-Bench":
-                target_fps = 0.1
-                pi3_target_fps = 0.3  # Use more frames for pi3 reconstruction
+                num_frames = 7  # Uniformly sample 10 frames
+                pi3_num_frames = 7  # Use more frames for pi3 reconstruction
             elif sample['data_source'] == "VLM4D":
-                target_fps = 1.00
-                pi3_target_fps = 5.0  # Use more frames for pi3 reconstruction
+                num_frames = 7  # Uniformly sample 10 frames
+                pi3_num_frames = 7  # Use more frames for pi3 reconstruction
             else:
-                target_fps = 1.00
-                pi3_target_fps = 3.0
-                print(f"The target fps parameter has not been specified for the {sample['data_source']} dataset yet, and the default value of 1.00 will be adopted")
-            result = evaluate_single_video(agent, sample, image_base_path, target_fps=target_fps, pi3_target_fps=pi3_target_fps, config_name=config_name, max_iterations=max_iterations)
+                num_frames = 7
+                pi3_num_frames = 7
+                print(f"The num_frames parameter has not been specified for the {sample['data_source']} dataset yet, and the default value of 10 will be adopted")
+            result = evaluate_single_video(agent, sample, image_base_path, num_frames=num_frames, pi3_num_frames=pi3_num_frames, config_name=config_name, max_iterations=max_iterations)
         else:
             # Invalid sample
             result = {

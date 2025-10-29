@@ -42,7 +42,7 @@ TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://10.8.131.51:30948"  # pi3
+    "pi3": "http://10.8.131.51:30410"  # pi3
 }
 
 TOOL_CONFIGS = {
@@ -112,6 +112,8 @@ def main():
                         help='Model to use for evaluation (default: gpt-4o-mini)')
     parser.add_argument('--max_iterations', type=int, default=3,
                         help='Maximum number of tool-call iterations (default: 3)')
+    parser.add_argument('--task', type=str, default="all",
+                        help='Task to evaluate (default: all)')
     
     # NEW: Data collection arguments
     parser.add_argument('--enable_data_collection', action='store_true',
@@ -170,7 +172,7 @@ def main():
         print_pi3_angle_statistics(results)
     
     # Save all results to file
-    output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}.json"
+    output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}_{args.task}.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
     print(f"\nAll results saved to {output_file}")

@@ -179,10 +179,10 @@ result = agent.solve_problem(
 
 ```bash
 # 正常评测
-python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3
+python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --task "your task name"
 
 #评测不使用工具的纯净版本
-python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 1
+python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 1 --task "your task name"
 
 # 收集数据做sft
 python examples/evaluation/evaluate_img_with_data_collection.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --enable_data_collection

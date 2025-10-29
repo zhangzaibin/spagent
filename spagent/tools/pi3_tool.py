@@ -270,6 +270,12 @@ class Pi3Tool(Tool):
             
             logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
             
+            # Check if cached result already exists
+            cached_result = self._check_cache(image_path[0], azimuth_angle, elevation_angle)
+            if cached_result:
+                logger.info(f"Using cached result for azimuth={azimuth_angle}°, elevation={elevation_angle}°")
+                return cached_result
+            
             # Execute 3D reconstruction with image list
             result = self._client.infer_from_images(
                 image_paths=image_path,  # Pass the list directly
@@ -329,6 +335,76 @@ class Pi3Tool(Tool):
                 "success": False,
                 "error": str(e)
             }
+    
+    def _check_cache(self, image_path: str, azimuth_angle: float, elevation_angle: float) -> Optional[Dict[str, Any]]:
+        """
+        Check if a cached result already exists for the given angles
+        
+        Args:
+            image_path: Original input image path for naming
+            azimuth_angle: Azimuth angle
+            elevation_angle: Elevation angle
+            
+        Returns:
+            Cached result dictionary if found, None otherwise
+        """
+        try:
+            import base64
+            import os
+            
+            # Generate expected cache filename
+            output_dir = "outputs"
+            input_name = Path(image_path).stem
+            cache_filename = f"pi3_{input_name}_azim{int(azimuth_angle)}_elev{int(elevation_angle)}.png"
+            cache_path = os.path.join(output_dir, cache_filename)
+            
+            # Check if cache file exists
+            if not os.path.exists(cache_path):
+                return None
+            
+            logger.info(f"Found cached result: {cache_path}")
+            
+            # Read the cached image and convert to base64
+            with open(cache_path, 'rb') as f:
+                img_data = f.read()
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+            
+            # Construct result in the same format as normal execution
+            result = {
+                "success": True,
+                "result": {
+                    "success": True,
+                    "ply_filename": f"cached_result_{input_name}.ply",
+                    "points_count": 50000,  # Default value for cached results
+                    "camera_views": [{
+                        "camera": 1,
+                        "view": f"custom_azim_{int(azimuth_angle)}_elev_{int(elevation_angle)}",
+                        "azimuth_angle": int(azimuth_angle),
+                        "elevation_angle": int(elevation_angle),
+                        "image": img_base64
+                    }]
+                },
+                "points_count": 50000,
+                "ply_filename": f"cached_result_{input_name}.ply",
+                "view_count": 1,
+                "azimuth_angle": azimuth_angle,
+                "elevation_angle": elevation_angle,
+                "view_type": "custom_angle",
+                "input_images_count": 1,
+                "output_path": cache_path,
+                "cached": True,  # Mark as cached result
+                "description": (
+                    f"Using cached Pi3 visualization from previous reconstruction "
+                    f"(azimuth={int(azimuth_angle)}°, elevation={int(elevation_angle)}°). "
+                    f"The cached result shows the reconstructed 3D scene from the requested viewing angle."
+                )
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error checking cache: {e}")
+            return None
     
     def _save_generated_images(self, result: Dict[str, Any], image_path: str) -> Optional[str]:
         """
