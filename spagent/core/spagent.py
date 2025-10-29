@@ -102,7 +102,7 @@ class SPAgent:
         question: str,
         max_iterations: int = 3,
         video_path: Optional[str] = None,
-        pi3_target_fps: float = 1.0,
+        pi3_num_frames: int = 7,
         use_baseline_comparison: bool = False,
         **model_kwargs
     ) -> Dict[str, Any]:
@@ -114,7 +114,7 @@ class SPAgent:
             question: User's question about the image(s)
             max_iterations: Maximum number of tool-call iterations (default: 1)
             video_path: Optional path to original video (for pi3 tool re-sampling)
-            pi3_target_fps: Target FPS for pi3 tool frame extraction (default 1.0)
+            pi3_num_frames: Number of frames to uniformly sample for pi3 tool (default 10)
             use_baseline_comparison: If True, run a naive baseline (no tools) in parallel
                                     and synthesize final answer from both results (default: False)
             **model_kwargs: Additional arguments for model inference
@@ -244,7 +244,7 @@ class SPAgent:
             
             # Step 3: Execute tools
             logger.info(f"Executing {len(tool_calls)} tool calls in iteration {iteration}...")
-            tool_results = self._execute_tools(tool_calls, video_path=video_path, pi3_target_fps=pi3_target_fps)
+            tool_results = self._execute_tools(tool_calls, video_path=video_path, pi3_num_frames=pi3_num_frames)
             
             # Step 4: Collect results
             iteration_additional_images = []
@@ -455,14 +455,14 @@ class SPAgent:
         
         return tool_calls
     
-    def _execute_tools(self, tool_calls: List[Dict[str, Any]], video_path: Optional[str] = None, pi3_target_fps: float = 1.0) -> Dict[str, Any]:
+    def _execute_tools(self, tool_calls: List[Dict[str, Any]], video_path: Optional[str] = None, pi3_num_frames: int = 10) -> Dict[str, Any]:
         """
         Execute tool calls in parallel when possible
         
         Args:
             tool_calls: List of tool call dictionaries
             video_path: Optional path to original video (for pi3 tool re-sampling)
-            pi3_target_fps: Target FPS for pi3 tool frame extraction
+            pi3_num_frames: Number of frames to uniformly sample for pi3 tool
             
         Returns:
             Dictionary of tool_name -> result
@@ -498,8 +498,8 @@ class SPAgent:
                 # Extract more frames for pi3 if video_path is provided
                 pi3_frame_paths = []
                 if video_path and Path(video_path).exists():
-                    logger.info(f"Extracting frames for pi3 tool from video: {video_path} at {pi3_target_fps} fps")
-                    pi3_frame_paths = self._extract_frames_for_pi3(video_path, pi3_target_fps)
+                    logger.info(f"Extracting {pi3_num_frames} frames for pi3 tool from video: {video_path}")
+                    pi3_frame_paths = self._extract_frames_for_pi3(video_path, pi3_num_frames)
                 
                 for call_idx, call in pi3_calls:
                     tool_name = call['name']
@@ -773,13 +773,13 @@ Instructions:
 Please continue:"""
         
         return prompt
-    def _extract_frames_for_pi3(self, video_path: str, target_fps: float = 1.0) -> List[str]:
+    def _extract_frames_for_pi3(self, video_path: str, num_frames: int = 10) -> List[str]:
         """
-        Extract frames from video for pi3 tool
+        Extract frames from video for pi3 tool by uniformly sampling
         
         Args:
             video_path: Path to video file
-            target_fps: Target frame rate
+            num_frames: Number of frames to uniformly sample from video
             
         Returns:
             List of paths to extracted frame images
@@ -798,8 +798,7 @@ Please continue:"""
         original_fps = cap.get(cv2.CAP_PROP_FPS)
         total_duration = total_frames / original_fps
         
-        # Calculate frames to extract based on target fps
-        num_frames = int(total_duration * target_fps)
+        # Use the specified number of frames directly
         frame_interval = total_frames / num_frames
         
         frame_paths = []
@@ -820,7 +819,7 @@ Please continue:"""
                 frame_paths.append(str(frame_path))
         
         cap.release()
-        logger.info(f"Extracted {len(frame_paths)} frames from video for pi3 tool (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, target fps: {target_fps})")
+        logger.info(f"Extracted {len(frame_paths)} frames from video for pi3 tool (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, uniformly sampled {num_frames} frames)")
         return frame_paths
     
     def _cleanup_pi3_frames(self):

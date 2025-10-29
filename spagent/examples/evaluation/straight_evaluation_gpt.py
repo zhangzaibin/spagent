@@ -15,12 +15,12 @@ sys.path.append(str(project_root))
 from vllm_models.gpt import gpt_multiple_images_inference, gpt_single_image_inference
 from utils.utils import load_json_data, extract_question_and_answer, normalize_answer, print_evaluation_results, validate_sample_paths, save_error_to_tsv
 
-def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
-    """从视频中提取帧
+def extract_video_frames(video_path: str, num_frames: int = 10) -> List[str]:
+    """从视频中均匀采样指定数量的帧
     
     Args:
         video_path: 视频文件路径
-        target_fps: 目标帧率，默认每秒1帧
+        num_frames: 要提取的帧数，默认10帧
         
     Returns:
         帧图像的临时文件路径列表
@@ -32,8 +32,7 @@ def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
     original_fps = cap.get(cv2.CAP_PROP_FPS)
     total_duration = total_frames / original_fps  # 视频总时长（秒）
     
-    # 根据目标帧率计算需要提取的帧数
-    num_frames = int(total_duration * target_fps)
+    # 使用指定的帧数
     frame_interval = total_frames / num_frames  # 帧间隔
     
     frame_paths = []
@@ -51,14 +50,14 @@ def extract_video_frames(video_path: str, target_fps: float = 1.0) -> List[str]:
             frame_paths.append(str(frame_path))
     
     cap.release()
-    print(f"Extracted {len(frame_paths)} frames from video (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, target fps: {target_fps})")
+    print(f"Extracted {len(frame_paths)} frames from video (duration: {total_duration:.2f}s, original fps: {original_fps:.2f}, uniformly sampled {num_frames} frames)")
     return frame_paths
 
 def evaluate_single_video(
     sample: Dict[str, Any], 
     video_base_path: str,
     model: str = "gpt-4o-mini",
-    target_fps: float = 1.0
+    num_frames: int = 10
 ) -> Dict[str, Any]:
     """评估单个视频样本
     
@@ -66,7 +65,7 @@ def evaluate_single_video(
         sample: 数据样本
         video_base_path: 视频基础路径
         model: 使用的模型
-        target_fps: 目标帧率，默认每秒1帧
+        num_frames: 要提取的帧数，默认10帧
         
     Returns:
         评估结果字典
@@ -78,13 +77,13 @@ def evaluate_single_video(
     
     try:
         # 提取视频帧
-        frame_paths = extract_video_frames(result["path"], target_fps)
+        frame_paths = extract_video_frames(result["path"], num_frames)
         
         # 使用GPT进行推理，一次性输入所有帧
         start_time = time.time()
         prediction = gpt_multiple_images_inference(
             image_paths=frame_paths,
-            prompt=f"Based on these {len(frame_paths)} frames from a video (sampled at {target_fps} fps), please answer: {result['question']}",
+            prompt=f"Based on these {len(frame_paths)} uniformly sampled frames from a video, please answer: {result['question']}",
             model=model,
             temperature=0.0,
             max_tokens=50
@@ -120,8 +119,7 @@ def evaluate_single_video(
             "is_correct": is_correct,
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
-            "num_frames": len(frame_paths),
-            "target_fps": target_fps
+            "num_frames": len(frame_paths)
         }
         
     except Exception as e:
@@ -253,7 +251,7 @@ def evaluate_blink_dataset(
             result = evaluate_single_sample(sample, image_base_path, model)
         elif has_video and not has_image:
             # 视频样本
-            result = evaluate_single_video(sample, image_base_path, model, target_fps=0.5)
+            result = evaluate_single_video(sample, image_base_path, model, num_frames=10)
         else:
             # 无效样本或同时包含图像和视频
             result = {

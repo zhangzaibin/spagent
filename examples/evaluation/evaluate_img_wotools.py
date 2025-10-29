@@ -70,6 +70,8 @@ def main():
                         help='Model to use for evaluation (default: gpt-4o-mini)')
     parser.add_argument('--max_iterations', type=int, default=3,
                         help='Maximum number of tool-call iterations (default: 3)')
+    parser.add_argument('--task', type=str, default="all",
+                        help='Task to evaluate (default: all)')
 
     args = parser.parse_args()
     
@@ -102,7 +104,7 @@ def main():
         print_evaluation_results(results)
     
     # Save all results to file
-    output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}.json"
+    output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}_{args.task}.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(all_results, f, indent=2, ensure_ascii=False)
     print(f"\nAll results saved to {output_file}")
