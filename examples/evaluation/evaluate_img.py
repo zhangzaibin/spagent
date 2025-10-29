@@ -42,7 +42,7 @@ TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://10.8.131.51:30943"  # pi3
+    "pi3": "http://10.8.131.51:30410"  # pi3
 }
 
 TOOL_CONFIGS = {
