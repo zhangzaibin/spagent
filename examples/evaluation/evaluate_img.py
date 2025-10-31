@@ -42,7 +42,8 @@ TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://10.8.131.51:30410"  # pi3
+    "pi3": "http://0.0.0.0:30030",  # pi3
+    "moondream": "http://192.168.3.2:20024",  # moondream
 }
 
 TOOL_CONFIGS = {
@@ -53,47 +54,68 @@ TOOL_CONFIGS = {
         # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
         # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
         # SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
-        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"])
+        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"]),
+        # MoondreamTool(use_mock=False, server_url=TOOL_SERVERS["moondream"])
     ]
 }
 
-def print_pi3_angle_statistics(results: Dict[str, Any]):
+def print_pi3_statistics(results: Dict[str, Any]):
     """
-    Print Pi3 tool angle distribution statistics
+    Print Pi3 tool parameter statistics including angles, rotation_reference_camera, and camera_view
     
     Args:
         results: Evaluation results dictionary
     """
-    if "pi3_angle_distribution" not in results:
+    if "pi3_statistics" not in results:
         print("\nNo Pi3 tool calls detected in this evaluation.")
         return
     
-    pi3_stats = results["pi3_angle_distribution"]
+    pi3_stats = results["pi3_statistics"]
     
-    print(f"\n{'='*70}")
-    print("Pi3 Tool Angle Distribution Statistics")
-    print(f"{'='*70}")
+    print(f"\n{'='*80}")
+    print("Pi3 Tool Parameter Statistics")
+    print(f"{'='*80}")
     print(f"Total Pi3 calls:              {pi3_stats['total_pi3_calls']}")
     print(f"Unique angle combinations:    {pi3_stats['unique_angle_combinations']}")
     
+    # Angle distribution
     print(f"\n{'Top 5 Most Used Angle Combinations:':<50}")
     print(f"{'Angle (azimuth, elevation)':<35} {'Count':<10} {'Percentage':<15}")
-    print("-" * 70)
+    print("-" * 80)
     
-    for item in pi3_stats['top_5_combinations']:
+    for item in pi3_stats['top_5_angle_combinations']:
         angle = item['angle']
         count = item['count']
         percentage = item['percentage']
         print(f"{angle:<35} {count:<10} {percentage:<15}")
     
-    print(f"\n{'Full Distribution:':<50}")
-    print(f"{'Angle (azimuth, elevation)':<35} {'Count':<10}")
-    print("-" * 70)
+    # rotation_reference_camera usage
+    print(f"\n{'Rotation Reference Camera Usage:':<50}")
+    print(f"{'Camera':<20} {'Count':<10} {'Percentage':<15}")
+    print("-" * 80)
     
-    for angle, count in pi3_stats['distribution'].items():
+    for camera, count in pi3_stats['rotation_reference_camera_usage'].items():
+        percentage = pi3_stats['rotation_reference_camera_percentage'][camera]
+        print(f"{camera:<20} {count:<10} {percentage:<15}")
+    
+    # camera_view usage
+    print(f"\n{'Camera View Mode Usage:':<50}")
+    print(f"{'Mode':<20} {'Count':<10} {'Percentage':<15}")
+    print("-" * 80)
+    
+    for mode, count in pi3_stats['camera_view_usage'].items():
+        percentage = pi3_stats['camera_view_percentage'][mode]
+        display_mode = "Enabled (True)" if "true" in mode else "Disabled (False)"
+        print(f"{display_mode:<20} {count:<10} {percentage:<15}")
+    
+    print(f"\n{'Full Angle Distribution:':<50}")
+    print(f"{'Angle (azimuth, elevation)':<35} {'Count':<10}")
+    print("-" * 80)
+    
+    for angle, count in pi3_stats['angle_distribution'].items():
         print(f"{angle:<35} {count:<10}")
     
-    print(f"{'='*70}\n")
+    print(f"{'='*80}\n")
 
 def main():
     """Main function"""
@@ -168,8 +190,8 @@ def main():
         print(f"\nResults for {config_name}:")
         print_evaluation_results(results)
         
-        # Print Pi3 angle statistics if available
-        print_pi3_angle_statistics(results)
+        # Print Pi3 parameter statistics if available
+        print_pi3_statistics(results)
     
     # Save all results to file
     output_file = f"spagent_evaluation_results_{args.model.replace('-', '_')}_{args.max_iterations}_{args.task}.json"

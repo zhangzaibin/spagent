@@ -234,7 +234,8 @@ def generate_views_for_images(client: Pi3Client,
                 for view_data in result["camera_views"]:
                     camera = view_data.get("camera", 1)
                     # 使用scene_id作为文件名的一部分，确保唯一性
-                    view_img_name = f"pi3_{scene_id}_cam{camera}_azim{float(azimuth):.1f}_elev{float(elevation):.1f}.png"
+                    # 不包含 _cam{camera} 以避免重复
+                    view_img_name = f"pi3_{scene_id}_azim{float(azimuth):.1f}_elev{float(elevation):.1f}.png"
                     view_img_path = os.path.join(output_dir, view_img_name)
                     
                     img_data = base64.b64decode(view_data["image"])
@@ -253,7 +254,7 @@ def generate_views_for_images(client: Pi3Client,
             logger.error(f"  ✗ 生成失败")
         
         # 每10个角度输出一次进度
-        if idx % 10 == 0:
+        if idx % 5 == 0:
             avg_time = total_view_time / success_count if success_count > 0 else 0
             remaining = len(angles) - idx
             estimated_time = avg_time * remaining
@@ -293,11 +294,37 @@ def process_images_with_client(client: Pi3Client,
     return success, item_id, scene_id
 
 
+def check_scene_completion(output_dir: str, scene_id: str, expected_count: int = 13) -> bool:
+    """
+    检查某个场景是否已经完成生成
+    
+    Args:
+        output_dir: 输出目录
+        scene_id: 场景ID
+        expected_count: 期望的图片数量（默认13个角度）
+        
+    Returns:
+        是否已完成
+    """
+    if not os.path.exists(output_dir):
+        return False
+    
+    # 统计该场景已生成的图片数量
+    # 更新为新的命名格式：pi3_{scene_id}_azim{azimuth}_elev{elevation}.png
+    pattern = f"pi3_{scene_id}_azim"
+    count = 0
+    for filename in os.listdir(output_dir):
+        if filename.startswith(pattern) and filename.endswith('.png'):
+            count += 1
+    
+    return count >= expected_count
+
+
 def main():
     """主函数"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='批量生成不同角度的视角图片')
-    parser.add_argument('--jsonl', type=str, default='dataset/VLM-3R/filtered/vlm3r_dataset.jsonl',
+    parser.add_argument('--jsonl', type=str, default='dataset/VLM-3R/filtered/vlm3r_dataset_.jsonl',
                        help='JSONL文件路径，包含图片列表')
     parser.add_argument('--ports', type=int, nargs='+', required=True,
                        help='Pi3服务器端口列表，例如: --ports 20030 20032 20034 20036')
@@ -305,6 +332,8 @@ def main():
                        help='服务器主机地址 (默认: 10.7.33.15)')
     parser.add_argument('--output-dir', type=str, default='outputs/angle_views',
                        help='输出目录路径 (默认: outputs/angle_views)')
+    parser.add_argument('--resume', action='store_true',
+                       help='断点续跑模式：跳过已完成的场景')
     
     args = parser.parse_args()
     
@@ -313,6 +342,7 @@ def main():
     OUTPUT_DIR = args.output_dir
     PORTS = args.ports
     HOST = args.host
+    RESUME_MODE = args.resume
     
     logger.info("="*80)
     logger.info("批量生成角度视角图片工具（并行模式）")
@@ -321,6 +351,7 @@ def main():
     logger.info(f"输出目录: {OUTPUT_DIR}")
     logger.info(f"服务器主机: {HOST}")
     logger.info(f"服务器端口: {PORTS} (共 {len(PORTS)} 个，并行模式)")
+    logger.info(f"断点续跑模式: {'开启' if RESUME_MODE else '关闭'}")
     logger.info("="*80 + "\n")
     
     # 创建输出目录
@@ -359,7 +390,37 @@ def main():
         logger.error("未找到任何有效的图片记录")
         return 1
     
-    logger.info(f"共加载 {len(image_data_list)} 组图片\n")
+    logger.info(f"共加载 {len(image_data_list)} 组图片")
+    
+    # 如果是断点续跑模式，过滤掉已完成的场景
+    if RESUME_MODE:
+        logger.info("\n检查已完成的场景...")
+        original_count = len(image_data_list)
+        skipped_scenes = []
+        
+        filtered_list = []
+        for images, item_id, scene_id in image_data_list:
+            if check_scene_completion(OUTPUT_DIR, scene_id):
+                skipped_scenes.append((item_id, scene_id))
+                logger.info(f"  跳过已完成场景: {scene_id} (条目 {item_id})")
+            else:
+                filtered_list.append((images, item_id, scene_id))
+        
+        image_data_list = filtered_list
+        skipped_count = original_count - len(image_data_list)
+        
+        logger.info(f"\n断点续跑统计:")
+        logger.info(f"  原始条目数: {original_count}")
+        logger.info(f"  已完成跳过: {skipped_count}")
+        logger.info(f"  待处理条目: {len(image_data_list)}")
+        
+        if not image_data_list:
+            logger.info("\n所有场景都已完成，无需继续处理！")
+            return 0
+    else:
+        logger.info(f"待处理: {len(image_data_list)} 组图片")
+    
+    logger.info("")
     
     # 生成角度规格
     angles = generate_angle_specifications()

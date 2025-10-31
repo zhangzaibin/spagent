@@ -52,17 +52,23 @@ TOOL_CONFIGS = {
     ]
 }
 
-def extract_pi3_angles(agent_result: Dict[str, Any]) -> List[Tuple[int, int]]:
+def extract_pi3_parameters(agent_result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Extract Pi3 tool angle parameters from agent result
+    Extract Pi3 tool parameters from agent result
     
     Args:
         agent_result: Result dictionary from agent.solve_problem()
         
     Returns:
-        List of (azimuth_angle, elevation_angle) tuples
+        List of dictionaries containing Pi3 parameters:
+        {
+            "azimuth_angle": int,
+            "elevation_angle": int,
+            "rotation_reference_camera": int,
+            "camera_view": bool
+        }
     """
-    angles = []
+    pi3_params = []
     tool_calls = agent_result.get("tool_calls", [])
     
     for call in tool_calls:
@@ -70,12 +76,21 @@ def extract_pi3_angles(agent_result: Dict[str, Any]) -> List[Tuple[int, int]]:
             arguments = call.get("arguments", {})
             azimuth = arguments.get("azimuth_angle", 0)
             elevation = arguments.get("elevation_angle", 0)
+            rotation_ref_camera = arguments.get("rotation_reference_camera", 1)
+            camera_view = arguments.get("camera_view", False)
+            
             # Convert to int for cleaner statistics
             azimuth_int = int(round(azimuth))
             elevation_int = int(round(elevation))
-            angles.append((azimuth_int, elevation_int))
+            
+            pi3_params.append({
+                "azimuth_angle": azimuth_int,
+                "elevation_angle": elevation_int,
+                "rotation_reference_camera": rotation_ref_camera,
+                "camera_view": camera_view
+            })
     
-    return angles
+    return pi3_params
 
 
 def extract_video_frames(video_path: str, num_frames: int = 10) -> List[str]:
@@ -176,8 +191,8 @@ def evaluate_single_video(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        # Extract Pi3 angle parameters
-        pi3_angles = extract_pi3_angles(agent_result)
+        # Extract Pi3 parameters (angles + rotation_reference_camera + camera_view)
+        pi3_params = extract_pi3_parameters(agent_result)
         
         task_data = {
             'question': result["question"],
@@ -204,7 +219,7 @@ def evaluate_single_video(
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
             "used_tools": agent_result.get("used_tools", []),
-            "pi3_angles": pi3_angles  # NEW: Pi3 angle combinations
+            "pi3_parameters": pi3_params  # NEW: Full Pi3 parameters
         }      
         
     except Exception as e:
@@ -268,8 +283,8 @@ def evaluate_single_sample(
         # Check correctness
         is_correct = normalized_prediction == normalized_ground_truth
         
-        # Extract Pi3 angle parameters
-        pi3_angles = extract_pi3_angles(agent_result)
+        # Extract Pi3 parameters (angles + rotation_reference_camera + camera_view)
+        pi3_params = extract_pi3_parameters(agent_result)
         
         task_data = {
             'question': result["question"],
@@ -296,7 +311,7 @@ def evaluate_single_sample(
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
             "used_tools": agent_result.get("used_tools", []),
-            "pi3_angles": pi3_angles  # NEW: Pi3 angle combinations
+            "pi3_parameters": pi3_params  # NEW: Full Pi3 parameters
         }
         
     except Exception as e:
@@ -354,8 +369,8 @@ def evaluate_tool_config(
     correct_count = 0
     total_time = 0
     
-    # NEW: Track Pi3 angle combinations
-    all_pi3_angles = []
+    # NEW: Track Pi3 parameters (angles + rotation_reference_camera + camera_view)
+    all_pi3_params = []
     
     # Use tqdm for progress tracking
     for sample in tqdm(data, desc="Evaluating"):
@@ -393,9 +408,9 @@ def evaluate_tool_config(
             if result["is_correct"]:
                 correct_count += 1
             total_time += result["inference_time"]
-            # Collect Pi3 angles
-            pi3_angles = result.get("pi3_angles", [])
-            all_pi3_angles.extend(pi3_angles)
+            # Collect Pi3 parameters
+            pi3_params = result.get("pi3_parameters", [])
+            all_pi3_params.extend(pi3_params)
     
     # Calculate statistics
     successful_results = [r for r in results if r["success"]]
@@ -433,23 +448,58 @@ def evaluate_tool_config(
                 tool_usage_stats[tool] = 0
             tool_usage_stats[tool] += 1
     
-    # NEW: Pi3 angle distribution statistics
-    pi3_angle_distribution = {}
-    if all_pi3_angles:
-        angle_counter = Counter(all_pi3_angles)
-        # Sort by count (descending) then by angle
+    # NEW: Pi3 parameter distribution statistics
+    pi3_stats = {}
+    if all_pi3_params:
+        # Extract angles for backward compatibility
+        all_angles = [(p["azimuth_angle"], p["elevation_angle"]) for p in all_pi3_params]
+        angle_counter = Counter(all_angles)
         sorted_angles = sorted(angle_counter.items(), key=lambda x: (-x[1], x[0]))
-        pi3_angle_distribution = {
-            "total_pi3_calls": len(all_pi3_angles),
+        
+        # Count rotation_reference_camera usage
+        rotation_ref_camera_counter = Counter([p["rotation_reference_camera"] for p in all_pi3_params])
+        
+        # Count camera_view usage
+        camera_view_counter = Counter([p["camera_view"] for p in all_pi3_params])
+        camera_view_true = camera_view_counter.get(True, 0)
+        camera_view_false = camera_view_counter.get(False, 0)
+        
+        # Full parameter combinations (for detailed analysis)
+        full_param_combinations = []
+        for p in all_pi3_params:
+            combo = f"(azim={p['azimuth_angle']}, elev={p['elevation_angle']}, " \
+                    f"ref_cam={p['rotation_reference_camera']}, camera_view={p['camera_view']})"
+            full_param_combinations.append(combo)
+        
+        pi3_stats = {
+            "total_pi3_calls": len(all_pi3_params),
             "unique_angle_combinations": len(angle_counter),
-            "distribution": {
+            "angle_distribution": {
                 f"({azim}, {elev})": count 
                 for (azim, elev), count in sorted_angles
             },
-            "top_5_combinations": [
-                {"angle": f"({azim}, {elev})", "count": count, "percentage": f"{count/len(all_pi3_angles)*100:.1f}%"}
+            "top_5_angle_combinations": [
+                {"angle": f"({azim}, {elev})", "count": count, 
+                 "percentage": f"{count/len(all_angles)*100:.1f}%"}
                 for (azim, elev), count in sorted_angles[:5]
-            ]
+            ],
+            "rotation_reference_camera_usage": {
+                f"camera_{cam}": count 
+                for cam, count in sorted(rotation_ref_camera_counter.items())
+            },
+            "rotation_reference_camera_percentage": {
+                f"camera_{cam}": f"{count/len(all_pi3_params)*100:.1f}%"
+                for cam, count in sorted(rotation_ref_camera_counter.items())
+            },
+            "camera_view_usage": {
+                "enabled_true": camera_view_true,
+                "disabled_false": camera_view_false
+            },
+            "camera_view_percentage": {
+                "enabled_true": f"{camera_view_true/len(all_pi3_params)*100:.1f}%",
+                "disabled_false": f"{camera_view_false/len(all_pi3_params)*100:.1f}%"
+            },
+            "full_parameter_combinations": Counter(full_param_combinations)
         }
     
     # NEW: Export collected data if DataCollector was provided
@@ -524,9 +574,9 @@ def evaluate_tool_config(
         "model": model
     }
     
-    # Add Pi3 angle distribution if available
-    if pi3_angle_distribution:
-        result_dict["pi3_angle_distribution"] = pi3_angle_distribution
+    # Add Pi3 parameter statistics if available
+    if pi3_stats:
+        result_dict["pi3_statistics"] = pi3_stats
     
     return result_dict
 
