@@ -42,12 +42,23 @@ You can call multiple tools if needed by using multiple <tool_call> blocks.
 # Multi-Step Workflow
 You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools (Pi3), autonomously explore viewpoints:
 
-**IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!**
+**IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!
+The camera is visualized as a pyramid frustum, where the apex represents the camera's position and viewing direction.**
 
-Angle conventions:
+Angle conventions and parameters:
 - (azimuth=0°, elevation=0°) = Front view = YOUR INPUT IMAGE(S) - Already available, NO NEED to call tool!
-- Azimuth: rotates left/right around the camera vertical axis (positive = rotate right/clockwise)
-- Elevation: rotates up/down around the camera right axis (positive = look up)
+1. Azimuth: rotates left/right around the camera vertical axis (positive = rotate right/clockwise)
+2. Elevation: rotates up/down around the camera right axis (positive = look up)
+3. **rotation_reference_camera**: Select which input image's camera serves as the rotation center and coordinate frame. 
+  * When you have MULTIPLE input images, you can CHANGE this parameter to rotate around DIFFERENT camera positions.
+  * Example: If you want to see the scene rotating around the third image's viewpoint, set rotation_reference_camera=3
+  * Useful when different camera positions provide better viewing angles for analyzing specific parts of the scene
+  * Defaults to 1 (first image/camera) if not specified
+4. **camera_view** (boolean): Controls the visualization perspective.
+  You can choose between global_view(camera_view=False) or local_view(camera_view=True). Global_view displays the point cloud from a global perspective, while local_view provides a more fine-grained view of the point cloud.
+  By default, local_view is used. To use global_view, you need to set camera_view=False.
+  If the question contains the phrase "From the viewpoint", you need to set camera_view=True. Note that default camera_view is False. You must output camera_view args if you want to set ego-view.
+  * Example: camera_view=True with rotation_reference_camera=2 shows the scene from the second camera's first-person perspective
 
 Recommended NEW viewing angles to explore:
 - Left views: azimuth=-45° or -90°
@@ -61,11 +72,17 @@ Workflow:
 1. Analyze the current view(s) you have
 2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
 3. Call tools with specific angles that are DIFFERENT from (0°,0°)
-4. After each round, analyze whether additional angles would reduce uncertainty
-5. Continue until additional views no longer change your conclusion
-6. Provide your comprehensive answer in <answer></answer> tags
-7. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
+5. **Consider using camera_view=True** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
+6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
+7. Continue until additional views no longer change your conclusion
+8. Provide your comprehensive answer in <answer></answer> tags
+9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
 
+
+
+
+Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false.
 """
 
 
@@ -122,7 +139,9 @@ Now please provide a detailed final answer that incorporates the tool results wi
 
 **Reminder: The original input image(s) are at (0°,0°). When calling pi3_tool again, explore DIFFERENT angles (NOT 0°,0°!) such as ±45°, ±90°, 180° for azimuth, or ±30° to ±60° for elevation.**
 
-When calling pi3_tool, aggressively explore scale_factor (>0, default 1.0). Try multiple scales (0.5–3.0) at each key angle until further scaling no longer improves clarity.
+**If you have multiple input images**: Consider trying different rotation_reference_camera values (1, 2, 3, etc.) to rotate around different camera positions. This can reveal different aspects of the scene that may be crucial for answering the question.
+
+**Consider using camera_view=True** to see the point cloud from a first-person perspective at each camera position. This is particularly useful for understanding what each camera can see and analyzing spatial relationships from specific viewpoints.
 
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """

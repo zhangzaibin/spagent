@@ -760,6 +760,19 @@ You have {remaining} more iteration(s) available. You can:
      * Back: (180°, 0°) or (±135°, 0°)
      * Diagonal: (45°, 30°) or (-45°, 30°)
    - Each NEW angle reveals different aspects of the 3D structure
+   
+   **Advanced Pi3 Parameters**:
+   - **rotation_reference_camera** (integer, 1-based): When you have multiple input images, try DIFFERENT camera positions as rotation centers
+     * Default is 1 (first camera), Set to 2, 3, etc. to rotate around different camera positions
+     * Example: rotation_reference_camera=2 rotates around the second camera's viewpoint
+     * Useful for analyzing different parts of the scene from various perspectives
+   
+   - **camera_view** (boolean): Control the visualization perspective
+     * False (default): Global bird's-eye view showing the entire scene
+     * True: First-person camera view - see the scene from the selected camera's perspective (as if standing at that camera)
+     * Combine with rotation_reference_camera to experience different camera viewpoints
+     * Example: camera_view=True with rotation_reference_camera=2 shows first-person view from camera 2
+     * Useful for understanding what each camera can see and spatial relationships
 
 2. **Provide final answer** - If you have sufficient information from current viewpoints:
    - Output your comprehensive analysis in <think></think> tags

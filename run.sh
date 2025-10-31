@@ -1,2 +1,1 @@
-python /media/zzb/AI_save/zzb/spagent/examples/evaluation/evaluate_img.py --data_path /media/zzb/AI_save/zzb/spagent/dataset/VSI-Bench-json/vsi_obect_relative_distance.jsonl --max_samples 120 --model gpt-4.1 --max_iterations 3 --task relativedistance
-python /media/zzb/AI_save/zzb/spagent/examples/evaluation/evaluate_img.py --data_path /media/zzb/AI_save/zzb/spagent/dataset/VSI-Bench-json/vsi_object_direction.jsonl --max_samples 120 --model gpt-4.1 --max_iterations 3 --task object_direction
+CUDA_VISIBLE_DEVICES=6 python examples/evaluation/evaluate_img.py --data_path dataset/MindCube_sample40.jsonl --model gpt-4.1 --max_iterations 4 --task mindcube10
