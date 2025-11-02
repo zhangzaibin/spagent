@@ -784,6 +784,10 @@ Instructions:
 - If YES: Use <tool_call></tool_call> to request a DIFFERENT viewing angle (avoid 0°,0° as you already have it!)
 - If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text.
 
+Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
+You can examine the image to understand what is around cam1.
+The 3D reconstruction provides relative positional information, so you should reason interactively and complementarily between the 2D image and the 3D reconstruction to form a complete understanding.
+
 Please continue:"""
         
         return prompt
