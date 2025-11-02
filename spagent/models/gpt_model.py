@@ -24,7 +24,7 @@ class GPTModel(Model):
     def __init__(
         self, 
         model_name: str = "gpt-4o-mini",
-        temperature: float = 0.7,
+        temperature: float = 1.0,
         max_tokens: Optional[int] = None
     ):
         """
