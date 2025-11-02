@@ -62,6 +62,13 @@ Workflow:
 6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
 8. Continue until additional views no longer change your conclusion
 9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+
+Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
+You can examine the image to understand what is around cam1.
+The 3D reconstruction provides relative positional information, so you should reason interactively and complementarily between the 2D image and the 3D reconstruction to form a complete understanding.
+You need to analyze deeply the camera, its orientation, and the content captured in the frame.
+
+TIPS: For questions related to orientation or relative positioning, it is recommended to choose top view.
 """
 
 
