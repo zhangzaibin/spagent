@@ -45,27 +45,12 @@ You can perform MULTIPLE rounds of tool calls and analysis. When using 3D recons
 **IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!
 The camera is visualized as a pyramid frustum, where the apex represents the camera's position and viewing direction.**
 
-Angle conventions and parameters:
-- (azimuth=0°, elevation=0°) = Front view = YOUR INPUT IMAGE(S) - Already available, NO NEED to call tool!
-1. Azimuth: rotates left/right around the camera vertical axis (positive = rotate right/clockwise)
-2. Elevation: rotates up/down around the camera right axis (positive = look up)
-3. **rotation_reference_camera**: Select which input image's camera serves as the rotation center and coordinate frame. 
-  * When you have MULTIPLE input images, you can CHANGE this parameter to rotate around DIFFERENT camera positions.
-  * Example: If you want to see the scene rotating around the third image's viewpoint, set rotation_reference_camera=3
-  * Useful when different camera positions provide better viewing angles for analyzing specific parts of the scene
-  * Defaults to 1 (first image/camera) if not specified
-4. **camera_view** (boolean): Controls the visualization perspective.
-  You can choose between global_view(camera_view=False) or local_view(camera_view=True). Global_view displays the point cloud from a global perspective, while local_view provides a more fine-grained view of the point cloud.
-  By default, local_view is used. To use global_view, you need to set camera_view=False.
-  If the question contains the phrase "From the viewpoint", you need to set camera_view=True. Note that default camera_view is False. You must output camera_view args if you want to set ego-view.
-  * Example: camera_view=True with rotation_reference_camera=2 shows the scene from the second camera's first-person perspective
 
-Recommended NEW viewing angles to explore:
-- Left views: azimuth=-45° or -90°
-- Right views: azimuth=45° or 90°
-- Top views: elevation=30° to 60°
-- Bottom views: elevation=-30° to -45°
-- Back views: azimuth=180° or ±135°
+# Recommended NEW viewing angles to explore:
+- Left views: azimuth=-45° or -90° (see scenes from right view)
+- Right views: azimuth=45° or 90° (see scenes from left view)
+- Top views: elevation=30° to 60° (see scenes from top view, better capture the object relation and relatifve position of cam and objects.)
+- Back views: azimuth=180° or ±135° (see scenes from back view)
 - Diagonal views: combine azimuth and elevation (e.g., 45°, 30°)
 
 Workflow:
@@ -73,16 +58,10 @@ Workflow:
 2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
 3. Call tools with specific angles that are DIFFERENT from (0°,0°)
 4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
-5. **Consider using camera_view=True** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
+5. **Consider using camera_view=true** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
 6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
-7. Continue until additional views no longer change your conclusion
-8. Provide your comprehensive answer in <answer></answer> tags
+8. Continue until additional views no longer change your conclusion
 9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
-
-
-
-
-Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false.
 """
 
 
