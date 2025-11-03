@@ -926,7 +926,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         
         # 保留前方 200° 视野内的点（从中心轴左右各 100°，上下各 100°）
         # cos(100°) ≈ -0.174，所以保留 cos > -0.2 的点（比 100° 稍宽一点）
-        fov_angle_threshold = np.cos(np.radians(90))  # 100° 的余弦值 ≈ -0.174
+        fov_angle_threshold = np.cos(np.radians(110))  # 100° 的余弦值 ≈ -0.174
         
         # 创建视锥体掩码：点与相机朝向夹角 < 100° (即 cos > -0.174)
         fov_mask = cos_angles > fov_angle_threshold
@@ -1079,7 +1079,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         # elev=0 表示水平观察，azim=-90 表示沿着 -Z 方向（相机朝向）
         ax.view_init(elev=0.0, azim=-90.0)
         # 调整视角距离，稍微往后退一点以看到更多场景
-        ax.dist = 11  # 增大距离，视角往后退（原来是8，现在是11）
+        ax.dist = 7  # 增大距离，视角往后退（原来是8，现在是11）
     else:
         # 全局视角模式：使用默认的俯瞰视角
         ax.view_init(elev=0.0, azim=-90.0)

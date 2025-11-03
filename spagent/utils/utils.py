@@ -175,6 +175,11 @@ def print_evaluation_results(results: Dict[str, Any]):
     for task, stats in results['task_statistics'].items():
         print(f"{task:20s}: {stats['accuracy']:.4f} ({stats['correct']}/{stats['total']})")
     
+    # Print correct and incorrect question IDs if available
+    if 'correct_question_ids' in results and 'incorrect_question_ids' in results:
+        print(f"\nCorrect questions: {len(results['correct_question_ids'])} IDs")
+        print(f"Incorrect questions: {len(results['incorrect_question_ids'])} IDs")
+    
     if results['failed_samples_details']:
         print(f"\nFailed samples ({len(results['failed_samples_details'])}):")
         print("-" * 40)
