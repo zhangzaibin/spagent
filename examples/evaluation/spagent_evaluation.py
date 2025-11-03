@@ -52,6 +52,135 @@ TOOL_CONFIGS = {
     ]
 }
 
+def clean_dict_from_images(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    递归清理字典中的所有图片数据
+    
+    Args:
+        data: 原始数据字典
+        
+    Returns:
+        清理后的字典（不包含任何图片数据）
+    """
+    # 定义所有可能包含图片的字段
+    IMAGE_FIELDS = [
+        'image', 'images', 'img', 
+        'camera_views', 'camera_view',
+        'output_path', 'vis_path', 'visualization_path',
+        'frames', 'frame',
+        'visualization', 'rendered_image', 'rendered_images',
+        'depth_map', 'depth_image',
+        'mask', 'masks', 'segmentation_mask',
+        'image_path', 'image_paths', 'img_path'
+    ]
+    
+    if isinstance(data, dict):
+        cleaned = {}
+        for key, value in data.items():
+            # 跳过所有可能包含图片的字段
+            if key in IMAGE_FIELDS:
+                # 记录该字段存在但不保存内容
+                cleaned[f'has_{key}'] = True
+            elif isinstance(value, dict):
+                # 递归清理嵌套字典
+                cleaned[key] = clean_dict_from_images(value)
+            elif isinstance(value, list):
+                # 递归清理列表中的字典
+                cleaned[key] = [
+                    clean_dict_from_images(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+            else:
+                # 保留其他字段
+                cleaned[key] = value
+        return cleaned
+    else:
+        return data
+
+
+def clean_tool_results(tool_results: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    清理工具结果，移除所有图片数据以节省空间
+    
+    Args:
+        tool_results: 原始工具结果
+        
+    Returns:
+        清理后的工具结果（不包含任何图片数据）
+    """
+    cleaned_results = {}
+    
+    for tool_name, result in tool_results.items():
+        cleaned_results[tool_name] = clean_dict_from_images(result) if isinstance(result, dict) else result
+    
+    return cleaned_results
+
+
+def save_detailed_interaction_records(results: List[Dict[str, Any]], output_file: str):
+    """
+    Save detailed interaction records for each question to a JSON file
+    
+    Args:
+        results: List of evaluation results
+        output_file: Path to output JSON file
+    """
+    detailed_records = []
+    
+    for result in results:
+        if not result.get("success"):
+            # For failed samples, only record basic info
+            record = {
+                "id": result.get("id", "unknown"),
+                "success": False,
+                "error": result.get("error", "Unknown error")
+            }
+        else:
+            # For successful samples, record all details
+            interaction_records = result.get("interaction_records", {})
+            
+            # 清理 tool_calls 中的图片数据
+            tool_calls = interaction_records.get("tool_calls", [])
+            cleaned_tool_calls = [
+                clean_dict_from_images(call) if isinstance(call, dict) else call
+                for call in tool_calls
+            ]
+            
+            record = {
+                "id": result.get("id", "unknown"),
+                "success": True,
+                "question": result.get("question", ""),
+                "ground_truth": result.get("ground_truth", ""),
+                "prediction": result.get("prediction", ""),
+                "normalized_prediction": result.get("normalized_prediction", ""),
+                "normalized_ground_truth": result.get("normalized_ground_truth", ""),
+                "is_correct": result.get("is_correct", False),
+                "task": result.get("task", "unknown"),
+                "inference_time": result.get("inference_time", 0),
+                
+                # Tool usage information
+                "used_tools": result.get("used_tools", []),
+                "pi3_parameters": result.get("pi3_parameters", []),
+                
+                # Detailed interaction records
+                "interaction": {
+                    "initial_response": interaction_records.get("initial_response", ""),
+                    "final_answer": interaction_records.get("final_answer", ""),
+                    "iterations": interaction_records.get("iterations", 0),
+                    "tool_calls": cleaned_tool_calls,  # 使用清理后的 tool_calls
+                    # tool_results 不保存
+                    "num_additional_images": len(interaction_records.get("additional_images", [])),  # 只保存数量
+                    "baseline_answer": interaction_records.get("baseline_answer", None)
+                }
+            }
+        
+        detailed_records.append(record)
+    
+    # Save to JSON file
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(detailed_records, f, indent=2, ensure_ascii=False)
+    
+    print(f"✓ Detailed interaction records saved to: {output_file}")
+
 def extract_pi3_parameters(agent_result: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Extract Pi3 tool parameters from agent result
@@ -219,7 +348,16 @@ def evaluate_single_video(
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
             "used_tools": agent_result.get("used_tools", []),
-            "pi3_parameters": pi3_params  # NEW: Full Pi3 parameters
+            "pi3_parameters": pi3_params,  # NEW: Full Pi3 parameters
+            # NEW: Detailed interaction records
+            "interaction_records": {
+                "tool_calls": agent_result.get("tool_calls", []),
+                "initial_response": agent_result.get("initial_response", ""),
+                "final_answer": agent_result.get("answer", ""),
+                "iterations": agent_result.get("iterations", 0),
+                "additional_images": agent_result.get("additional_images", []),
+                "baseline_answer": agent_result.get("baseline_answer", None)
+            }
         }      
         
     except Exception as e:
@@ -311,7 +449,16 @@ def evaluate_single_sample(
             "inference_time": inference_time,
             "task": sample.get("task", "unknown"),
             "used_tools": agent_result.get("used_tools", []),
-            "pi3_parameters": pi3_params  # NEW: Full Pi3 parameters
+            "pi3_parameters": pi3_params,  # NEW: Full Pi3 parameters
+            # NEW: Detailed interaction records
+            "interaction_records": {
+                "tool_calls": agent_result.get("tool_calls", []),
+                "initial_response": agent_result.get("initial_response", ""),
+                "final_answer": agent_result.get("answer", ""),
+                "iterations": agent_result.get("iterations", 0),
+                "additional_images": agent_result.get("additional_images", []),
+                "baseline_answer": agent_result.get("baseline_answer", None)
+            }
         }
         
     except Exception as e:
@@ -571,12 +718,17 @@ def evaluate_tool_config(
         "sample_type_statistics": sample_type_stats,
         "tool_usage_statistics": tool_usage_stats,
         "failed_samples_details": failed_results,
-        "model": model
+        "model": model,
+        "detailed_results": results  # NEW: Include all detailed results for each sample
     }
     
     # Add Pi3 parameter statistics if available
     if pi3_stats:
         result_dict["pi3_statistics"] = pi3_stats
+    
+    # Save detailed interaction records to a separate JSON file
+    detailed_output_file = f"{config_name}_detailed_interactions.json"
+    save_detailed_interaction_records(results, detailed_output_file)
     
     return result_dict
 
