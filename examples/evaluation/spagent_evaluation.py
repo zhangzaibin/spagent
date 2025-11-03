@@ -566,6 +566,16 @@ def evaluate_tool_config(
     accuracy = correct_count / len(successful_results) if successful_results else 0
     avg_inference_time = total_time / len(successful_results) if successful_results else 0
     
+    # Track correct and incorrect question IDs
+    correct_ids = []
+    incorrect_ids = []
+    for result in successful_results:
+        question_id = result.get("id", "unknown")
+        if result.get("is_correct", False):
+            correct_ids.append(question_id)
+        else:
+            incorrect_ids.append(question_id)
+    
     # Group statistics by task
     task_stats = {}
     for result in successful_results:
@@ -719,7 +729,9 @@ def evaluate_tool_config(
         "tool_usage_statistics": tool_usage_stats,
         "failed_samples_details": failed_results,
         "model": model,
-        "detailed_results": results  # NEW: Include all detailed results for each sample
+        "detailed_results": results,  # NEW: Include all detailed results for each sample,
+        "correct_question_ids": correct_ids,
+        "incorrect_question_ids": incorrect_ids
     }
     
     # Add Pi3 parameter statistics if available

@@ -42,7 +42,7 @@ TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://0.0.0.0:30030",  # pi3
+    "pi3": "http://10.7.33.15:20030",  # pi3
     "moondream": "http://192.168.3.2:20024",  # moondream
 }
 

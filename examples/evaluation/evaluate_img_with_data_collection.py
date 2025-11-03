@@ -201,6 +201,16 @@ def evaluate_tool_config_with_data_collection(
     accuracy = correct_count / len(successful_results) if successful_results else 0
     avg_inference_time = total_time / len(successful_results) if successful_results else 0
     
+    # Track correct and incorrect question IDs
+    correct_ids = []
+    incorrect_ids = []
+    for result in successful_results:
+        question_id = result.get("id", "unknown")
+        if result.get("is_correct", False):
+            correct_ids.append(question_id)
+        else:
+            incorrect_ids.append(question_id)
+    
     # Group statistics by task
     task_stats = {}
     for result in successful_results:
@@ -277,7 +287,9 @@ def evaluate_tool_config_with_data_collection(
         "model": model,
         "data_collection_enabled": enable_data_collection,
         "data_collection_statistics": data_collection_stats if enable_data_collection else None,
-        "data_collection_dir": data_collection_dir if enable_data_collection else None
+        "data_collection_dir": data_collection_dir if enable_data_collection else None,
+        "correct_question_ids": correct_ids,
+        "incorrect_question_ids": incorrect_ids
     }
 
 
