@@ -57,12 +57,9 @@ Workflow:
 1. Analyze the current view(s) you have
 2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
 3. Call tools with specific angles that are DIFFERENT from (0°,0°)
-4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
-5. **Consider using camera_view=true** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
-6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
-8. Continue until additional views no longer change your conclusion
-9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
-
+4. After each round, analyze whether additional angles would reduce uncertainty
+5. Continue until additional views no longer change your conclusion
+6. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
 
 Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
 You can examine the image to understand what is around cam1.
@@ -125,10 +122,6 @@ Tool Description: {description}"""
 Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response.
 
 **Reminder: The original input image(s) are at (0°,0°). When calling pi3_tool again, explore DIFFERENT angles (NOT 0°,0°!) such as ±45°, ±90°, 180° for azimuth, or ±30° to ±60° for elevation.**
-
-**If you have multiple input images**: Consider trying different rotation_reference_camera values (1, 2, 3, etc.) to rotate around different camera positions. This can reveal different aspects of the scene that may be crucial for answering the question.
-
-**Consider using camera_view=True** to see the point cloud from a first-person perspective at each camera position. This is particularly useful for understanding what each camera can see and analyzing spatial relationships from specific viewpoints.
 
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
