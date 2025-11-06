@@ -127,8 +127,6 @@ Now please provide a detailed final answer that incorporates the tool results wi
 
 **If you have multiple input images**: Consider trying different rotation_reference_camera values (1, 2, 3, etc.) to rotate around different camera positions. This can reveal different aspects of the scene that may be crucial for answering the question.
 
-**Consider using camera_view=True** to see the point cloud from a first-person perspective at each camera position. This is particularly useful for understanding what each camera can see and analyzing spatial relationships from specific viewpoints.
-
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
 
