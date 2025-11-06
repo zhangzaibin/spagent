@@ -58,10 +58,9 @@ Workflow:
 2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
 3. Call tools with specific angles that are DIFFERENT from (0°,0°)
 4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
-5. **Consider using camera_view=true** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
-6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
-8. Continue until additional views no longer change your conclusion
-9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+5. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
+6. Continue until additional views no longer change your conclusion
+7. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
 
 
 Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.

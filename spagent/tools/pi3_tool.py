@@ -85,16 +85,9 @@ class Pi3Tool(Tool):
                 "**rotation_reference_camera** (must be output, 1-based):This parameter is used to rotate around a specific input image's "
                 "camera. By picking an image you pick its camera (e.g., set rotation_reference_camera=3 for "
                 "the third image's viewpoint; defaults to 1).\n\n"
-                
-                "**camera_view** (must be output, boolean): This parameter is used to generate first-person perspective from "
-                "the selected camera position (as if standing at that camera looking at the scene), "
-                "instead of the default global bird's-eye view. This is especially useful for understanding "
-                "what each camera can see and analyzing spatial relationships from specific viewpoints. "
-                "Combine with rotation_reference_camera to experience the scene from different camera positions.\n\n"
-                "Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false."
-                
-                "**Usage Strategy**: You can call this tool MULTIPLE times with DIFFERENT angles and "
-                "different camera views to analyze the 3D structure comprehensively. The MLLM is encouraged "
+                                
+                "**Usage Strategy**: You can call this tool MULTIPLE times with DIFFERENT angles"
+                "to analyze the 3D structure comprehensively. The MLLM is encouraged "
                 "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. "
                 "The generated visualization uses cone-shaped markers to indicate camera positions, "
                 "numbered from 1 (cam1, cam2, etc.).\n"
@@ -237,10 +230,6 @@ class Pi3Tool(Tool):
                 "rotation_reference_camera": {
                     "type": "integer",
                     "description": "Reference camera index (1-based) to define rotation center and axes when generating viewpoints. When you have multiple input images, try DIFFERENT values (1, 2, 3, etc.) to rotate around different camera positions for better analysis. Default is 1 (uses the first input camera)."
-                },
-                "camera_view": {
-                    "type": "boolean",
-                    "description": "Whether to use first-person camera view mode. When True, generates point cloud visualization from the selected camera's first-person perspective (as if you are standing at that camera position looking at the scene). When False (default), uses global bird's-eye view. Combine with rotation_reference_camera to view from different camera positions."
                 }
             },
             "required": ["image_path"]
