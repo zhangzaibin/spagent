@@ -33,8 +33,8 @@ def load_and_merge_data(tool_results_path, no_tool_results_path):
 
     # 读取数据
     try:
-        tool_df = pd.read_csv(tool_results_path)
-        no_tool_df = pd.read_csv(no_tool_results_path)
+        tool_df = pd.read_csv(tool_results_path, encoding='utf-8', on_bad_lines='skip', engine='python')
+        no_tool_df = pd.read_csv(no_tool_results_path, encoding='utf-8', on_bad_lines='skip', engine='python')
         print(f"✅ 成功读取数据:")
         print(f"  使用工具数据: {len(tool_df)} 条")
         print(f"  不使用工具数据: {len(no_tool_df)} 条")
@@ -170,8 +170,8 @@ def save_filtered_datasets(tool_results_path, no_tool_results_path, output_dir="
 
     # 读取数据
     try:
-        tool_df = pd.read_csv(tool_results_path)
-        no_tool_df = pd.read_csv(no_tool_results_path)
+        tool_df = pd.read_csv(tool_results_path, encoding='utf-8', on_bad_lines='skip', engine='python')
+        no_tool_df = pd.read_csv(no_tool_results_path, encoding='utf-8', on_bad_lines='skip', engine='python')
         print(f"✅ 成功读取数据:")
         print(f"  使用工具数据: {len(tool_df)} 条")
         print(f"  不使用工具数据: {len(no_tool_df)} 条")
