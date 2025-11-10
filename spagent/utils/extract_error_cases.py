@@ -51,8 +51,8 @@ def extract_error_cases(csv_path: str, blink_data: Dict[str, Dict[str, Any]]) ->
     Returns:
         List of BLINK entries corresponding to incorrect predictions
     """
-    # Read CSV file
-    df = pd.read_csv(csv_path)
+    # Read CSV file with error handling
+    df = pd.read_csv(csv_path, encoding='utf-8', on_bad_lines='skip', engine='python')
     
     # Filter for incorrect predictions (is_correct = 0)
     error_cases = df[df['is_correct'] == 0]

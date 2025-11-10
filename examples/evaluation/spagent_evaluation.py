@@ -212,11 +212,23 @@ def extract_pi3_parameters(agent_result: Dict[str, Any]) -> List[Dict[str, Any]]
             azimuth_int = int(round(azimuth))
             elevation_int = int(round(elevation))
             
+            # Handle rotation_reference_camera - it might be a list or int
+            if isinstance(rotation_ref_camera, list):
+                rotation_ref_camera_int = int(rotation_ref_camera[0]) if rotation_ref_camera else 1
+            else:
+                rotation_ref_camera_int = int(rotation_ref_camera)
+            
+            # Handle camera_view - it might be a list or bool
+            if isinstance(camera_view, list):
+                camera_view_bool = bool(camera_view[0]) if camera_view else False
+            else:
+                camera_view_bool = bool(camera_view)
+            
             pi3_params.append({
                 "azimuth_angle": azimuth_int,
                 "elevation_angle": elevation_int,
-                "rotation_reference_camera": rotation_ref_camera,
-                "camera_view": camera_view
+                "rotation_reference_camera": rotation_ref_camera_int,
+                "camera_view": camera_view_bool
             })
     
     return pi3_params

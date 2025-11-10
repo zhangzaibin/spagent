@@ -103,8 +103,8 @@ def translate_csv_file(input_file: str, output_file: str = None, columns_to_tran
     print("-" * 60)
     
     try:
-        # 读取CSV文件
-        df = pd.read_csv(input_file)
+        # 读取CSV文件，添加错误处理
+        df = pd.read_csv(input_file, encoding='utf-8', on_bad_lines='skip', engine='python')
         print(f"✅ 成功读取CSV文件，共 {len(df)} 行数据")
         
         # 检查需要翻译的列是否存在
