@@ -6,6 +6,7 @@ Pi3 3D reconstruction functionality for the SPAgent system.
 """
 
 import sys
+import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -16,6 +17,47 @@ sys.path.append(str(Path(__file__).parent.parent))
 from core.tool import Tool
 
 logger = logging.getLogger(__name__)
+
+
+def extract_scene_id(image_path: str) -> str:
+    """
+    从图片路径中提取scene ID，适配多种数据集格式
+    
+    Args:
+        image_path: 图片路径，支持多种格式:
+            - VLM-3R/scannet: "VLM-3R/scannet_frames_25k/scene0296_01/color/000000.jpg" -> "scene0296_01"
+            - VLM-3R/arkitscenes: "VLM-3R/scannet_frames_25k/arkitscenes_47333899/frame_0.jpg" -> "arkitscenes_47333899_frame_0"
+            - 其他数据集: "dataset/images/file.jpg" -> "file" (仅文件名)
+        
+    Returns:
+        scene ID字符串，VLM-3R返回scene ID，其他数据集返回文件名
+    """
+    # For VLM-3R datasets only, extract scene ID
+    if 'vlm-3r' in image_path.lower():
+        # 1. Try to extract scene ID for scannet format first
+        parts = image_path.split('/')
+        for part in parts:
+            if part.startswith('scene') and '_' in part:
+                return part
+        
+        # 2. For arkitscenes or other VLM-3R subdatasets (not scannet)
+        path_parts = image_path.split('/')
+        for part in reversed(path_parts[:-1]):  # From back to front, skip filename
+            if any(c.isdigit() for c in part) or part.lower() in ['scene', 'view', 'camera']:
+                filename = os.path.splitext(os.path.basename(image_path))[0]
+                if filename and filename != part:
+                    return f"{part}_{filename}"
+                return part
+    elif 'mindcube' in image_path.lower():
+        # 获取文件名（无扩展名）
+        filename = os.path.splitext(os.path.basename(image_path))[0]  
+        # 获取上一级目录名
+        parent = os.path.basename(os.path.dirname(image_path))        
+        # 拼接
+        return f"{parent}_{filename}"
+    
+    # For other datasets, just return the filename (original logic)
+    return os.path.splitext(os.path.basename(image_path))[0]
 
 
 class Pi3Tool(Tool):
@@ -235,6 +277,14 @@ class Pi3Tool(Tool):
             
             logger.info(f"Using angles: azimuth={azimuth_angle}°, elevation={elevation_angle}°")
             
+            
+            # Check if cached result already exists
+            cached_result = self._check_cache(image_path[0], azimuth_angle, elevation_angle)
+            if cached_result:
+                logger.info(f"Using cached result for azimuth={azimuth_angle}°, elevation={elevation_angle}°, "
+                           )
+                return cached_result
+            
             # Execute 3D reconstruction with image list
             result = self._client.infer_from_images(
                 image_paths=image_path,  # Pass the list directly
@@ -282,6 +332,7 @@ class Pi3Tool(Tool):
                 return response
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                logger.info(f"没在{str(image_path)}里面找到azimuth{azimuth_angle}和elevation{elevation_angle}")
                 logger.error(f"Pi3 3D reconstruction failed: {error_msg}")
                 return {
                     "success": False,
@@ -294,7 +345,91 @@ class Pi3Tool(Tool):
                 "success": False,
                 "error": str(e)
             }
-    
+
+    def _check_cache(self, image_path: str, azimuth_angle: float, elevation_angle: float, 
+                     rotation_reference_camera: int = 1, camera_view: bool = False) -> Optional[Dict[str, Any]]:
+        """
+        Check if a cached result already exists for the given angles
+        
+        Args:
+            image_path: Original input image path for naming
+            azimuth_angle: Azimuth angle
+            elevation_angle: Elevation angle
+            rotation_reference_camera: Reference camera index (1-based)
+            camera_view: Whether using camera view mode
+            
+        Returns:
+            Cached result dictionary if found, None otherwise
+        """
+        try:
+            import base64
+            import os
+            
+            # Generate expected cache filename
+            tool_file = Path(__file__).resolve()
+            project_root = tool_file.parent.parent.parent
+            output_dir = project_root / "outputs"
+            scene_id = extract_scene_id(image_path)
+            
+            # Build filename with suffixes for camera_view and rotation_reference_camera
+            suffix = ""
+            if rotation_reference_camera != 1:
+                suffix += f"_refcam{rotation_reference_camera}"
+            if camera_view:
+                suffix += "_camview"
+            
+            cache_filename = f"pi3_{scene_id}_azim{azimuth_angle:.1f}_elev{elevation_angle:.1f}{suffix}.png"
+            cache_path = os.path.join(output_dir, 'angle_views', cache_filename)
+            
+            # Check if cache file exists
+            if not os.path.exists(cache_path):
+                print("no_cache_found: ", cache_path)
+                return None
+            
+            logger.info(f"Found cached result: {cache_path}")
+            
+            # Read the cached image and convert to base64
+            with open(cache_path, 'rb') as f:
+                img_data = f.read()
+                img_base64 = base64.b64encode(img_data).decode('utf-8')
+            
+            # Construct result in the same format as normal execution
+            result = {
+                "success": True,
+                "result": {
+                    "success": True,
+                    "ply_filename": f"cached_result_{scene_id}.ply",
+                    "points_count": 50000,  # Default value for cached results
+                    "camera_views": [{
+                        "camera": 1,
+                        "view": f"custom_azim_{int(azimuth_angle)}_elev_{int(elevation_angle)}",
+                        "azimuth_angle": int(azimuth_angle),
+                        "elevation_angle": int(elevation_angle),
+                        "image": img_base64
+                    }]
+                },
+                "points_count": 50000,
+                "ply_filename": f"cached_result_{scene_id}.ply",
+                "view_count": 1,
+                "azimuth_angle": azimuth_angle,
+                "elevation_angle": elevation_angle,
+                "view_type": "custom_angle",
+                "input_images_count": 1,
+                "output_path": cache_path,
+                "cached": True,  # Mark as cached result
+                "description": (
+                    f"Using cached Pi3 visualization from previous reconstruction "
+                    f"(azimuth={int(azimuth_angle)}°, elevation={int(elevation_angle)}°). "
+                    f"The cached result shows the reconstructed 3D scene from the requested viewing angle."
+                )
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error checking cache: {e}")
+            return None
+
     def _save_generated_images(self, result: Dict[str, Any], image_path: str) -> Optional[str]:
         """
         Save generated images from Pi3 result and return the path to the first saved image
@@ -319,8 +454,8 @@ class Pi3Tool(Tool):
             output_dir = "outputs"
             os.makedirs(output_dir, exist_ok=True)
             
-            # Generate base name from input image
-            input_name = Path(image_path).stem
+            # Generate scene ID from input image path
+            scene_id = extract_scene_id(image_path)
             
             saved_images = []
             
@@ -333,8 +468,9 @@ class Pi3Tool(Tool):
                     elevation = view_data.get("elevation_angle", 0)
                     
                     # Debug: log view data info
-                    # Create filename with input image name, angles
-                    img_filename = f"pi3_{input_name}_azim{azimuth}_elev{elevation}.png"
+                    # Create filename with scene_id, angles, and optional suffixes
+                    # Using format: pi3_{scene_id}_azim{azimuth}_elev{elevation}[_refcam{N}][_camview].png
+                    img_filename = f"pi3_{scene_id}_azim{azimuth:.1f}_elev{elevation:.1f}.png"
                     img_path = os.path.join(output_dir, img_filename)
                     
                     # Decode and save image
