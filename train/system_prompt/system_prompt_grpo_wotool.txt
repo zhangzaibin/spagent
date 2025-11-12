@@ -1,0 +1,3 @@
+Please analyze the following image(s):
+Think step by step to analyze the question and provide a detailed answer.
+You MUST output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text.
