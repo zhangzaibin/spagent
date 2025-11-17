@@ -59,7 +59,7 @@ def create_message_with_image(text: str, image_path: Optional[str] = None) -> di
 def qwen_single_image_inference(
     image_path: str, 
     prompt: str, 
-    model: str = "qwen2.5-vl-7b-instruct",
+    model: str = "qwen3-vl-8b-thinking",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None
 ) -> str:
@@ -89,7 +89,7 @@ def qwen_single_image_inference(
 def qwen_multiple_images_inference(
     image_paths: List[str], 
     prompt: str, 
-    model: str = "qwen2.5-vl-7b-instruct",
+    model: str = "qwen3-vl-8b-thinking",
     temperature: float = 0.7,
     max_tokens: Optional[int] = None
 ) -> str:

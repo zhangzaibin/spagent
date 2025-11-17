@@ -7,6 +7,8 @@ import torch
 from torchvision import transforms
 from plyfile import PlyData, PlyElement
 import numpy as np
+import io
+import base64
 
 def load_images_as_tensor(path='data/truck', interval=1, PIXEL_LIMIT=255000):
     """
@@ -286,4 +288,11 @@ def write_ply(
     elements[:] = list(map(tuple, attributes))
     vertex_element = PlyElement.describe(elements, "vertex")
     ply_data = PlyData([vertex_element])
-    ply_data.write(path)
+    # ply_data.write(path)
+    return plydata_to_base64(ply_data)
+
+def plydata_to_base64(ply_data: PlyData) -> str:
+    buffer = io.BytesIO()
+    ply_data.write(buffer)
+    binary_data = buffer.getvalue()
+    return base64.b64encode(binary_data).decode("utf-8")

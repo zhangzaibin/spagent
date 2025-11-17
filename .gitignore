@@ -18,4 +18,5 @@ output/*
 test_data
 test_outputs
 results
-tmp_utils
+outputs_old
+run.sh

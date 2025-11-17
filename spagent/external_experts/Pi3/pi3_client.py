@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class Pi3Client:
     """Pi3 3D重建客户端"""
     
-    def __init__(self, server_url: str = "http://localhost:20030"):
+    def __init__(self, server_url: str = "http://localhost:30030"):
         """
         初始化客户端
         
@@ -75,7 +75,7 @@ class Pi3Client:
             logger.error(f"编码图片失败：{e}")
             return None
     
-    def _encode_video_frames(self, video_path: str, interval: int = 10) -> Optional[tuple[List[str], str]]:
+    def _encode_video_frames(self, video_path: str, interval: int = 10, save_frames: bool = False, output_dir: str = "outputs/video_frames") -> Optional[tuple[List[str], str]]:
         """从视频中提取帧并编码为base64"""
         try:
             if not os.path.exists(video_path):
@@ -93,8 +93,17 @@ class Pi3Client:
                 logger.error(f"无法打开视频文件：{video_path}")
                 return None
             
+            # 如果需要保存帧，创建输出目录
+            if save_frames:
+                os.makedirs(output_dir, exist_ok=True)
+                video_name = os.path.splitext(os.path.basename(video_path))[0]
+                frame_output_dir = os.path.join(output_dir, video_name)
+                os.makedirs(frame_output_dir, exist_ok=True)
+                logger.info(f"将保存提取的帧到：{frame_output_dir}")
+            
             encoded_frames = []
             frame_idx = 0
+            extracted_frame_count = 0
             
             while True:
                 ret, frame = cap.read()
@@ -116,10 +125,19 @@ class Pi3Client:
                     if new_h != h or new_w != w:
                         rgb_frame = cv2.resize(rgb_frame, (new_w, new_h))
                     
+                    # 保存帧图片（如果需要）
+                    if save_frames:
+                        frame_filename = f"frame_{extracted_frame_count:04d}_idx_{frame_idx:06d}.jpg"
+                        frame_path = os.path.join(frame_output_dir, frame_filename)
+                        # 保存为BGR格式（cv2.imwrite需要BGR）
+                        cv2.imwrite(frame_path, cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR))
+                        logger.info(f"保存帧 {extracted_frame_count + 1}: {frame_filename}")
+                    
                     # 编码为JPEG然后转base64
                     _, buffer = cv2.imencode('.jpg', cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR))
                     frame_b64 = base64.b64encode(buffer).decode('utf-8')
                     encoded_frames.append(frame_b64)
+                    extracted_frame_count += 1
                 
                 frame_idx += 1
             
@@ -130,6 +148,8 @@ class Pi3Client:
                 return None
             
             logger.info(f"从视频中提取了 {len(encoded_frames)} 帧")
+            if save_frames:
+                logger.info(f"所有帧已保存到：{frame_output_dir}")
             
             # 生成基于视频文件名的名称
             video_name = os.path.splitext(os.path.basename(video_path))[0]
@@ -147,7 +167,9 @@ class Pi3Client:
                          generate_views: bool = True,
                          use_filename: bool = True,
                          azimuth_angle: Optional[float] = None,
-                         elevation_angle: Optional[float] = None) -> Optional[Dict[str, Any]]:
+                         elevation_angle: Optional[float] = None,
+                         rotation_reference_camera: int = 1,
+                         camera_view: bool = False) -> Optional[Dict[str, Any]]:
         """
         从图片列表进行3D重建
         
@@ -159,6 +181,8 @@ class Pi3Client:
             use_filename: 是否使用文件名来命名输出文件
             azimuth_angle: 自定义方位角（左右旋转），单位：度。如果提供，将生成该角度的视角图片
             elevation_angle: 自定义仰角（上下旋转），单位：度。如果提供，将生成该角度的视角图片
+            rotation_reference_camera: 参考相机索引（1-based），用于指定旋转中心
+            camera_view: 是否使用相机视角模式（True=从相机位置观察，False=全局视角）
             
         Returns:
             重建结果字典，包含PLY文件和多视角图片
@@ -172,7 +196,7 @@ class Pi3Client:
                 if encoded:
                     encoded_images.append(encoded)
                     if use_filename:
-                        image_names.append(os.path.basename(img_path))
+                        image_names.append(img_path)
                 else:
                     logger.error(f"无法编码图片：{img_path}")
                     return None
@@ -186,7 +210,9 @@ class Pi3Client:
                 "images": encoded_images,
                 "conf_threshold": conf_threshold,
                 "rtol": rtol,
-                "generate_views": generate_views
+                "generate_views": generate_views,
+                "rotation_reference_camera": rotation_reference_camera,
+                "camera_view": camera_view
             }
             
             # 如果使用文件名，添加到请求数据中
@@ -229,7 +255,11 @@ class Pi3Client:
                         generate_views: bool = True,
                         max_views_per_camera: int = 4,
                         azimuth_angle: Optional[float] = None,
-                        elevation_angle: Optional[float] = None) -> Optional[Dict[str, Any]]:
+                        elevation_angle: Optional[float] = None,
+                        rotation_reference_camera: int = 1,
+                        camera_view: bool = False,
+                        save_frames: bool = False,
+                        frames_output_dir: str = "outputs/video_frames") -> Optional[Dict[str, Any]]:
         """
         从视频文件进行3D重建
         
@@ -242,13 +272,17 @@ class Pi3Client:
             max_views_per_camera: 每个相机最多生成的视角图片数量（仅在未提供自定义角度时使用）
             azimuth_angle: 自定义方位角（左右旋转），单位：度。如果提供，将生成该角度的视角图片
             elevation_angle: 自定义仰角（上下旋转），单位：度。如果提供，将生成该角度的视角图片
+            rotation_reference_camera: 参考相机索引（1-based），用于指定旋转中心
+            camera_view: 是否使用相机视角模式（True=从相机位置观察，False=全局视角）
+            save_frames: 是否保存提取的视频帧到本地
+            frames_output_dir: 保存视频帧的输出目录
             
         Returns:
             重建结果字典，包含PLY文件和多视角图片
         """
         try:
             # 从视频提取帧
-            result = self._encode_video_frames(video_path, interval)
+            result = self._encode_video_frames(video_path, interval, save_frames=save_frames, output_dir=frames_output_dir)
             if not result:
                 return None
             
@@ -260,14 +294,17 @@ class Pi3Client:
                 "conf_threshold": conf_threshold,
                 "rtol": rtol,
                 "generate_views": generate_views,
-                "image_names": [video_name]  # 使用视频名称作为文件名
+                "image_names": [video_name],  # 使用视频名称作为文件名
+                "rotation_reference_camera": rotation_reference_camera,
+                "camera_view": camera_view
             }
             
             # 如果提供了自定义角度，添加到请求数据中，否则使用max_views_per_camera
             if azimuth_angle is not None and elevation_angle is not None:
                 request_data["azimuth_angle"] = azimuth_angle
                 request_data["elevation_angle"] = elevation_angle
-                logger.info(f"使用自定义角度: 方位角={azimuth_angle}°, 仰角={elevation_angle}°")
+                view_mode = "相机视角" if camera_view else "全局视角"
+                logger.info(f"使用自定义角度: 方位角={azimuth_angle}°, 仰角={elevation_angle}° ref_cam={rotation_reference_camera} 模式={view_mode}")
             else:
                 request_data["max_views_per_camera"] = max_views_per_camera  # 添加视角限制参数
             
@@ -318,19 +355,29 @@ class Pi3Client:
             logger.error(f"错误追踪：{traceback.format_exc()}")
             return None
     
-    def save_results(self, result: Dict[str, Any], output_dir: str = "outputs") -> bool:
+    def save_results(self, result: Dict[str, Any], output_dir: str = "outputs", 
+                    rotation_reference_camera: int = 1, camera_view: bool = False) -> bool:
         """
         保存重建结果到本地
         
         Args:
             result: 重建结果字典
             output_dir: 输出目录
+            rotation_reference_camera: Reference camera index (1-based)
+            camera_view: Whether using camera view mode
             
         Returns:
             保存是否成功
         """
         try:
             os.makedirs(output_dir, exist_ok=True)
+            
+            # Build suffix for filename based on parameters
+            suffix = ""
+            if rotation_reference_camera != 1:
+                suffix += f"_refcam{rotation_reference_camera}"
+            if camera_view:
+                suffix += "_camview"
             
             # 保存PLY文件
             if "ply_file" in result:
@@ -350,8 +397,12 @@ class Pi3Client:
                 for view_data in result["camera_views"]:
                     camera = view_data.get("camera", 1)
                     view_name = view_data.get("view", "unknown")
+                    azimuth = view_data.get("azimuth_angle", 0)
+                    elevation = view_data.get("elevation_angle", 0)
                     
-                    img_filename = f"camera_{camera:02d}_{view_name}.png"
+                    # Use angle-based naming with optional suffixes
+                    # Format: camera_{camera:02d}_azim{azimuth}_elev{elevation}[_refcam{N}][_camview].png
+                    img_filename = f"camera_{camera:02d}_azim{azimuth:.1f}_elev{elevation:.1f}{suffix}.png"
                     img_path = os.path.join(views_dir, img_filename)
                     
                     img_data = base64.b64decode(view_data["image"])
@@ -389,7 +440,7 @@ if __name__ == "__main__":
         exit(1)
     
     # # 3. 处理单张图片
-    # logger.info("\n=== 处理单张图片 ===")
+    logger.info("\n=== 处理单张图片 ===")
     
     # # 检查是否有可用的测试图片
     test_images = ["dataset/BLINK_images/Multi-view_Reasoning_val_000065_img1.jpg", "dataset/BLINK_images/Multi-view_Reasoning_val_000065_img2.jpg"]
@@ -406,7 +457,8 @@ if __name__ == "__main__":
             image_paths=[single_image_path],
             conf_threshold=0.1,
             rtol=0.03,
-            generate_views=True
+            generate_views=True,
+            rotation_reference_camera=1
         )
         
         if single_result:
@@ -430,8 +482,9 @@ if __name__ == "__main__":
             conf_threshold=0.1,
             rtol=0.03,
             generate_views=True,
-            azimuth_angle=0,  # 左右转
-            elevation_angle=0  # 上下转
+            azimuth_angle=45,  # 左右转
+            elevation_angle=0,  # 上下转
+            rotation_reference_camera=1
         )
         
         if custom_result:
@@ -458,15 +511,19 @@ if __name__ == "__main__":
         for test_image in test_images:
             logger.info(f"  - {test_image}")
 
-    # 5. 处理多张图片
+    # # 5. 处理多张图片
     logger.info("\n=== 处理多张图片 ===")
+    ref_cam = 1
+    use_cam_view = False
     multi_result = client.infer_from_images(
         image_paths=test_images,
         conf_threshold=0.1,
         rtol=0.03,
         generate_views=True,
         azimuth_angle=0,
-        elevation_angle=0
+        elevation_angle=-60,
+        rotation_reference_camera=1,
+        camera_view=False,  # 使用相机视角模式
     )
     
     if multi_result:
@@ -475,19 +532,21 @@ if __name__ == "__main__":
         logger.info(f"- PLY文件名: {multi_result.get('ply_filename', '未知')}")
         logger.info(f"- 生成视角数: {len(multi_result.get('camera_views', []))}")
         
-        # 保存结果
-        if client.save_results(multi_result, "outputs/multi_image"):
+        # 保存结果时传递参数以正确生成文件名
+        if client.save_results(multi_result, "outputs/multi_image", 
+                              rotation_reference_camera=ref_cam, 
+                              camera_view=use_cam_view):
             logger.info("多张图片结果保存成功！")
         else:
             logger.error("多张图片结果保存失败")
     else:
         logger.error("多张图片3D重建失败")
 
-    # 4. 处理视频文件
+    # # 4. 处理视频文件
     logger.info("\n=== 处理视频文件 ===")
     
     # 检查是否有可用的测试视频
-    test_videos = ["dataset/VLM4D_videos/real_davis_dogs-jump.mp4"]
+    test_videos = ["dataset/VSI_videos/arkitscenes_41069048.mp4"]
     
     video_path = None
     for test_video in test_videos:
@@ -499,11 +558,17 @@ if __name__ == "__main__":
         logger.info(f"使用测试视频：{video_path}")
         video_result = client.infer_from_video(
             video_path=video_path,
-            interval=25,  # 每10帧提取一帧
+            interval=200,  # 每200帧提取一帧
             conf_threshold=0.06,
             rtol=0.03,
             generate_views=True,
-            max_views_per_camera=7  # 每个相机最多4张视角图
+            max_views_per_camera=7,  # 每个相机最多7张视角图
+            azimuth_angle=0,
+            elevation_angle=-45,
+            rotation_reference_camera=2,
+            camera_view=True,  # 使用相机视角模式
+            save_frames=False,  # 保存提取的视频帧
+            frames_output_dir="outputs/video_frames"  # 帧保存目录
         )
         
         if video_result:

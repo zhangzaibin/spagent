@@ -73,16 +73,44 @@ class Pi3Tool(Tool):
         """
         super().__init__(
             name="pi3_tool",
-            description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis," \
-                        "perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
-                        "You can specify **azimuth_angle** (-180° to 180°, integer only; controls left-right rotation) and **elevation_angle** (-90° to 90°, integer only; controls up-down rotation) " \
-                        "to view the reconstructed 3D scene from any angle.  By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input " \
-                        "image viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: azimuth rotates left/right around the camera's " \
-                        "vertical axis; elevation rotates up/down around the camera's right axis. Common viewpoints: frontal view (0,0), left-side view (-45,0), " \
-                        "right-side view (45,0), bird's-eye view (0,45), worm's-eye view (0,-45). Angles are **continuous variables**, not limited to specific values — you can use any degree values for precise control\n "\
-                        "You can call this tool MULTIPLE times with DIFFERENT angles to analyze the 3D structure comprehensively; the MLLM is encouraged " \
-                        "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. The generated visualization uses cone-shaped markers " \
-                        "to indicate camera positions, numbered from 1 (cam1, cam2, etc.)."
+            description=(
+                "This tool is suitable for motion and spatial reasoning tasks that involve camera movement, "
+                "object rotation, or directional motion analysis. It performs 3D reconstruction from images "
+                "to generate point clouds and visualizations from CUSTOM viewing angles.\n\n"
+                
+                "**Important Note**: The 0° azimuth angle and 0° elevation angle corresponds to the first "
+                "input image viewpoint (cam1). Do not use this angle.\n\n"
+                
+                "**Angle Parameters**:\n"
+                "- **azimuth_angle** (-180° to 180°, integer only): Controls left-right rotation.\n"
+                "- **elevation_angle** (-90° to 90°, integer only): Controls up-down rotation.\n"
+                "By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input image "
+                "viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: "
+                "azimuth rotates left/right around the camera's vertical axis; elevation rotates up/down "
+                "around the camera's right axis.\n\n"
+                
+                "**rotation_reference_camera** (must be output, 1-based):This parameter is used to rotate around a specific input image's "
+                "camera. By picking an image you pick its camera (e.g., set rotation_reference_camera=3 for "
+                "the third image's viewpoint; defaults to 1).\n\n"
+                
+                "**camera_view** (must be output, boolean): This parameter is used to generate first-person perspective from "
+                "the selected camera position (as if standing at that camera looking at the scene), "
+                "instead of the default global bird's-eye view. This is especially useful for understanding "
+                "what each camera can see and analyzing spatial relationships from specific viewpoints. "
+                "Combine with rotation_reference_camera to experience the scene from different camera positions.\n\n"
+                "Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false."
+                
+                "**Usage Strategy**: You can call this tool MULTIPLE times with DIFFERENT angles and "
+                "different camera views to analyze the 3D structure comprehensively. The MLLM is encouraged "
+                "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. "
+                "The generated visualization uses cone-shaped markers to indicate camera positions, "
+                "numbered from 1 (cam1, cam2, etc.).\n"
+
+
+
+                
+
+            )
         )
         
         self.use_mock = use_mock
@@ -212,6 +240,14 @@ class Pi3Tool(Tool):
                 "elevation_angle": {
                     "type": "number", 
                     "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
+                },
+                "rotation_reference_camera": {
+                    "type": "integer",
+                    "description": "Reference camera index (1-based) to define rotation center and axes when generating viewpoints. When you have multiple input images, try DIFFERENT values (1, 2, 3, etc.) to rotate around different camera positions for better analysis. Default is 1 (uses the first input camera)."
+                },
+                "camera_view": {
+                    "type": "boolean",
+                    "description": "Whether to use first-person camera view mode. When True, generates point cloud visualization from the selected camera's first-person perspective (as if you are standing at that camera position looking at the scene). When False (default), uses global bird's-eye view. Combine with rotation_reference_camera to view from different camera positions."
                 }
             },
             "required": ["image_path"]
@@ -221,7 +257,9 @@ class Pi3Tool(Tool):
         self, 
         image_path: List[str],
         azimuth_angle: float = 0,
-        elevation_angle: float = 0
+        elevation_angle: float = 0,
+        rotation_reference_camera: int = 1,
+        camera_view: bool = False
     ) -> Dict[str, Any]:
         """
         Execute 3D reconstruction
@@ -230,6 +268,8 @@ class Pi3Tool(Tool):
             image_path: List of paths to the input images for 3D reconstruction
             azimuth_angle: Azimuth angle for custom viewpoint (default: 0)
             elevation_angle: Elevation angle for custom viewpoint (default: 0)
+            rotation_reference_camera: Reference camera index for rotation (default: 1)
+            camera_view: Whether to use first-person camera view mode (default: False)
             
         Returns:
             3D reconstruction result dictionary
@@ -293,7 +333,9 @@ class Pi3Tool(Tool):
                 generate_views=True,
                 use_filename=True,
                 azimuth_angle=azimuth_angle,
-                elevation_angle=elevation_angle
+                elevation_angle=elevation_angle,
+                rotation_reference_camera=rotation_reference_camera,
+                camera_view=camera_view
             )
             
             if result and result.get('success'):
@@ -306,7 +348,8 @@ class Pi3Tool(Tool):
                 
                 # Save generated images and get output path
                 # Use first image path for naming consistency
-                output_path = self._save_generated_images(result, image_path[0])
+                output_path = self._save_generated_images(result, image_path[0], 
+                                                          rotation_reference_camera, camera_view)
                 
                 response = {
                     "success": True,
@@ -437,6 +480,8 @@ class Pi3Tool(Tool):
         Args:
             result: Pi3 reconstruction result
             image_path: Original input image path for naming
+            rotation_reference_camera: Reference camera index (1-based)
+            camera_view: Whether using camera view mode
             
         Returns:
             Path to the first saved image, or None if no images were saved
@@ -456,6 +501,13 @@ class Pi3Tool(Tool):
             
             # Generate scene ID from input image path
             scene_id = extract_scene_id(image_path)
+            
+            # Build suffix for filename based on parameters
+            suffix = ""
+            if rotation_reference_camera != 1:
+                suffix += f"_refcam{rotation_reference_camera}"
+            if camera_view:
+                suffix += "_camview"
             
             saved_images = []
             

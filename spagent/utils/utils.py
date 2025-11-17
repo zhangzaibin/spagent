@@ -175,6 +175,11 @@ def print_evaluation_results(results: Dict[str, Any]):
     for task, stats in results['task_statistics'].items():
         print(f"{task:20s}: {stats['accuracy']:.4f} ({stats['correct']}/{stats['total']})")
     
+    # Print correct and incorrect question IDs if available
+    if 'correct_question_ids' in results and 'incorrect_question_ids' in results:
+        print(f"\nCorrect questions: {len(results['correct_question_ids'])} IDs")
+        print(f"Incorrect questions: {len(results['incorrect_question_ids'])} IDs")
+    
     if results['failed_samples_details']:
         print(f"\nFailed samples ({len(results['failed_samples_details'])}):")
         print("-" * 40)
@@ -209,7 +214,7 @@ def save_result_to_csv(result_data: Dict[str, Any], csv_file: str = "error_analy
     # 检查文件是否存在
     if os.path.exists(csv_file):
         # 如果文件存在，追加数据
-        df_existing = pd.read_csv(csv_file)
+        df_existing = pd.read_csv(csv_file, encoding='utf-8', on_bad_lines='skip', engine='python')
         df_new = pd.DataFrame([row_data])
         df_combined = pd.concat([df_existing, df_new], ignore_index=True)
         df_combined.to_csv(csv_file, index=False)

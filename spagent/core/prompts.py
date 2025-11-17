@@ -40,28 +40,37 @@ When you need to use a tool, return a JSON object with the function name and arg
 You can call multiple tools if needed by using multiple <tool_call> blocks.
 
 # Multi-Step Workflow
-You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools, autonomously explore viewpoints:
-1. Start from the reference view: (azimuth=0, elevation=0) MUST match the first input image (cam1)
-2. Use the camera coordinate frame for rotations: azimuth rotates left/right around the camera vertical axis; elevation rotates up/down around the camera right axis
-3. Execute a coarse-to-fine exploration: try canonical views (e.g., left/right ±45°, top/bottom ±45°), then refine to ±15° near ambiguous regions
-4. After each round, analyze whether additional angles would reduce uncertainty; if yes, call the tool again with updated angles
-5. Continue until additional views no longer change your conclusion, then provide your comprehensive answer in <answer></answer> tags
+You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools (Pi3), autonomously explore viewpoints:
 
-For 3D reconstruction tools like pi3_tool:
-- (0°, 0°) is exactly cam1 (the first input image). Rotations are in the CAMERA frame.
-- You can specify azimuth_angle (-180° to 180°) and elevation_angle (-90° to 90°)
-- Recommended sequence: (0,0) → (-45,0) → (45,0) → (0,45) → (0,-45), then refine as needed (e.g., ±15°)
-- Each call generates a new visualization from that specific viewpoint
+**IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!
+The camera is visualized as a pyramid frustum, where the apex represents the camera's position and viewing direction.**
 
-# Instructions
-1. First analyze the user's question and the image(s) provided
-2. Determine if you need to use any tools to answer the question properly
-3. If tools are needed, call them with appropriate parameters
-4. After seeing tool results, decide if you need MORE information from different angles or perspectives
-5. Prefer autonomous exploration of angles as described above to reduce uncertainty
-6. You can make multiple tool calls across multiple rounds to gather comprehensive information
-7. When you have sufficient information, provide your final answer in <answer></answer> tags
-8. Be specific and detailed in your responses"""
+
+# Recommended NEW viewing angles to explore:
+- Left views: azimuth=-45° or -90° (see scenes from right view)
+- Right views: azimuth=45° or 90° (see scenes from left view)
+- Top views: elevation=30° to 60° (see scenes from top view, better capture the object relation and relatifve position of cam and objects.)
+- Back views: azimuth=180° or ±135° (see scenes from back view)
+- Diagonal views: combine azimuth and elevation (e.g., 45°, 30°)
+
+Workflow:
+1. Analyze the current view(s) you have
+2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
+3. Call tools with specific angles that are DIFFERENT from (0°,0°)
+4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
+5. **Consider using camera_view=true** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
+6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
+8. Continue until additional views no longer change your conclusion
+9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+
+
+Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
+You can examine the image to understand what is around cam1.
+The 3D reconstruction provides relative positional information, so you should reason interactively and complementarily between the 2D image and the 3D reconstruction to form a complete understanding.
+You need to analyze deeply the camera, its orientation, and the content captured in the frame.
+
+TIPS: For questions related to orientation or relative positioning, it is recommended to choose top view.
+"""
 
 
 def create_follow_up_prompt(question: str, initial_response: str, tool_results: Dict[str, Any], original_images: List[str], additional_images: List[str], description: str=None) -> str:
@@ -114,26 +123,32 @@ Tool Description: {description}"""
     prompt += """
 
 Now please provide a detailed final answer that incorporates the tool results with your initial analysis. If tools provided additional images or data, reference them in your response.
-Angle conventions reminder: (0°,0°)=cam1; rotations are in the camera coordinate frame.
+
+**Reminder: The original input image(s) are at (0°,0°). When calling pi3_tool again, explore DIFFERENT angles (NOT 0°,0°!) such as ±45°, ±90°, 180° for azimuth, or ±30° to ±60° for elevation.**
+
+**If you have multiple input images**: Consider trying different rotation_reference_camera values (1, 2, 3, etc.) to rotate around different camera positions. This can reveal different aspects of the scene that may be crucial for answering the question.
+
+**Consider using camera_view=True** to see the point cloud from a first-person perspective at each camera position. This is particularly useful for understanding what each camera can see and analyzing spatial relationships from specific viewpoints.
+
 You MUST output your thinking process in <think></think> and final choice in <answer></answer>. 
 """
 
     return prompt
 
 # TODO 这块我总觉得有点奇怪，对于If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>.
-def create_user_prompt(question: str, image_paths: List[str]) -> str:
+def create_user_prompt(question: str, image_paths: List[str], tool_schemas: List[Dict[str, Any]] = None) -> str:
     """
     Create user prompt template
     
     Args:
         question: User's question
         image_paths: List of image paths to analyze
-        
+        tool_schemas: List of tool function schemas, optional
     Returns:
         Formatted user prompt
     """
     images_info = "\n".join([f"- {path}" for path in image_paths])
-    return f"""Please analyze the following image(s):
+    base_prompt = f"""Please analyze the following image(s):
 
 Images to analyze:
 {images_info}
@@ -141,17 +156,23 @@ Images to analyze:
 Question:
 {question}
 
-Think step by step and use any available tools if they would help provide a better answer.
+Think step by step to analyze the question and provide a detailed answer."""
+
+    if tool_schemas:
+        base_prompt += """
 
 Important Notes:
 - You can call tools MULTIPLE times with different parameters to gather comprehensive information
-- For 3D reconstruction, use autonomous angle exploration in the CAMERA coordinate frame: (0°,0°)=cam1; explore ±45° first, then refine (±15°)
 - After each tool execution, you'll see the results and can decide if you need more information
 - Only provide your final <answer></answer> when you have gathered sufficient information
 
-You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call>. When you have enough information, output your final choice in <answer></answer>. 
+You MUST output your thinking process in <think></think> and tool choices in <tool_call></tool_call>. When you have enough information, output your final choice in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
+    else:
+        base_prompt += """
 
-""" 
+You MUST output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
+
+    return base_prompt 
 
 
 def create_fallback_prompt(question: str, initial_response: str) -> str:
@@ -173,5 +194,5 @@ Your Initial Analysis: {initial_response}
 
 Since the tools are unavailable, please provide your best answer based on the original image analysis alone.
 
-You MUST output your thinking process in <think></think> and final choice in <answer></answer>.
+You MUST output your thinking process in <think></think> and final choice in <answer></answer>. Only put Options (A,B,C,D) in <answer></answer> tags, do not put any other text.
 """

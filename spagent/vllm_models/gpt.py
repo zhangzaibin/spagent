@@ -7,7 +7,9 @@ import os
 # client = OpenAI()
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL")
+    base_url=os.getenv("OPENAI_BASE_URL"),
+    timeout=60.0,  # 设置5分钟超时，避免无限等待
+    max_retries=2,  # 失败后重试2次
 )
 
 def encode_image(image_path: str) -> str:
@@ -61,7 +63,7 @@ def gpt_single_image_inference(
     prompt: str, 
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 4096  # 设置合理的默认值
 ) -> str:
     """GPT单图像推理函数
     
@@ -75,23 +77,36 @@ def gpt_single_image_inference(
     Returns:
         GPT的回复文本
     """
-    message = create_message_with_image(prompt, image_path)
-    
-    response = client.chat.completions.create(
-        model=model,
-        messages=[message],
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
-    
-    return response.choices[0].message.content
+    try:
+        print(f"[推理开始] 模型: {model}, 图像: {image_path}")
+        print(f"[参数] max_tokens: {max_tokens}, temperature: {temperature}")
+        
+        message = create_message_with_image(prompt, image_path)
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[message],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        result = response.choices[0].message.content
+        print(f"[推理成功] 返回长度: {len(result)}")
+        return result
+        
+    except Exception as e:
+        error_msg = f"推理失败: {type(e).__name__}: {str(e)}"
+        print(f"[推理失败] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 def gpt_multiple_images_inference(
     image_paths: List[str], 
     prompt: str, 
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 4096  # 设置合理的默认值
 ) -> str:
     """GPT多图像推理函数
     
@@ -105,45 +120,63 @@ def gpt_multiple_images_inference(
     Returns:
         GPT的回复文本
     """
-    message = {
-        "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": prompt
-            }
-        ]
-    }
-    
-    # 添加所有图像（过滤无效路径）
-    for image_path in image_paths:
-        if image_path is not None and os.path.exists(image_path):
-            try:
-                base64_image = encode_image(image_path)
-                message["content"].append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    }
-                })
-            except Exception as e:
-                print(f"Warning: Failed to encode image {image_path}: {e}")
-                continue
-    
-    response = client.chat.completions.create(
-        model=model,
-        messages=[message],
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
-    
-    return response.choices[0].message.content
+    max_tokens = 4096
+    try:
+        print(f"[推理开始] 模型: {model}, 图像数量: {len(image_paths)}")
+        print(f"[参数] max_tokens: {max_tokens}, temperature: {temperature}")
+        
+        message = {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+        }
+        
+        # 添加所有图像（过滤无效路径）
+        valid_images = 0
+        for image_path in image_paths:
+            if image_path is not None and os.path.exists(image_path):
+                try:
+                    base64_image = encode_image(image_path)
+                    message["content"].append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    })
+                    valid_images += 1
+                except Exception as e:
+                    print(f"Warning: Failed to encode image {image_path}: {e}")
+                    continue
+        
+        print(f"[图像处理] 成功编码 {valid_images}/{len(image_paths)} 张图像")
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[message],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        result = response.choices[0].message.content
+        print(f"[推理成功] 返回长度: {len(result)}")
+        return result
+        
+    except Exception as e:
+        error_msg = f"推理失败: {type(e).__name__}: {str(e)}"
+        print(f"[推理失败] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 def gpt_text_only_inference(
     prompt: str, 
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 4096  # 设置合理的默认值
 ) -> str:
     """GPT纯文本推理函数
     
@@ -156,19 +189,32 @@ def gpt_text_only_inference(
     Returns:
         GPT的回复文本
     """
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
-    
-    return response.choices[0].message.content
+    try:
+        print(f"[推理开始] 模型: {model}, 纯文本推理")
+        print(f"[参数] max_tokens: {max_tokens}, temperature: {temperature}")
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        result = response.choices[0].message.content
+        print(f"[推理成功] 返回长度: {len(result)}")
+        return result
+        
+    except Exception as e:
+        error_msg = f"推理失败: {type(e).__name__}: {str(e)}"
+        print(f"[推理失败] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 # 使用示例
 if __name__ == "__main__":
