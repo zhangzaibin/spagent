@@ -1349,7 +1349,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                     # Use real tools instead of mock for training
                     if tool_class_name == 'Pi3Tool':
                         # Configure Pi3Tool with real server
-                        tool = ToolClass(use_mock=False, server_url="http://10.7.39.226:20030")
+                        tool = ToolClass(use_mock=False, server_url="http://10.7.39.226:20030", mode='train')
                     else:
                         # Other tools still use mock for now
                         tool = ToolClass(use_mock=True)
