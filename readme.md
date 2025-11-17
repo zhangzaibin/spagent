@@ -26,7 +26,6 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 | **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Visual Question Answering (**Moondream**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
 | **Examples** | `spagent/examples/` | Example scripts and usage tutorials |
-| **Legacy Workflows** | `spagent/workflows/` | ⚠️ **Deprecated** - Old workflow system |
 
 ---
 
