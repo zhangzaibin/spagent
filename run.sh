@@ -1,1 +1,2 @@
-CUDA_VISIBLE_DEVICES=6 python examples/evaluation/evaluate_img.py --data_path dataset/MindCube_sample40.jsonl --model gpt-4.1 --max_iterations 4 --task mindcube10
+python examples/evaluation/evaluate_img.py --data_path dataset/vsi-reldistance.jsonl --model Qwen3-VL-4B-Instruct --max_iterations 3 --task vsi-reldistance
+python examples/evaluation/evaluate_img.py --data_path dataset/vsi-route-planing.jsonl --model Qwen3-VL-4B-Instruct --max_iterations 3 --task vsi-route-planning
