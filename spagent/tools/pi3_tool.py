@@ -379,7 +379,7 @@ class Pi3Tool(Tool):
                 suffix += "_camview"
             
             cache_filename = f"pi3_{scene_id}_azim{azimuth_angle:.1f}_elev{elevation_angle:.1f}{suffix}.png"
-            cache_path = os.path.join(output_dir, 'angle_views', cache_filename)
+            cache_path = os.path.join(output_dir, cache_filename)
             
             # Check if cache file exists
             if not os.path.exists(cache_path):
