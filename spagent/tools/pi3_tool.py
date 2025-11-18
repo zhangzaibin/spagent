@@ -48,6 +48,13 @@ def extract_scene_id(image_path: str) -> str:
                 if filename and filename != part:
                     return f"{part}_{filename}"
                 return part
+    elif 'mindcube' in image_path.lower():
+        # 获取文件名（无扩展名）
+        filename = os.path.splitext(os.path.basename(image_path))[0]  
+        # 获取上一级目录名
+        parent = os.path.basename(os.path.dirname(image_path))        
+        # 拼接
+        return f"{parent}_{filename}"
     
     # For other datasets, just return the filename (original logic)
     return os.path.splitext(os.path.basename(image_path))[0]
@@ -56,7 +63,7 @@ def extract_scene_id(image_path: str) -> str:
 class Pi3Tool(Tool):
     """Tool for 3D reconstruction from single image using Pi3"""
     
-    def __init__(self, use_mock: bool = True, server_url: str = "http://localhost:20030"):
+    def __init__(self, use_mock: bool = True, server_url: str = "http://localhost:20030", mode='inference'):
         """
         Initialize Pi3 tool
         
@@ -219,32 +226,52 @@ class Pi3Tool(Tool):
     @property
     def parameters(self) -> Dict[str, Any]:
         """Get tool parameter schema"""
-        return {
-            "type": "object",
-            "properties": {
-                "image_path": {
-                    "type": "list",
-                    "description": "The list of the path to the input images for 3D reconstruction."
+        if self.mode == 'inference':
+            return {
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "list",
+                        "description": "The list of the path to the input images for 3D reconstruction."
+                    },
+                    "azimuth_angle": {
+                        "type": "number",
+                        "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Default is 0 (front view). Negative values rotate left, positive values rotate right."
+                    },
+                    "elevation_angle": {
+                        "type": "number", 
+                        "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
+                    },
+                    "rotation_reference_camera": {
+                        "type": "integer",
+                        "description": "Reference camera index (1-based) to define rotation center and axes when generating viewpoints. When you have multiple input images, try DIFFERENT values (1, 2, 3, etc.) to rotate around different camera positions for better analysis. Default is 1 (uses the first input camera)."
+                    },
+                    "camera_view": {
+                        "type": "boolean",
+                        "description": "Whether to use first-person camera view mode. When True, generates point cloud visualization from the selected camera's first-person perspective (as if you are standing at that camera position looking at the scene). When False (default), uses global bird's-eye view. Combine with rotation_reference_camera to view from different camera positions."
+                    }
                 },
-                "azimuth_angle": {
-                    "type": "number",
-                    "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Default is 0 (front view). Negative values rotate left, positive values rotate right."
+                "required": ["image_path"]
+            }
+        elif self.mode == 'train':
+            return {
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "list",
+                        "description": "The list of the path to the input images for 3D reconstruction."
+                    },
+                    "azimuth_angle": {
+                        "type": "number",
+                        "description": "Azimuth angle (left-right rotation) in degrees for custom viewpoint generation. Range: -180 to 180. Default is 0 (front view). Negative values rotate left, positive values rotate right."
+                    },
+                    "elevation_angle": {
+                        "type": "number", 
+                        "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
+                    },
                 },
-                "elevation_angle": {
-                    "type": "number", 
-                    "description": "Elevation angle (up-down rotation) in degrees for custom viewpoint generation. Range: -90 to 90. Default is 0 (horizontal). Negative values look down, positive values look up."
-                },
-                "rotation_reference_camera": {
-                    "type": "integer",
-                    "description": "Reference camera index (1-based) to define rotation center and axes when generating viewpoints. When you have multiple input images, try DIFFERENT values (1, 2, 3, etc.) to rotate around different camera positions for better analysis. Default is 1 (uses the first input camera)."
-                },
-                "camera_view": {
-                    "type": "boolean",
-                    "description": "Whether to use first-person camera view mode. When True, generates point cloud visualization from the selected camera's first-person perspective (as if you are standing at that camera position looking at the scene). When False (default), uses global bird's-eye view. Combine with rotation_reference_camera to view from different camera positions."
-                }
-            },
-            "required": ["image_path"]
-        }
+                "required": ["image_path"]
+            }
     
     def call(
         self, 
@@ -312,11 +339,10 @@ class Pi3Tool(Tool):
             
             
             # Check if cached result already exists
-            cached_result = self._check_cache(image_path[0], azimuth_angle, elevation_angle, 
-                                              rotation_reference_camera, camera_view)
+            cached_result = self._check_cache(image_path[0], azimuth_angle, elevation_angle)
             if cached_result:
                 logger.info(f"Using cached result for azimuth={azimuth_angle}°, elevation={elevation_angle}°, "
-                           f"refcam={rotation_reference_camera}, camera_view={camera_view}")
+                           )
                 return cached_result
             
             # Execute 3D reconstruction with image list
@@ -342,8 +368,10 @@ class Pi3Tool(Tool):
                 
                 # Save generated images and get output path
                 # Use first image path for naming consistency
-                output_path = self._save_generated_images(result, image_path[0], 
-                                                          rotation_reference_camera, camera_view)
+                if self.mode == 'inference':
+                    output_path = self._save_generated_images(result, image_path[0], rotation_reference_camera, camera_view)
+                elif self.mode == 'train':
+                    output_path = self._save_generated_images(result, image_path[0])
                 
                 response = {
                     "success": True,
@@ -369,6 +397,7 @@ class Pi3Tool(Tool):
                 return response
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                logger.info(f"Not found azimuth{azimuth_angle} and elevation{elevation_angle} in {str(image_path)}.")
                 logger.error(f"Pi3 3D reconstruction failed: {error_msg}")
                 return {
                     "success": False,
@@ -381,7 +410,7 @@ class Pi3Tool(Tool):
                 "success": False,
                 "error": str(e)
             }
-    
+
     def _check_cache(self, image_path: str, azimuth_angle: float, elevation_angle: float, 
                      rotation_reference_camera: int = 1, camera_view: bool = False) -> Optional[Dict[str, Any]]:
         """
@@ -419,6 +448,7 @@ class Pi3Tool(Tool):
             
             # Check if cache file exists
             if not os.path.exists(cache_path):
+                print("no_cache_found: ", cache_path)
                 return None
             
             logger.info(f"Found cached result: {cache_path}")
@@ -464,9 +494,8 @@ class Pi3Tool(Tool):
         except Exception as e:
             logger.error(f"Error checking cache: {e}")
             return None
-    
-    def _save_generated_images(self, result: Dict[str, Any], image_path: str, 
-                               rotation_reference_camera: int = 1, camera_view: bool = False) -> Optional[str]:
+
+    def _save_generated_images(self, result: Dict[str, Any], image_path: str) -> Optional[str]:
         """
         Save generated images from Pi3 result and return the path to the first saved image
         
@@ -515,7 +544,7 @@ class Pi3Tool(Tool):
                     # Debug: log view data info
                     # Create filename with scene_id, angles, and optional suffixes
                     # Using format: pi3_{scene_id}_azim{azimuth}_elev{elevation}[_refcam{N}][_camview].png
-                    img_filename = f"pi3_{scene_id}_azim{azimuth:.1f}_elev{elevation:.1f}{suffix}.png"
+                    img_filename = f"pi3_{scene_id}_azim{azimuth:.1f}_elev{elevation:.1f}.png"
                     img_path = os.path.join(output_dir, img_filename)
                     
                     # Decode and save image
