@@ -496,7 +496,7 @@ class Pi3Tool(Tool):
             logger.error(f"Error checking cache: {e}")
             return None
 
-    def _save_generated_images(self, result: Dict[str, Any], image_path: str) -> Optional[str]:
+    def _save_generated_images(self, result: Dict[str, Any], image_path: str, rotation_reference_camera: int = 1, camera_view: bool = False) -> Optional[str]:
         """
         Save generated images from Pi3 result and return the path to the first saved image
         
