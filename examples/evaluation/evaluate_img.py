@@ -54,7 +54,7 @@ TOOL_CONFIGS = {
         # DepthEstimationTool(use_mock=False, server_url=TOOL_SERVERS["depth"]),
         # ObjectDetectionTool(use_mock=False, server_url=TOOL_SERVERS["detection"]),
         # SegmentationTool(use_mock=False, server_url=TOOL_SERVERS["segmentation"]),
-        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"]),
+        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"], mode='inference'),
         # MoondreamTool(use_mock=False, server_url=TOOL_SERVERS["moondream"])
     ]
 }

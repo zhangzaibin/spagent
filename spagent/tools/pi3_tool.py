@@ -116,6 +116,7 @@ class Pi3Tool(Tool):
         self.use_mock = use_mock
         self.server_url = server_url
         self._client = None
+        self.mode = mode
         
         # Initialize client
         self._init_client()
