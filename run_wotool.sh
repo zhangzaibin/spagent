@@ -1,4 +1,0 @@
-python examples/evaluation/evaluate_img_wotools.py --data_path dataset/MindCube_sample40.jsonl --model gpt-4.1 --max_iterations 1 --task mindcube
-python examples/evaluation/evaluate_img_wotools.py --data_path dataset/BLINK_multiview.jsonl --model gpt-4.1 --max_iterations 1 --task blink
-python examples/evaluation/evaluate_img_wotools.py --data_path dataset/MindCube_sample40.jsonl --model gpt-4.1 --max_iterations 1 --task mindcube
-python examples/evaluation/evaluate_img_wotools.py --data_path dataset/BLINK_multiview.jsonl --model gpt-4.1 --max_iterations 1 --task blink
