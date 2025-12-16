@@ -2,7 +2,27 @@
 
 This repository provides **SPAgent** - a flexible and modular **Spatial Intelligence Agent** that integrates **agentic skills** into **multi-modal understanding** using external expert models and LLMs.
 
-## 🆕 **SPAgent Features**
+## 📋 Table of Contents
+
+- [Documentation](#-documentation)
+- [SPAgent Features](#-spagent-features)
+- [Project Structure](#-project-structure)
+- [External Experts](#-external-experts)
+- [Installation & Setup](#️-installation--setup)
+- [Quick Start](#-quick-start)
+- [Testing & Development](#-testing--development)
+- [Reinforcement Learning Training](#-reinforcement-learning-training)
+- [Important Notes](#️-important-notes)
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Tool Reference](docs/Tool/TOOL_USING.md)** | External expert tools API and deployment guide |
+| **[Evaluation Guide](docs/Evaluation/EVALUATION.md)** | Dataset download and evaluation usage |
+| **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** | Specialized agents, tool mixing, and RL training |
+
+##  **SPAgent Features**
 
 **SPAgent** replaces the old workflow system with a modern, modular architecture:
 
@@ -187,14 +207,6 @@ python examples/evaluation/evaluate_img_with_data_collection.py --data_path path
 # Example: Evaluate on BLINK dataset
 python examples/evaluation/evaluate_img.py --data_path dataset/Multi-view_Reasoning_BLINK_subset.jsonl --max_samples 20 --model gpt-4.1 --max_iterations 4
 ```
-
-## 📚 Documentation
-
-### Advanced Usage
-
-For more advanced usage patterns, specialized agents, and tool mixing strategies, please refer to:
-- **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** - Specialized agents, command line usage, and complex workflows
-- **[Tool Reference](docs/Tool/TOOL_USING.md)** - Detailed tool API reference and deployment guide
 
 ## 🧪 Testing & Development
 
