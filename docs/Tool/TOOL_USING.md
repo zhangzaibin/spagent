@@ -1,51 +1,57 @@
 # External Experts Module
 
-External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建等功能。所有工具都采用 server/client 架构，支持独立部署和调用。
+> **中文版本**: [中文文档](TOOL_USING_ZH.md) | **English Version**: This document
 
-## 📁 模块结构
+The External Experts module contains specialized models for spatial intelligence tasks, including depth estimation, object detection, segmentation, 3D reconstruction, and more. All tools adopt a server/client architecture, supporting independent deployment and invocation.
+
+## 📁 Module Structure
 
 ```
 external_experts/
-├── __init__.py                     # 模块初始化
-├── README.md                       # 本文档
-├── checkpoints/                    # 所有模型权重文件
+├── __init__.py                     # Module initialization
+├── checkpoints/                    # All model weight files
 │   └──depth_anything
 │   └──grounding_dino
 │   └──pi3
 │   └──sam2
-├── GroundingDINO/                  # 开放词汇目标检测
-├── SAM2/                          # 图像和视频分割
-├── Depth_AnythingV2/              # 深度估计
-├── Pi3/                           # 3D重建
-├── moondream/                     # 视觉语言模型
-└── supervision/                   # YOLO目标检测和标注工具
+├── GroundingDINO/                  # Open-vocabulary object detection
+├── SAM2/                          # Image and video segmentation
+├── Depth_AnythingV2/              # Depth estimation
+├── Pi3/                           # 3D reconstruction
+├── moondream/                     # Vision language model
+└── supervision/                   # YOLO object detection and annotation tools
 ```
 
-## 🛠️ 工具概览
+## 🛠️ Tool Overview
 
-| 工具 | 功能 | 主要用途 | 默认端口 |
-|------|------|----------|----------|
-| **Depth AnythingV2** | 深度估计 | 单目深度估计 | 20019 |
-| **SAM2** | 图像/视频分割 | 高精度分割任务 | 20020 |
-| **GroundingDINO** | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 |
-| **Moondream** | 视觉语言模型 | 图像理解和问答 | 20024 |
-| **Pi3** | 3D重建 | 从图像生成3D点云 | 20030 |
-| **Supervision** | 目标检测标注 | YOLO模型和可视化工具 | - |
+| Tool Name | Tool Class | Function | Main Purpose | Default Port | Main Parameters |
+|---------|------------|----------|--------------|--------------|----------------|
+| **Depth AnythingV2** | `DepthEstimationTool` | Depth Estimation | Monocular depth estimation, analyze 3D depth relationships in images | 20019 | `image_path` |
+| **SAM2** | `SegmentationTool` | Image/Video Segmentation | High-precision segmentation tasks, precisely segment objects in images | 20020 | `image_path`, `point_coords`(optional), `point_labels`(optional), `box`(optional) |
+| **GroundingDINO** | `ObjectDetectionTool` | Open-vocabulary Object Detection | Detect arbitrary objects based on text descriptions | 20022 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | 20024 | `image_path`, `task`, `object_name` |
+| **Pi3** | `Pi3Tool` | 3D Reconstruction | Generate 3D point clouds and multi-view rendered images from a single image | 20030 | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | - | `image_path`, `task` ("image_det" or "image_seg") |
+| **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | - | `image_path`, `task`, `class_names` |
+
+**Usage Examples**:
+- For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
+- For quick start guide, please refer to: [Quick Start Guide](../../readme.md#-quick-start)
 
 ---
 
-## 📋 详细工具介绍
+## 📋 Detailed Tool Introduction
 
-### 1. Depth AnythingV2 - 深度估计
+### 1. Depth AnythingV2 - Depth Estimation
 
-**功能**: 单目图像深度估计
+**Function**: Monocular image depth estimation
 
-**特点**:
-- 三种模型规格可选
-- 高质量深度图生成
-- 支持多种输入格式
+**Features**:
+- Three model sizes available
+- High-quality depth map generation
+- Support for multiple input formats
 
-**文件结构**:
+**File Structure**:
 ```
 Depth_AnythingV2/
 ├── depth_server.py
@@ -54,69 +60,68 @@ Depth_AnythingV2/
 └── depth_anything_v2/
 ```
 
-**模型规格**:
-| 模型 | 骨干网络 | 参数量 | 文件大小 | 推理速度 | 精度 |
-|------|----------|--------|----------|----------|------|
-| Small | ViT-S | ~25M | ~100MB | 快 | 良好 |
-| Base | ViT-B | ~97M | ~390MB | 中等 | 高 |
-| Large | ViT-L | ~335M | ~1.3GB | 慢 | 很高 |
+**Model Specifications**:
+| Model | Backbone | Parameters | File Size | Inference Speed | Accuracy |
+|------|----------|------------|-----------|-----------------|----------|
+| Small | ViT-S | ~25M | ~100MB | Fast | Good |
+| Base | ViT-B | ~97M | ~390MB | Medium | High |
+| Large | ViT-L | ~335M | ~1.3GB | Slow | Very High |
 
-**权重下载**:
+**Weight Download**:
 ```bash
 cd checkpoints/
-# Small模型 (~25MB, 最快)
+# Small model (~25MB, fastest)
 wget https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth
-# Base模型 (~100MB, 平衡) - 推荐
+# Base model (~100MB, balanced) - Recommended
 wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth
-# Large模型 (~350MB, 最高质量)
+# Large model (~350MB, highest quality)
 wget https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth
 ```
 
-**资源链接**:
-- [官方仓库](https://github.com/DepthAnything/Depth-Anything-V2)
-- [论文](https://arxiv.org/abs/2406.09414)
+**Resources**:
+- [Official Repository](https://github.com/DepthAnything/Depth-Anything-V2)
+- [Paper](https://arxiv.org/abs/2406.09414)
 
 ---
 
+### 2. SAM2 - Image and Video Segmentation
 
-### 2. SAM2 - 图像和视频分割
+**Function**: High-precision image and video segmentation model
 
-**功能**: 高精度的图像和视频分割模型
+**Features**:
+- Support for image and video segmentation
+- Multiple model sizes available
+- High-precision segmentation results
 
-**特点**:
-- 支持图像和视频分割
-- 多种模型规格可选
-- 高精度分割效果
-
-**文件结构**:
+**File Structure**:
 ```
 SAM2/
 ├── sam2_server.py
 └── sam2_client.py
 ```
 
-**模型规格**:
-| 模型 | 参数量 | 文件大小 | 用途 |
-|------|--------|----------|------|
-| Hiera Large | ~224M | ~900MB | 高精度 |
-| Hiera Base+ | ~80M | ~320MB | 平衡性能 |
-| Hiera Small | ~46M | ~185MB | 快速推理 |
+**Model Specifications**:
+| Model | Parameters | File Size | Purpose |
+|------|------------|-----------|---------|
+| Hiera Large | ~224M | ~900MB | High precision |
+| Hiera Base+ | ~80M | ~320MB | Balanced performance |
+| Hiera Small | ~46M | ~185MB | Fast inference |
 
-**权重下载**:
-#### 使用官方脚本（推荐）
+**Weight Download**:
+#### Using Official Script (Recommended)
 ```bash
 cd checkpoints/
-# 推荐使用官方脚本
+# Recommended to use official script
 wget https://raw.githubusercontent.com/facebookresearch/sam2/main/checkpoints/download_ckpts.sh
 chmod +x download_ckpts.sh
 ./download_ckpts.sh
 ```
 
-#### 手动下载
+#### Manual Download
 ```bash
 cd checkpoints/
 
-# SAM2.1 Hiera Large (推荐)
+# SAM2.1 Hiera Large (Recommended)
 wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
 
 # SAM2.1 Hiera Base+ 
@@ -126,22 +131,22 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_base_
 wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt
 ```
 
-**资源链接**:
-- [官方仓库](https://github.com/facebookresearch/sam2)
-- [论文](https://ai.meta.com/research/publications/sam-2-segment-anything-in-images-and-videos/)
+**Resources**:
+- [Official Repository](https://github.com/facebookresearch/sam2)
+- [Paper](https://ai.meta.com/research/publications/sam-2-segment-anything-in-images-and-videos/)
 
 ---
 
-### 3. GroundingDINO - 开放词汇目标检测
+### 3. GroundingDINO - Open-vocabulary Object Detection
 
-**功能**: 基于自然语言描述检测图像中的目标物体
+**Function**: Detect target objects in images based on natural language descriptions
 
-**特点**:
-- 支持开放词汇检测，无需预定义类别
-- 基于Swin-B骨干网络
-- 可通过文本描述检测任意物体
+**Features**:
+- Support for open-vocabulary detection, no predefined categories needed
+- Based on Swin-B backbone network
+- Can detect arbitrary objects through text descriptions
 
-**文件结构**:
+**File Structure**:
 ```
 GroundingDINO/
 ├── grounding_dino_server.py
@@ -150,88 +155,88 @@ GroundingDINO/
     └── GroundingDINO_SwinB_cfg.py
 ```
 
-**安装**:
+**Installation**:
 ```bash
 pip install groundingdino_py
 ```
 
-**权重下载**:
+**Weight Download**:
 ```bash
 cd checkpoints/
 wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha2/groundingdino_swinb_cogcoor.pth
 ```
 
-**资源链接**:
-- [官方仓库](https://github.com/IDEA-Research/GroundingDINO)
-- [论文](https://arxiv.org/abs/2303.05499)
+**Resources**:
+- [Official Repository](https://github.com/IDEA-Research/GroundingDINO)
+- [Paper](https://arxiv.org/abs/2303.05499)
 
 ---
 
-### 4. Moondream - 视觉语言模型
+### 4. Moondream - Vision Language Model
 
-**功能**: 视觉语言理解和图像问答
+**Function**: Vision language understanding and image Q&A
 
-**特点**:
-- 图像理解能力
-- 自然语言交互
-- API接口支持
+**Features**:
+- Image understanding capabilities
+- Natural language interaction
+- API interface support
 
-**文件结构**:
+**File Structure**:
 ```
 moondream/
-├── md_server.py          # 服务器端
-├── md_client.py          # 客户端
-├── md_local.py          # 本地部署
+├── md_server.py          # Server side
+├── md_client.py          # Client side
+├── md_local.py          # Local deployment
 ├── __init__.py
 └── __pycache__/
 ```
 
-**安装**:
+**Installation**:
 ```bash
 pip install moondream
 ```
 
-**环境配置**:
+**Environment Configuration**:
 ```bash
 export MOONDREAM_API_KEY="your_api_key"
 ```
 
-**资源链接**:
-- [官方网站](https://moondream.ai/)
-- [API文档](https://docs.moondream.ai/)
+**Resources**:
+- [Official Website](https://moondream.ai/)
+- [API Documentation](https://docs.moondream.ai/)
 
 ---
 
-### 5. Pi3 - 3D重建服务
+### 5. Pi3 - 3D Reconstruction Service
 
-**功能**: 基于Pi3模型的3D重建，从图像生成3D点云
+**Function**: 3D reconstruction based on Pi3 model, generate 3D point clouds from images
 
-**特点**:
-- 高质量3D重建
-- 支持PLY格式输出
-- 可视化支持
+**Features**:
+- High-quality 3D reconstruction
+- Support for PLY format output
+- Visualization support
 
-**文件结构**:
+**File Structure**:
 ```
 Pi3/
-├── pi3/                  # 运行代码
-├── example.py            # 原始Pi3运行代码
-├── pi3_server.py         # Flask服务器
-└── pi3_client.py         # 客户端
+├── pi3/                  # Runtime code
+├── example.py            # Original Pi3 runtime code
+├── pi3_server.py         # Flask server
+└── pi3_client.py         # Client
 ```
 
-**环境要求**:
+**Environment Requirements**:
 - torch==2.5.1
 - torchvision==0.20.1
 - numpy==1.26.4
 
-**使用方法**:
+**Usage**:
 ```bash
-# 可视化生成的PLY文件
+# Visualize generated PLY files
 python spagent/utils/ply_to_html_viewer.py xxx.ply --output xxx.html --max_points 100000
 ```
 
-**权重下载**:
+**Weight Download**:
 ```bash
 cd checkpoints/pi3
 wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
@@ -239,16 +244,16 @@ wget https://huggingface.co/yyfz233/Pi3/resolve/main/model.safetensors
 
 ---
 
-### 6. Supervision - 目标检测和标注工具
+### 6. Supervision - Object Detection and Annotation Tools
 
-**功能**: YOLO目标检测和可视化标注工具
+**Function**: YOLO object detection and visualization annotation tools
 
-**特点**:
-- 集成多种YOLO模型
-- 丰富的可视化工具
-- 标注和后处理功能
+**Features**:
+- Integration of multiple YOLO models
+- Rich visualization tools
+- Annotation and post-processing capabilities
 
-**文件结构**:
+**File Structure**:
 ```
 supervision/
 ├── __init__.py
@@ -263,76 +268,78 @@ supervision/
 └── mock_supervision_service.py
 ```
 
-**安装**:
+**Installation**:
 ```bash
 pip install supervision
 ```
 
-**可用模型**:
-| 模型文件 | 功能 | 用途 |
-|----------|------|------|
-| yoloe-v8l-seg.pt | YOLOE v8 Large 分割 | 高精度目标检测和分割 |
-| yoloe-v8l-seg-pf.pt | YOLOE v8 Large 分割(优化版) | 性能优化的分割模型 |
+**Available Models**:
+| Model File | Function | Purpose |
+|----------|----------|---------|
+| yoloe-v8l-seg.pt | YOLOE v8 Large Segmentation | High-precision object detection and segmentation |
+| yoloe-v8l-seg-pf.pt | YOLOE v8 Large Segmentation (Optimized) | Performance-optimized segmentation model |
 
-**权重下载**:
+**Weight Download**:
 ```bash
 python download_weights.py
 ```
 
-**资源链接**:
-- [官方仓库](https://github.com/roboflow/supervision)
-- [文档](https://supervision.roboflow.com/)
+**Resources**:
+- [Official Repository](https://github.com/roboflow/supervision)
+- [Documentation](https://supervision.roboflow.com/)
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 1. 环境准备
+### 1. Environment Setup
 
-确保已安装必要的依赖：
+Ensure necessary dependencies are installed:
 ```bash
-# 需要GPU内存 >= 24G
+# Requires GPU memory >= 24GB
 apt-get install tmux
 pip install torch torchvision
 pip install groundingdino_py supervision moondream
 ```
 
-创建checkpoints目录：
+Create checkpoints directory:
 ```bash
 mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,sam2}
 ```
-### 2. 下载模型权重
 
-每个工具都需要下载相应的模型权重文件，请参考各工具的详细说明。
+### 2. Download Model Weights
 
-### 3. 启动服务
+Each tool requires downloading the corresponding model weight files. Please refer to the detailed instructions for each tool.
 
-如果要使用真实的专家服务而非mock模式，根据需要启动相应的服务器：
+### 3. Start Services
+
+If you want to use real expert services instead of mock mode, start the corresponding servers as needed:
 ```bash
-# 深度估计服务
+# Depth estimation service
 python spagent/external_experts/Depth_AnythingV2/depth_server.py \
   --checkpoint_path checkpoints/depth_anything/depth_anything_v2_vitb.pth \
   --port 20019
 
-# 部署SAM2分割服务，这里面需要将sam的权重名字rename成sam2.1_b.pt，否则会报错
+# Deploy SAM2 segmentation service
+# Note: You need to rename the SAM weight file to sam2.1_b.pt, otherwise it will error
 python spagent/external_experts/SAM2/sam2_server.py \
   --checkpoint_path checkpoints/sam2/sam2.1_b.pt \
   --port 20020
 
-# 部署grounding dino
-# sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
+# Deploy Grounding DINO
+# Sometimes the network cannot connect to HuggingFace, we can reset the HuggingFace source
 export HF_ENDPOINT=https://hf-mirror.com
 
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
 
-# 3D重建服务
+# 3D reconstruction service
 python spagent/external_experts/Pi3/pi3_server.py \
   --checkpoint_path checkpoints/pi3/model.safetensors \
   --port 20030
 
-# 视觉语言模型服务
-python spagent/external_experts/Moondream/moondream_server.py \
+# Vision language model service
+python spagent/external_experts/moondream/md_server.py \
   --port 20024
 ```

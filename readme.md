@@ -2,7 +2,27 @@
 
 This repository provides **SPAgent** - a flexible and modular **Spatial Intelligence Agent** that integrates **agentic skills** into **multi-modal understanding** using external expert models and LLMs.
 
-## 🆕 **SPAgent Features**
+## 📋 Table of Contents
+
+- [Documentation](#-documentation)
+- [SPAgent Features](#-spagent-features)
+- [Project Structure](#-project-structure)
+- [External Experts](#-external-experts)
+- [Installation & Setup](#️-installation--setup)
+- [Quick Start](#-quick-start)
+- [Testing & Development](#-testing--development)
+- [Reinforcement Learning Training](#-reinforcement-learning-training)
+- [Important Notes](#️-important-notes)
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Tool Reference](docs/Tool/TOOL_USING.md)** | External expert tools API and deployment guide |
+| **[Evaluation Guide](docs/Evaluation/EVALUATION.md)** | Dataset download and evaluation usage |
+| **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** | Specialized agents, tool mixing, and RL training |
+
+##  **SPAgent Features**
 
 **SPAgent** replaces the old workflow system with a modern, modular architecture:
 
@@ -14,104 +34,106 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 - ✅ **Flexible Configuration** - Easy to customize and extend
 - ✅ **Reinforcement Learning** - Support reinforcement learning
 
----
-
 ## 📂 Project Structure
 
 | Module | Path | Description |
 |--------|------|-------------|
-| **SPAgent Core** | `spagent/core/` | 🆕 Main agent architecture:<br>- SPAgent class<br>- Tool base classes<br>- Model wrappers<br>- Unified prompt system |
-| **Tools** | `spagent/tools/` | 🆕 Modular expert tools:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool |
-| **Models** | `spagent/models/` | 🆕 Model wrappers:<br>- GPTModel<br>- QwenModel |
-| **External Experts** | `spagent/external_experts/` | Specialized models for spatial intelligence:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Object Detection & Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Visual Question Answering (**Moondream**)<br>- 3D Reconstruction (**Pi3**)<br>- Can run as external APIs |
-| **VLLM Models** | `spagent/vllm_models/` | VLLM inference functions & wrappers:<br>- GPT / QwenVL inference<br>- Model loading & serving utilities<br>- Unified API for LLM calls |
-| **Examples** | `spagent/examples/` | Example scripts and usage tutorials |
+| **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system<br>- Data collection utilities |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool |
+| **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Each includes client/server implementations and can run as external APIs |
+| **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
+| **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
+| **Test** | `test/` | Test scripts for tools and models:<br>- Pi3 tool testing with video frame extraction<br>- Integration tests |
+| **Train** | `train/` | Reinforcement learning training scripts:<br>- GRPO training configurations<br>- LoRA merge and model compression utilities<br>- System prompts for different training modes |
 
----
+## 🔍 External Experts
 
-## 🛠️ 安装和配置 (Installation & Setup)
+| Tool Name | Type | Main Function | Default Port | Notes |
+| --- | --- | --- | --- | --- |
+| **Depth-AnythingV2** | 3D | Monocular Depth Estimation | 20019 | Convert 2D images to pixel-level depth maps |
+| **SAM2** | 2D | Image Segmentation | 20020 | Segment Anything Model 2nd generation, interactive or automatic segmentation |
+| **GroundingDINO** | 2D | Open-vocabulary Object Detection | 20022 | Detect arbitrary objects based on text descriptions |
+| **Moondream** | 2D | Vision Language Model | 20024 | Small and efficient visual Q&A model, supports image description and Q&A |
+| **Pi3** | 3D | 3D Point Cloud Reconstruction | 20030 | Generate 3D point clouds and multi-view rendered images from a single image |
+| **Supervision** | 2D | Object Detection Annotation | - | YOLO models and visualization tools, used for result visualization and post-processing |
 
-### 1. 环境准备 (Environment Setup)
+## 🛠️ Installation & Setup
+
+### 1. Environment Setup
 
 ```bash
-# 创建Python 3.11环境 (其他版本可能有兼容性问题)
+# Create Python 3.11 environment (other versions may have compatibility issues)
 conda create -n spagent python=3.11
 conda activate spagent
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 pip install "httpx[socks]"
 ```
 
-### 2. API配置 (API Configuration)
+### 2. API Configuration
 
 ```bash
 # OpenAI API
 export OPENAI_API_KEY="your_api_key"
 export OPENAI_BASE_URL="your_base_url"
 
-# Qwen API (申请地址: https://bailian.console.aliyun.com)
+# Qwen API (Apply at: https://bailian.console.aliyun.com)
 export DASHSCOPE_API_KEY="your_api_key"
 
-# moondream API（申请地址：https://moondream.ai）
+# Moondream API (Apply at: https://moondream.ai)
 export MOONDREAM_API_KEY="your_api_key"
 
-# 测试API连接
+# Test API connection
 python spagent/vllm_models/qwen.py
 ```
 
-### 3. 部署外部专家服务 (Deploy External Expert Services)
+### 3. Deploy External Expert Services
 
-详细的外部专家工具使用指南请参考：[External Experts工具使用指南](docs/Tool/TOOL_USING.md)
-| 工具 | 功能 | 主要用途 | 默认端口 |
-|------|------|----------|----------|
-| **Depth AnythingV2** | 深度估计 | 单目深度估计 | 20019 |
-| **SAM2** | 图像/视频分割 | 高精度分割任务 | 20020 |
-| **GroundingDINO** | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 |
-| **Moondream** | 视觉语言模型 | 图像理解和问答 | 20024 |
-| **Pi3** | 3D重建 | 从图像生成3D点云 | 20030 |
-| **Supervision** | 目标检测标注 | YOLO模型和可视化工具 | - |
+For detailed external expert tools usage guide, please refer to: [External Experts Tool Usage Guide](docs/Tool/TOOL_USING.md)
+
 
 ## 🚀 Quick Start
 
-### 1. 基础使用 (Basic Usage)
+### 1. Basic Usage
 
 ```python
 from spagent import SPAgent
 from spagent.models import GPTModel
 from spagent.tools import DepthEstimationTool, SegmentationTool
 
-# 创建模型和工具
+# Create model and tools
 model = GPTModel(model_name="gpt-4o-mini")
 tools = [
-    DepthEstimationTool(use_mock=True),    # 深度估计
-    SegmentationTool(use_mock=True)        # 图像分割
+    DepthEstimationTool(use_mock=True),    # Depth estimation
+    SegmentationTool(use_mock=True)        # Image segmentation
 ]
 
-# 创建智能体
+# Create agent
 agent = SPAgent(model=model, tools=tools)
 
-# 解决问题
-result = agent.solve_problem("image.jpg", "分析这张图片的深度关系和主要对象")
+# Solve problem
+result = agent.solve_problem("image.jpg", "Analyze the depth relationships and main objects in this image")
 print(result['answer'])
 ```
 
-### 2. 混合多工具使用 (Multi-Tool Usage)
+### 2. Multi-Tool Usage
 
 ```python
 from spagent import SPAgent
 from spagent.models import GPTModel
 from spagent.tools import (
-    DepthEstimationTool,      # 深度估计
-    SegmentationTool,         # 图像分割  
-    ObjectDetectionTool,      # 目标检测
-    SupervisionTool,          # 监督学习工具
-    YOLOETool,                # YOLO-E检测
-    MoondreamTool,            # 视觉问答
-    Pi3Tool                   # 3D重建
+    DepthEstimationTool,      # Depth estimation
+    SegmentationTool,         # Image segmentation  
+    ObjectDetectionTool,      # Object detection
+    SupervisionTool,          # Supervision tool
+    YOLOETool,                # YOLO-E detection
+    MoondreamTool,            # Visual Q&A
+    Pi3Tool                   # 3D reconstruction
 )
 
-# 创建全功能智能体
+# Create full-featured agent
 model = GPTModel(model_name="gpt-4o-mini")
 tools = [
     DepthEstimationTool(use_mock=True),
@@ -123,249 +145,74 @@ tools = [
 
 agent = SPAgent(model=model, tools=tools, max_workers=4)
 
-# 复杂问题分析
+# Complex problem analysis
 result = agent.solve_problem(
     "image.jpg", 
-    "全面分析这张图片：识别所有对象，分析深度关系，并分割重要区域"
+    "Comprehensively analyze this image: identify all objects, analyze depth relationships, and segment important regions"
 )
 
-print(f"答案: {result['answer']}")
-print(f"使用的工具: {result['used_tools']}")
-print(f"生成的额外图像: {result['additional_images']}")
+print(f"Answer: {result['answer']}")
+print(f"Used tools: {result['used_tools']}")
+print(f"Additional images: {result['additional_images']}")
 ```
 
-### 3. 动态工具管理 (Dynamic Tool Management)
+### 3. Dynamic Tool Management
 
 ```python
-# 从基础智能体开始
+# Start with a basic agent
 agent = SPAgent(model=GPTModel())
 
-# 动态添加工具
+# Dynamically add tools
 agent.add_tool(DepthEstimationTool(use_mock=True))
 agent.add_tool(SegmentationTool(use_mock=True))
 
-# 查看当前工具
-print(f"当前工具: {agent.list_tools()}")
+# View current tools
+print(f"Current tools: {agent.list_tools()}")
 
-# 移除不需要的工具
+# Remove unnecessary tools
 agent.remove_tool("depth_estimation_tool")
 
-# 更换模型
+# Change model
 from spagent.models import QwenModel
 agent.set_model(QwenModel(model_name="qwen2.5-vl-7b-instruct"))
 ```
 
-### 4. 多图像分析 (Multi-Image Analysis)
+### 4. Multi-Image Analysis
 
 ```python
-# 分析多张图像
+# Analyze multiple images
 image_paths = ["image1.jpg", "image2.jpg", "image3.jpg"]
 result = agent.solve_problem(
     image_paths, 
-    "比较这些图像的差异，分析深度变化和对象分布"
+    "Compare the differences between these images, analyze depth changes and object distribution"
 )
 ```
 
-### 5. 图像数据集评测 (Image Dataset Evaluation)
-详细的图像数据集评测使用指南请参考：[Image Dataset Evaluation使用指南](docs/Evaluation/EVALUATION.md)
+### 5. Image Dataset Evaluation
 
----
+For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
 
-
----
-
-## Evaluation
+**Basic Evaluation Commands:**
 
 ```bash
-# 正常评测
-python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --task "your task name"
+# Normal evaluation
+python examples/evaluation/evaluate_img.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iterations 3 --task "your task name"
 
-#评测不使用工具的纯净版本
-python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 1 --task "your task name"
+# Evaluation without tools (clean version)
+python examples/evaluation/evaluate_img_wotools.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iterations 1 --task "your task name"
 
-# 收集数据做sft
-python examples/evaluation/evaluate_img_with_data_collection.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iteration 3 --enable_data_collection
+# Collect data for SFT
+python examples/evaluation/evaluate_img_with_data_collection.py --data_path path/to/json --model gpt/qwen3-vl-4b --max_samples 15 --max_iterations 3 --enable_data_collection
 
-
-
-```
-
-
-## 评测
-```bash
+# Example: Evaluate on BLINK dataset
 python examples/evaluation/evaluate_img.py --data_path dataset/Multi-view_Reasoning_BLINK_subset.jsonl --max_samples 20 --model gpt-4.1 --max_iterations 4
 ```
 
-## 🎯 运行示例 (Run Examples)
+## 🧪 Testing & Development
 
-### 新SPAgent示例 (New SPAgent Examples)
-
-```bash
-cd spagent
-
-# 基础SPAgent使用示例
-python examples/spagent_example.py assets/example.png "分析这张图片"
-
-# 使用真实图片测试
-python examples/spagent_example.py your_image.jpg "描述图片中的对象和深度关系"
-```
-
-### 工具定义示例 (Tool Definition Examples)
-
-#### 1. 深度分析专用智能体
+### Real Service Mode
 ```python
-from spagent import SPAgent
-from spagent.models import GPTModel
-from spagent.tools import DepthEstimationTool, SegmentationTool
-
-# 专注深度分析的智能体
-model = GPTModel(model_name="gpt-4o-mini")
-depth_tools = [
-    DepthEstimationTool(use_mock=True),
-    SegmentationTool(use_mock=True)  # 辅助分割
-]
-
-depth_agent = SPAgent(model=model, tools=depth_tools)
-result = depth_agent.solve_problem(
-    "image.jpg", 
-    "分析图片的深度分布，哪些物体离相机近，哪些远？"
-)
-```
-
-#### 2. 目标检测专用智能体
-```python
-from spagent.tools import ObjectDetectionTool, SupervisionTool, YOLOETool
-
-# 专注目标检测的智能体
-detection_tools = [
-    ObjectDetectionTool(use_mock=True),
-    SupervisionTool(use_mock=True),
-    YOLOETool(use_mock=True),
-    SegmentationTool(use_mock=True)  # 辅助分割
-]
-
-detection_agent = SPAgent(model=model, tools=detection_tools)
-result = detection_agent.solve_problem(
-    "image.jpg", 
-    "检测并识别图片中的所有对象，包括位置和类型"
-)
-```
-
-#### 3. 自定义工具组合
-```python
-# 创建空智能体，逐步添加工具
-agent = SPAgent(model=GPTModel())
-
-# 根据需要添加工具
-if need_depth:
-    agent.add_tool(DepthEstimationTool(use_mock=True))
-
-if need_detection:
-    agent.add_tool(ObjectDetectionTool(use_mock=True))
-    
-if need_segmentation:
-    agent.add_tool(SegmentationTool(use_mock=True))
-
-# 使用配置好的智能体
-result = agent.solve_problem("image.jpg", "根据可用工具分析图片")
-```
-
----
-
-## 🔧 工具混合策略 (Tool Mixing Strategies)
-
-### 1. 并行工具执行 (Parallel Tool Execution)
-SPAgent会自动检测可以并行执行的工具：
-
-```python
-# 这个问题会触发多个工具并行执行
-result = agent.solve_problem(
-    "image.jpg",
-    "同时进行深度估计、目标检测和图像分割"  # 会并行执行3个工具
-)
-```
-
-### 2. 条件工具选择 (Conditional Tool Selection)
-模型会根据问题自动选择需要的工具：
-
-```python
-# 只会使用深度相关的工具
-result1 = agent.solve_problem("image.jpg", "分析深度关系")
-
-# 只会使用检测相关的工具  
-result2 = agent.solve_problem("image.jpg", "检测车辆和行人")
-
-# 会使用多种工具
-result3 = agent.solve_problem("image.jpg", "全面分析图片")
-```
-
-### 3. 工具链组合 (Tool Chain Combination)
-```python
-# 复杂工具链：检测 → 分割 → 深度分析
-result = agent.solve_problem(
-    "image.jpg",
-    """
-    首先检测图片中的主要对象，
-    然后对检测到的对象进行精确分割，
-    最后分析这些对象的深度关系
-    """
-)
-```
-
----
-
-## 📖 可用工具列表 (Available Tools)
-
-| 工具类 | 功能 | 用途 | 参数 |
-|--------|------|------|------|
-| `DepthEstimationTool` | 深度估计 | 分析图像的3D深度关系 | `image_path` |
-| `SegmentationTool` | 图像分割 | 精确分割图像中的对象 | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
-| `ObjectDetectionTool` | 目标检测 | 基于文本描述检测对象 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
-| `MoondreamTool` | 视觉问答 | 基于图像内容回答自然语言问题 | `image_path`, `task`, `object_name` |
-| `Pi3Tool` | 3D重建 | 从单张图像生成3D点云和多视角渲染 | `image_path`, `azimuth_angle`, `elevation_angle` |
-| `SupervisionTool` | 监督检测 | 通用目标检测和分割 | `image_path`, `task` ("image_det"或"image_seg") |
-| `YOLOETool` | YOLO-E检测 | 自定义类别的高精度检测 | `image_path`, `task`, `class_names` |
-
-## 🤖 可用模型 (Available Models)
-
-| 模型类 | 描述 | 推荐用途 |
-|--------|------|----------|
-| `GPTModel` | OpenAI GPT模型 | 通用视觉理解，最佳效果 |
-| `QwenModel` | 通义千问VL模型 | 中文理解优秀 |
-| `QwenVLLMModel` | 本地部署的Qwen VLLM | 本地推理，保护隐私 |
-
----
-
-## 📊 性能优势 (Performance Benefits)
-
-### 新架构 vs 旧Workflow系统
-
-| 特性 | 旧Workflow | 新SPAgent | 改进 |
-|------|------------|-----------|------|
-| 代码复用 | 每个组合需要单独的workflow类 | 单一SPAgent类处理所有组合 | **90%代码减少** |
-| 工具组合 | 固定组合，难以修改 | 任意组合，动态调整 | **无限灵活性** |
-| 并行执行 | 串行执行工具 | 自动并行执行 | **3-5x性能提升** |
-| 扩展性 | 添加工具需要修改多个类 | 添加工具只需实现Tool接口 | **易于扩展** |
-| 维护性 | 大量重复代码 | 清晰的模块分离 | **易于维护** |
-
----
-
-
-## 🧪 测试和开发 (Testing & Development)
-
-### Mock模式测试
-```python
-# 使用mock模式进行快速测试（不需要部署实际服务）
-tools = [
-    DepthEstimationTool(use_mock=True),
-    SegmentationTool(use_mock=True),
-    ObjectDetectionTool(use_mock=True)
-]
-```
-
-### 真实服务模式
-```python
-# 使用真实部署的服务
+# Use real deployed services
 tools = [
     DepthEstimationTool(use_mock=False, server_url="http://localhost:20019"),
     SegmentationTool(use_mock=False, server_url="http://localhost:20020"),
@@ -373,32 +220,95 @@ tools = [
 ]
 ```
 
----
+### Video Analysis Testing
 
-## ⚠️ 注意事项 (Important Notes)
+Test Pi3 tool with video frame extraction:
 
-1. **Python版本**: 建议使用Python 3.11，其他版本可能有兼容性问题
-2. **内存要求**: 真实模式需要GPU内存 >= 24GB
-3. **网络配置**: 确保API密钥和服务器地址配置正确
-4. **并发控制**: 可通过`max_workers`参数控制并行工具数量
+```python
+# test/test_pi3_llm.py - Video analysis with Pi3 3D reconstruction
+from spagent.core.spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import Pi3Tool
 
----
+# Configure model and Pi3 tool
+model = GPTModel(model_name="gpt-4o-mini", temperature=0.7)
+tools = [Pi3Tool(use_mock=False, server_url="http://localhost:20030")]
 
-## 🔍 External Experts
-| 工具名称 | 类型 | 主要功能 | 备注 |
-| --- | --- | --- | --- |
-| **Depth-AnythingV2** | 3D | 单目深度估计 | 将 2D 图像转为像素级深度图 |
-| **SAM2** | 2D | 图像分割 | Segment Anything 模型第二代，交互式或自动分割 |
-| **Supervision** | 2D | 视觉任务辅助工具库 | 用于目标检测、分割结果可视化和后处理 |
-| **GroundingDINO** | 2D | 文本驱动目标检测 | 基于自然语言进行检测和框选 |
-| **Moondream** | 2D | 视觉语言理解 | 小型高效的视觉问答模型，支持图像描述和问答 |
-| **Pi3** | 3D | 3D点云重建 | 从单张图像生成3D点云和多视角渲染图像 |
+agent = SPAgent(model=model, tools=tools, max_workers=4)
 
-## 📈 Future Roadmap
+# Analyze video frames
+result = agent.solve_problem(
+    frame_paths,  # List of extracted frame paths
+    "Based on these frames from a video, please answer: Which direction did the object move?",
+    video_path="path/to/video.mp4",  # Optional: for Pi3 to extract more frames
+    pi3_num_frames=50  # Number of frames for Pi3 analysis
+)
+```
 
-- [ ] 支持强化学习
+## 🎯 Reinforcement Learning Training
 
+SPAgent supports GRPO (Group Relative Policy Optimization) reinforcement learning training using [ms-swift](https://github.com/modelscope/ms-swift).
 
+### Training Scripts
 
+| Script | Description |
+|--------|-------------|
+| `train/train_grpo.sh` | Standard GRPO training with tool calling |
+| `train/train_grpo_all_angles.sh` | GRPO training with all angle combinations |
+| `train/train_grpo_notool.sh` | GRPO training without tool calling (baseline) |
+| `train/merge_lora.sh` | Merge LoRA adapters into base model |
+| `train/compress_model.sh` | Compress trained model checkpoints |
 
+### Basic Training Command
+
+```bash
+# Standard GRPO training
+cd train
+bash train_grpo.sh
+
+# Training without tools (baseline)
+bash train_grpo_notool.sh
+
+# Training with all angle combinations
+bash train_grpo_all_angles.sh
+```
+
+### Key Training Parameters
+
+```bash
+swift rlhf \
+    --rlhf_type grpo \
+    --model path/to/Qwen3-VL-4B-Instruct \
+    --external_plugins plugin/plugin.py \
+    --multi_turn_scheduler spagent_tool_call_scheduler \
+    --max_turns 3 \
+    --reward_funcs external_r1v_acc external_multiturn_format \
+    --reward_weights 1.0 1.0 \
+    --train_type full \
+    --torch_dtype bfloat16 \
+    --dataset path/to/training_data.jsonl \
+    --num_generations 8 \
+    --temperature 0.6 \
+    --deepspeed zero2 \
+    --output_dir output/grpo_experiment
+```
+
+### Post-Training
+
+```bash
+# Merge LoRA weights into base model
+swift export \
+    --adapters output/grpo_xxx/checkpoint-xxx \
+    --merge_lora true
+
+# Compress model checkpoint for deployment
+bash train/compress_model.sh
+```
+
+## ⚠️ Important Notes
+
+1. **Python Version**: Python 3.11 is recommended, other versions may have compatibility issues
+2. **Memory Requirements**: Real mode requires GPU memory >= 24GB
+3. **Network Configuration**: Ensure API keys and server addresses are configured correctly
+4. **Concurrency Control**: Control the number of parallel tools via the `max_workers` parameter
 

@@ -1,57 +1,133 @@
-# 图像数据集评测 (Image Dataset Evaluation)
+# Image Dataset Evaluation
 
-所有数据集都需要先下载并转换为统一的JSONL格式，其中每条数据包含以下标准字段：
-- `id`: 数据样本的唯一标识符
-- `image`: 图片路径列表（支持多图像），若没有则为空
-- `video`：视频路径列表，若没有则为空
-- `conversations`: 对话格式的问答内容，需包含问题选项和答案，如（"conversations": [{"from": "human", "value": "{question}\nSelect from the following choices. (A) .. A (B) .."},{"from": "gpt", "value": "A"}],）
-- `task`: 任务类型（如Object_Localization, Depth, Count等）
-- `input_type`: 输入类型（通常为"Image"）
-- `output_type`: 输出类型（如"MCQ"表示多选题）
-- `data_source`: 数据集来源
+> **中文版本**: [中文文档](EVALUATION_ZH.md) | **English Version**: This document
+
+All datasets need to be downloaded and converted to a unified JSONL format first. Each data entry in the JSONL file contains the following standard fields:
+- `id`: Unique identifier for the data sample
+- `image`: List of image paths (supports multiple images), empty if none
+- `video`: List of video paths, empty if none
+- `conversations`: Q&A content in conversation format, must include question options and answers, e.g., `"conversations": [{"from": "human", "value": "{question}\nSelect from the following choices. (A) .. A (B) .."},{"from": "gpt", "value": "A"}]`
+- `task`: Task type (e.g., Object_Localization, Depth, Count, etc.)
+- `input_type`: Input type (usually "Image")
+- `output_type`: Output type (e.g., "MCQ" for multiple choice questions)
+- `data_source`: Dataset source
 
 ```bash
-# 创建样本数据（可选，用于快速测试）
+# Create sample data (optional, for quick testing)
 python dataset/create_json_sample.py --input_file dataset/ERQA_All_Data.jsonl --sample 30
 
 python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
 ```
-## 1. BLINK数据集
+
+## 1. BLINK Dataset
 
 ```bash
-# 下载BLINK数据集并转换为JSONL格式
+# Download BLINK dataset and convert to JSONL format
 python spagent/utils/download_blink.py
 ```
 
-## 2. CVBench数据集
-CVBench专注于计算机视觉的基础能力测试，包括深度估计、目标计数、空间关系等任务。
+## 2. MindCube Dataset
 
 ```bash
-# 第一步：下载CVBench图片（需要先保存parquet文件到dataset目录）
-# 数据集地址：https://huggingface.co/datasets/nyu-visionx/CV-Bench
+# Download MindCube dataset and convert to JSONL format
+# The script will automatically run download_MindCube.sh to download the dataset and convert to unified format
+python spagent/utils/download_mindcube.py
+
+# Use custom parameters
+python spagent/utils/download_mindcube.py \
+    --input dataset/mindcube/data/raw/MindCube_tinybench.jsonl \
+    --output dataset/MindCube_data.jsonl \
+    --image-prefix mindcube/data/
+
+# If you have already run download_MindCube.sh to download the data, only convert format (skip download step)
+python spagent/utils/download_mindcube.py --skip-download
+```
+
+**Parameter Description**:
+- `--input, -i`: Input MindCube JSONL file path (default: `dataset/mindcube/data/raw/MindCube_tinybench.jsonl`)
+- `--output, -o`: Output JSONL file path (default: `dataset/MindCube_data.jsonl`)
+- `--image-prefix, -p`: Image path prefix (default: `mindcube/data/`)
+- `--skip-download`: Skip download step, directly convert existing data
+
+## 3. CVBench Dataset
+
+CVBench focuses on fundamental computer vision capabilities testing, including depth estimation, object counting, spatial relationships, and other tasks.
+
+```bash
+# Step 1: Download CVBench images (need to save parquet files to dataset directory first)
+# Dataset URL: https://huggingface.co/datasets/nyu-visionx/CV-Bench
 python spagent/utils/cvbench_img.py --subset both --root dataset --out dataset/CVBench
 
-# 第二步：转换为JSONL格式
+# Step 2: Convert to JSONL format
 python spagent/utils/download_cvbench.py
 ```
 
-## 3. ERQA數據集
+## 4. ERQA Dataset
+
 ```bash
-# 第一步，下载ERQA原始数据（先保存tfrecord数据到dataset文件夹）
-# 数据集地址：https://github.com/embodiedreasoning/ERQA/blob/main/data/erqa.tfrecord
-python  python spagent/utils/download_erqa.py
+# Step 1: Download ERQA raw data (save tfrecord data to dataset folder first)
+# Dataset URL: https://github.com/embodiedreasoning/ERQA/blob/main/data/erqa.tfrecord
+python spagent/utils/download_erqa.py
 ```
 
-## 3. VSI-Bench数据集
+## 5. VSI-Bench Dataset
+
 ```bash
-# 下载VSI-Bench原始数据并转为jsonl格式。
-# 数据集地址：https://huggingface.co/datasets/nyu-visionx/VSI-Bench
+# Download VSI-Bench raw data and convert to jsonl format.
+# Dataset URL: https://huggingface.co/datasets/nyu-visionx/VSI-Bench
 python spagent/utils/download_vsibench.py
 ```
 
-## 4. VLM4D数据集
+## 6. VLM4D Dataset
+
 ```bash
-# 下载VLM4D原始数据并转为jsonl格式。
-# 数据集地址：https://huggingface.co/datasets/shijiezhou/VLM4D
+# Download VLM4D raw data and convert to jsonl format.
+# Dataset URL: https://huggingface.co/datasets/shijiezhou/VLM4D
 python spagent/utils/download_vlm4d.py
 ```
+
+## 7. Omni-Perspective Dataset
+
+```bash
+# Step 1: Download parquet files from HuggingFace to local directory
+# Dataset URL: https://huggingface.co/datasets/Icey444/Omni-perspective
+# Need to download val-*.parquet files to specified directory (default: /home/ubuntu/Downloads)
+
+# Step 2: Convert to JSONL format
+python spagent/utils/download_Omni-Perspective.py
+
+# Use custom parameters
+python spagent/utils/download_Omni-Perspective.py \
+    --parquet_dir /path/to/parquet/files \
+    --save_dir dataset \
+    --pattern val-*.parquet
+```
+
+**Parameter Description**:
+- `--parquet_dir`: Directory containing parquet files (default: `/home/ubuntu/Downloads`)
+- `--save_dir`: Save directory, will create `Omni_Perspective_images` folder and `Omni_Perspective_All.jsonl` (default: `dataset`)
+- `--pattern`: Parquet file matching pattern (default: `val-*.parquet`)
+
+## 8. MMSI-Bench Dataset
+
+MMSI-Bench is a multimodal spatial reasoning benchmark dataset.
+
+```bash
+# Step 1: Download MMSI_Bench.parquet file
+# Dataset URL: https://huggingface.co/datasets/RunsenXu/MMSI-Bench
+# Need to save the parquet file to local
+
+# Step 2: Convert to JSONL format
+python spagent/utils/download_mmsi.py
+
+# Use custom parameters
+python spagent/utils/download_mmsi.py \
+    --parquet_path /path/to/MMSI_Bench.parquet \
+    --output_dir dataset \
+    --image_folder_name MMSI_images
+```
+
+**Parameter Description**:
+- `--parquet_path`: MMSI_Bench.parquet file path (default: `/home/ubuntu/datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet`)
+- `--output_dir`: Output directory (default: `dataset`)
+- `--image_folder_name`: Image folder name (default: `MMSI_images`)
