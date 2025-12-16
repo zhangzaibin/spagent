@@ -24,7 +24,7 @@ This repository provides **SPAgent** - a flexible and modular **Spatial Intellig
 
 ##  **SPAgent Features**
 
-**SPAgent** replaces the old workflow system with a modern, modular architecture:
+**SPAgent** provides a modern, modular architecture with the following features:
 
 - ✅ **Modular Tool System** - Mix and match any combination of expert tools
 - ✅ **Dynamic Tool Management** - Add/remove tools at runtime
@@ -91,7 +91,7 @@ python spagent/vllm_models/qwen.py
 
 ### 3. Deploy External Expert Services
 
-For detailed external expert tools usage guide, please refer to: [External Experts Tool Usage Guide](docs/Tool/TOOL_USING.md)
+For detailed external expert tools usage guide, please refer to: **[External Experts Tool Usage Guide](docs/Tool/TOOL_USING.md)**
 
 
 ## 🚀 Quick Start
@@ -207,6 +207,8 @@ python examples/evaluation/evaluate_img_with_data_collection.py --data_path path
 # Example: Evaluate on BLINK dataset
 python examples/evaluation/evaluate_img.py --data_path dataset/Multi-view_Reasoning_BLINK_subset.jsonl --max_samples 20 --model gpt-4.1 --max_iterations 4
 ```
+
+For more advanced usage patterns, specialized agents, tool mixing strategies, video analysis, and reinforcement learning training, please refer to: **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)**
 
 ## 🧪 Testing & Development
 
