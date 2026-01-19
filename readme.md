@@ -5,7 +5,7 @@
 ### Think3D: Thinking with Space for Spatial Reasoning
 
 [![arXiv](https://img.shields.io/badge/arXiv-2505.xxxxx-b31b1b.svg)](https://arxiv.org/abs/2505.xxxxx)
-[![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-yellow)](https://huggingface.co/spagent)
+[![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-yellow)](https://huggingface.co/collections/jialianjie/spagent)
 [![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Dataset-orange)](https://huggingface.co/datasets/spagent)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
