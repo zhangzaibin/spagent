@@ -1,6 +1,22 @@
-# 📌 Introduction
+<div align="center">
 
-This repository provides **SPAgent** - a flexible and modular **Spatial Intelligence Agent** that integrates **agentic skills** into **multi-modal understanding** using external expert models and LLMs.
+# 🌍 SPAgent: Agent in the Physical World
+
+### Think3D: Thinking with Space for Spatial Reasoning
+
+[![arXiv](https://img.shields.io/badge/arXiv-2505.xxxxx-b31b1b.svg)](https://arxiv.org/abs/2505.xxxxx)
+[![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-yellow)](https://huggingface.co/spagent)
+[![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Dataset-orange)](https://huggingface.co/datasets/spagent)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+
+</div>
+
+---
+
+## 📌 Introduction
+
+We introduce **SPAgent**, a spatial intelligence agent designed to operate in the **physical world**. SPAgent enables agents to invoke a diverse set of **multi-modal expert tools** (depth estimation, segmentation, 3D reconstruction, etc.) to perceive, understand, and reason about real-world spatial environments.
 
 ## 📋 Table of Contents
 
@@ -314,3 +330,27 @@ bash train/compress_model.sh
 3. **Network Configuration**: Ensure API keys and server addresses are configured correctly
 4. **Concurrency Control**: Control the number of parallel tools via the `max_workers` parameter
 
+## 📝 Citation
+
+If you find this work helpful, please consider citing our paper:
+
+```bibtex
+@article{think3d2025,
+  title={Think3D: Thinking with Space for Spatial Reasoning},
+  author={},
+  journal={arXiv preprint arXiv:2505.xxxxx},
+  year={2025}
+}
+```
+
+## ⭐ Star History
+
+If you find **SPAgent** useful for your research or projects, please consider giving us a ⭐ star! Your support helps us continue improving and maintaining this project.
+
+<div align="center">
+
+**🌟 Thank you for your support! 🌟**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=your-org/spagent&type=Date)](https://star-history.com/#your-org/spagent&Date)
+
+</div>
