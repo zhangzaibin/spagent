@@ -16,7 +16,7 @@
 
 ## 📌 Introduction
 
-We introduce **SPAgent**, a spatial intelligence agent designed to operate in the **physical world**. SPAgent enables agents to invoke a diverse set of **multi-modal expert tools** (depth estimation, segmentation, 3D reconstruction, etc.) to perceive, understand, and reason about real-world spatial environments.
+We introduce **SPAgent**, a spatial intelligence agent designed to operate in the **physical and spatial world**. SPAgent enables agents to invoke a diverse set of **multi-modal expert tools** (depth estimation, segmentation, 3D reconstruction, etc.) to perceive, understand, and reason about real-world spatial environments.
 
 ## 📋 Table of Contents
 
