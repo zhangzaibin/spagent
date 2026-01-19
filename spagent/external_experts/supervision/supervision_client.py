@@ -149,7 +149,7 @@ def main():
         return
 
     logger.info("\n=== 实际图片推理 ===")
-    image_path = "/home/ubuntu/projects/spagent/dataset/BLINK/0a45758ac7376725109cba53848f2387c6f9280686ac8957868ec7f8ce71ba21.jpg"
+    image_path = "assets/dog.jpeg"
     task = "image_seg"  # 或 "image_det"
     model_name = "yolov8n-seg.pt"
 

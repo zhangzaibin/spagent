@@ -55,15 +55,9 @@ def extract_video_frames(video_path: str, num_frames: int = 10) -> List[str]:
 
 # 2. 选择和配置模型
 model = GPTModel(model_name="gpt-4o-mini", temperature=0.7)
-# 或者: model = QwenModel(model_name="qwen2.5-vl-7b-instruct")
 
 # 3. 选择和配置工具
 tools = [
-    # DepthEstimationTool(use_mock=False, server_url="http://10.7.8.94:20019"),      # Mock模式用于测试
-    # SegmentationTool(use_mock=False, server_url="http://0.0.0.0:20020"),         # Mock模式用于测试
-    # ObjectDetectionTool(use_mock=False,      # 真实模式
-    #                    server_url="http://10.7.8.94:20022"),
-    # MoondreamTool(use_mock=False, server_url="http://0.0.0.0:20024")  # 真实模式
     Pi3Tool(use_mock=False, server_url="http://10.7.8.94:20030")  # 真实模式
 ]
 

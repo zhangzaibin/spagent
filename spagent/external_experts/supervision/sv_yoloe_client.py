@@ -233,20 +233,20 @@ def main():
 
     # 图片处理示例
     logger.info("\n=== 图片推理 ===")
-    image_path = "/home/ubuntu/projects/spagent/dataset/BLINK/ebb9c1c41b0fe3ff0d65cfc4ef3e2d26e4aefba3be654213a2aeab56d6546443.jpg"
+    image_path = "image.jpg"
     task = "image"  # 图片任务
     model_name = "yoloe-v8l-seg.pt"
     names = ["cat", "car"]
 
-    # result = client.infer(image_path, task, model_name, names)
-    # if result:
-    #     logger.info(f"图片处理完成，输出图像: {result['output_path']}")
-    # else:
-    #     logger.error("图片推理失败")
+    result = client.infer(image_path, task, model_name, names)
+    if result:
+        logger.info(f"图片处理完成，输出图像: {result['output_path']}")
+    else:
+        logger.error("图片推理失败")
 
     # 视频处理示例
     logger.info("\n=== 视频推理 ===")
-    video_path = "/home/ubuntu/projects/spagent/assets/suitcases-1280x720.mp4"
+    video_path = "assets/suitcases-1280x720.mp4"
     video_task = "video"  # 视频任务
     video_names = ["suitcase"]
 

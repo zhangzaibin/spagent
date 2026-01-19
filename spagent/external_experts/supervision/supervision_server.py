@@ -9,10 +9,6 @@ import numpy as np
 from flask import Flask, request, jsonify
 from ultralytics import YOLO
 
-# 模拟或真实模型推理接口
-# from mock_supervision_service import MockSupervisionService  # 你可以替换为真实推理函数
-# service = MockSupervisionService()
-
 from annotator import Annotator
 service = Annotator()
 

@@ -87,7 +87,7 @@ if __name__ == '__main__':
     annotator(img_path, model, task='image', target_path='outputs/det_dog.jpg')
 
     # video tasks - 重新创建模型实例避免状态冲突
-    video_path = '/home/ubuntu/projects/spagent/assets/suitcases-1280x720.mp4'
+    video_path = 'assets/suitcases-1280x720.mp4'
     v_names = ["suitcase"]
     video_model = YOLOE("yoloe-v8l-seg.pt")  # 创建新的模型实例
     video_model.set_classes(v_names, video_model.get_text_pe(v_names))

@@ -342,7 +342,7 @@ def main():
     # 3. 处理图片示例
     logger.info("\n=== 处理图片示例 ===")
     # 使用点提示
-    image_path = "/home/ubuntu/projects/spagent/assets/dog.jpeg"  # 替换为实际的测试图片路径
+    image_path = "assets/dog.jpeg"  # 替换为实际的测试图片路径
     prompts = {
         'point_coords': [[900, 540]],  # 点击坐标
         'point_labels': [1]  # 1表示前景点
