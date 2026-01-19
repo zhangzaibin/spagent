@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌍 SPAgent: Agent in the Physical World
+# 🌍 SPAgent: Agent in the Physical & Spatial World
 
 ### Think3D: Thinking with Space for Spatial Reasoning
 
