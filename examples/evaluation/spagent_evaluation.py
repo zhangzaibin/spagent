@@ -31,12 +31,6 @@ from spagent.utils.utils import (
     save_result_to_csv
 )
 
-# Define server URLs
-# TOOL_SERVERS = {
-#     "depth": "http://10.8.131.51:30750",
-#     "segmentation": "http://10.8.131.51:30646",
-#     "detection": "http://10.8.131.51:30969"
-# }
 TOOL_SERVERS = {
     "depth": "http://127.0.0.1:20019",
     "segmentation": "http://127.0.0.1:20020",

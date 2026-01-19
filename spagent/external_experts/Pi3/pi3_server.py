@@ -433,16 +433,6 @@ def infer():
         # 应用离群点移除（如果启用）
         if remove_outliers_flag:
             logger.info(f"开始移除离群点 (k_neighbors={k_neighbors}, std_threshold={std_threshold})...")
-            # points_filtered, colors_filtered, _ = remove_outliers(
-            #     points_filtered, 
-            #     colors_filtered, 
-            #     k_neighbors=k_neighbors, 
-            #     std_threshold=std_threshold
-            # )
-            # points_filtered, colors_filtered, _ = remove_outliers_iforest(
-            #     points_filtered, 
-            #     colors_filtered
-            # )
             points_filtered, colors_filtered, _ = remove_outliers_mahalanobis(
                 points_filtered, 
                 colors_filtered,
@@ -476,9 +466,6 @@ def infer():
             ply_path
         )
         
-        # # 编码PLY文件为base64
-        # with open(ply_path, 'rb') as f:
-        #     ply_b64 = base64.b64encode(f.read()).decode('utf-8')
 
         # 提取原始相机位姿信息（未经旋转）
         original_camera_poses = results['camera_poses'][0].cpu().numpy()
@@ -915,7 +902,7 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         # 注意：由于我们应用了 flip_transform (翻转Y和Z)，坐标系从 OpenCV (X右,Y下,Z前) 变成了 (X右,Y上,Z后)
         # 因此，在翻转后的坐标系中，Z < 0 才是相机前方（朝向 -Z 方向）
         
-        # 使用宽视野过滤：保留前方 200° 视野范围内的点（左右各 100°，上下各 100°）
+        # 使用宽视野过滤：保留前方视野范围内的点（左右各 110°，上下各 110°）
         # 计算每个点相对于相机朝向（-Z 方向）的角度
         # 点的方向向量
         point_directions = points_cam / (np.linalg.norm(points_cam, axis=1, keepdims=True) + 1e-8)
@@ -924,11 +911,10 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         # 计算点与相机朝向的夹角余弦值
         cos_angles = point_directions @ camera_forward
         
-        # 保留前方 200° 视野内的点（从中心轴左右各 100°，上下各 100°）
-        # cos(100°) ≈ -0.174，所以保留 cos > -0.2 的点（比 100° 稍宽一点）
-        fov_angle_threshold = np.cos(np.radians(110))  # 100° 的余弦值 ≈ -0.174
+        # 保留前方 220° 视野内的点（从中心轴左右各 110°，上下各 110°）
+        fov_angle_threshold = np.cos(np.radians(110))
         
-        # 创建视锥体掩码：点与相机朝向夹角 < 100° (即 cos > -0.174)
+        # 创建视锥体掩码
         fov_mask = cos_angles > fov_angle_threshold
         
         num_total = len(points_cam)
@@ -1123,8 +1109,6 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     # 设置背景颜色为浅灰色，以便更容易看到点云
     ax.set_facecolor('lightgray')
     
-    # 确保3D轴比例相等
-    # ax.set_box_aspect([x_max-x_min, y_max-y_min, z_max-z_min])  # 可能在某些matplotlib版本中不可用
 
     # 保存为字节流，使用更高的DPI和质量
     buf = io.BytesIO()

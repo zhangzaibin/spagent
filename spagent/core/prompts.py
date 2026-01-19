@@ -135,7 +135,6 @@ You MUST output your thinking process in <think></think> and final choice in <an
 
     return prompt
 
-# TODO 这块我总觉得有点奇怪，对于If you think donot need tool, you can directly answer the question. At this time, you SHOULD output your thinking process in <think></think> and final choice in <answer></answer>.
 def create_user_prompt(question: str, image_paths: List[str], tool_schemas: List[Dict[str, Any]] = None) -> str:
     """
     Create user prompt template

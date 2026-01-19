@@ -212,14 +212,14 @@ if __name__ == "__main__":
     print("多图像推理结果:", result)
     
     # 纯文本推理示例
-    # result = qwen_text_only_inference(
-    #     prompt="Write a one-sentence bedtime story about a unicorn."
-    # )
-    # print("纯文本推理结果:", result)
+    result = qwen_text_only_inference(
+        prompt="Write a one-sentence bedtime story about a unicorn."
+    )
+    print("纯文本推理结果:", result)
     
     # 原始响应示例
-    # raw_result = qwen_raw_response(
-    #     image_path="assets/example.png",
-    #     prompt="What is in the image?"
-    # )
-    # print("原始响应:", raw_result) 
+    raw_result = qwen_raw_response(
+        image_path="assets/example.png",
+        prompt="What is in the image?"
+    )
+    print("原始响应:", raw_result) 

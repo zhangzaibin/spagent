@@ -253,7 +253,7 @@ def main():
     parser.add_argument(
         '--parquet_path',
         type=str,
-        default='/home/ubuntu/datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet',
+        default='datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet',
         help='MMSI_Bench.parquet 文件路径'
     )
     parser.add_argument(

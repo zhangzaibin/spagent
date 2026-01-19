@@ -342,25 +342,25 @@ def main():
         logger.error("图片处理失败")
     
     # 4. 处理视频示例
-    # logger.info("\n=== 处理视频示例 ===")
-    # video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
-    # # 支持多种输入格式，会自动转换为XML-like格式：
-    # # "car" -> "<object_1>car</object_1>"
-    # # "person, dog" -> "<object_1>person</object_1> <object_2>dog</object_2>"
-    # text_prompt = "car"  # 检测汽车
+    logger.info("\n=== 处理视频示例 ===")
+    video_path = "assets/test.mp4"  # 替换为实际的测试视频路径
+    # 支持多种输入格式，会自动转换为XML-like格式：
+    # "car" -> "<object_1>car</object_1>"
+    # "person, dog" -> "<object_1>person</object_1> <object_2>dog</object_2>"
+    text_prompt = "car"  # 检测汽车
     
-    # result = client.infer_video(video_path, text_prompt)
+    result = client.infer_video(video_path, text_prompt)
     
-    # if result:
-    #     logger.info("视频处理成功！")
-    #     logger.info(f"- 输入视频: {video_path}")
-    #     logger.info(f"- 输出视频: {result['output_path']}")
-    #     logger.info(f"- 总帧数: {result['frames']}")
-    #     logger.info(f"- FPS: {result['fps']}")
-    #     logger.info(f"- 分辨率: {result['size']}")
-    #     logger.info(f"- 总检测数: {result['total_detections']}")
-    # else:
-    #     logger.error("视频处理失败")
+    if result:
+        logger.info("视频处理成功！")
+        logger.info(f"- 输入视频: {video_path}")
+        logger.info(f"- 输出视频: {result['output_path']}")
+        logger.info(f"- 总帧数: {result['frames']}")
+        logger.info(f"- FPS: {result['fps']}")
+        logger.info(f"- 分辨率: {result['size']}")
+        logger.info(f"- 总检测数: {result['total_detections']}")
+    else:
+        logger.error("视频处理失败")
 
 if __name__ == '__main__':
     main() 

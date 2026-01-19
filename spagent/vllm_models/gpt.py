@@ -226,14 +226,14 @@ if __name__ == "__main__":
     print("单图像推理结果:", result)
     
     # 多图像推理示例
-    # result = gpt_multiple_images_inference(
-    #     image_paths=["assets/image1.png", "assets/image2.png"],
-    #     prompt="请比较这两张图片的差异"
-    # )
-    # print("多图像推理结果:", result)
+    result = gpt_multiple_images_inference(
+        image_paths=["assets/image1.png", "assets/image2.png"],
+        prompt="请比较这两张图片的差异"
+    )
+    print("多图像推理结果:", result)
     
     # 纯文本推理示例
-    # result = gpt_text_only_inference(
-    #     prompt="Write a one-sentence bedtime story about a unicorn."
-    # )
-    # print("纯文本推理结果:", result)
+    result = gpt_text_only_inference(
+        prompt="Write a one-sentence bedtime story about a unicorn."
+    )
+    print("纯文本推理结果:", result)

@@ -3,15 +3,15 @@ MASTER_PORT=29600 \
 NPROC_PER_NODE=8 \
 swift rlhf \
     --rlhf_type grpo \
-    --model /mnt/gpfs/zhangzaibin-p/pretrained_weights/Qwen3-VL-4B-Instruct \
-    --external_plugins /mnt/gpfs/zhangzaibin-p/projects/spagent/plugin/plugin_all_angles.py \
+    --model /ubuntu//pretrained_weights/Qwen3-VL-4B-Instruct \
+    --external_plugins /ubuntu//projects/spagent/plugin/plugin_all_angles.py \
     --multi_turn_scheduler spagent_tool_call_scheduler \
     --max_turns 3 \
     --reward_funcs external_r1v_acc external_multiturn_format \
     --reward_weights 1.0 1.0 \
     --train_type full \
     --torch_dtype bfloat16 \
-    --dataset /mnt/gpfs/zhangzaibin-p/datasets/mindcube/data/crossviewQA_train_rl_fixed.jsonl \
+    --dataset /ubuntu//datasets/mindcube/data/crossviewQA_train_rl_fixed.jsonl \
     --load_from_cache_file true \
     --max_completion_length 1024 \
     --max_length 128000 \
@@ -31,7 +31,7 @@ swift rlhf \
     --num_generations 8 \
     --temperature 0.6 \
     --repetition_penalty 1.1 \
-    --system /mnt/gpfs/zhangzaibin-p/projects/spagent/train/system_prompt/system_prompt_grpo_all_angles.txt \
+    --system /ubuntu//projects/spagent/train/system_prompt/system_prompt_grpo_all_angles.txt \
     --log_completions true \
     --report_to tensorboard \
     --num_iterations 1 \

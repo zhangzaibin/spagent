@@ -4,7 +4,7 @@
 set -e
 
 
-base_dir="/mnt/gpfs/zhangzaibin-p/projects/spagent/output/grpo_1111/v10-20251112-151911/checkpoint-70"
+base_dir="projects/spagent/output/grpo_1111/v10-20251112-151911/checkpoint-70"
 exclude_step_dir="global_step70"
 
 base_dir="${base_dir%/}"
