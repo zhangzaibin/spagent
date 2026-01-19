@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.png" alt="SPAgent Logo" width="300">
+
 # 🌍 SPAgent: Agent in the Physical & Spatial World
 
 ### Think3D: Thinking with Space for Spatial Reasoning
