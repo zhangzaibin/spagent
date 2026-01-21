@@ -353,6 +353,6 @@ If you find **SPAgent** useful for your research or projects, please consider gi
 
 **🌟 Thank you for your support! 🌟**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/spagent&type=Date)](https://star-history.com/#your-org/spagent&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=zhangzaibin/spagent&type=Date)](https://star-history.com/#zhangzaibin/spagent&Date)
 
 </div>
