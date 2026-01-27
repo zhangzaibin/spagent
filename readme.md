@@ -337,11 +337,11 @@ bash train/compress_model.sh
 If you find this work helpful, please consider citing our paper:
 
 ```bibtex
-@article{think3d2025,
+@article{zhang2026think3d,
   title={Think3D: Thinking with Space for Spatial Reasoning},
-  author={},
-  journal={arXiv preprint arXiv:2506.13029},
-  year={2025}
+  author={Zhang, Zaibin and Wu, Yuhan and Jia, Lianjie and Wang, Yifan and Zhang, Zhongbo and Li, Yijiang and Ran, Binghao and Zhang, Fuxi and Sun, Zhuohan and Yin, Zhenfei and others},
+  journal={arXiv preprint arXiv:2601.13029},
+  year={2026}
 }
 ```
 
