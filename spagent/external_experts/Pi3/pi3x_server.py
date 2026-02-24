@@ -589,8 +589,7 @@ def _prepare_points_and_cameras(results, masks, imgs_rgb_tensor, points_filtered
     camera_poses = np.array(camera_poses_list)  # 使用原始的camera-to-world矩阵
     
     # 子采样点云以提高渲染性能
-    # 优化：增加到50万个点以提升细节（原30万）
-    max_points_to_visualize = 500000
+    max_points_to_visualize = 1500000
     if len(points_3d) > max_points_to_visualize:
         # 使用确定性的采样方法，基于点云数据本身而不是随机数
         # 这确保相同的点云总是产生相同的子集
@@ -936,22 +935,21 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
     z_range = upper_percentile[2] - lower_percentile[2]
     max_range = max(x_range, y_range, z_range)
     
-    # 计算点的大小 - 优化：更细腻的点云显示
+    # 计算点的大小 - 增大点云显示尺寸，使其更清晰可见
     if max_range > 0:
-        # 增加点的密度范围，使点云更细腻
-        base_point_size = max(0.03, min(0.15, 40.0 / max_range))
+        base_point_size = max(0.15, min(0.6, 120.0 / max_range))
         # 在 camera_view 模式下，增大点的大小以便更好地观察
         if camera_view:
-            point_size = base_point_size * 2.5  # 增大2倍
+            point_size = base_point_size * 3.0
             alpha = 0.9
         else:
             point_size = base_point_size
-            alpha = 0.8
+            alpha = 0.85
     else:
-        point_size = 1.0
-        alpha = 0.8
+        point_size = 2.0
+        alpha = 0.85
         if camera_view:
-            point_size = 2.5  # camera_view模式下使用更大的默认值
+            point_size = 5.0  # camera_view模式下使用更大的默认值
             alpha = 0.9
     
     # 创建图形 - 配置兼容模式，使用更大的尺寸和更高的DPI
