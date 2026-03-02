@@ -172,6 +172,27 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 - [Official Repository](https://github.com/IDEA-Research/GroundingDINO)
 - [Paper](https://arxiv.org/abs/2303.05499)
 
+**Known Issues**:
+
+> **`transformers` Version Incompatibility**
+>
+> **Error:** `'BertModel' object has no attribute 'get_head_mask'`
+>
+> GroundingDINO requires `transformers 4.x`. If `transformers>=5.0` is installed, the BERT text encoder fails to load. Fix by downgrading:
+> ```bash
+> pip install "transformers==4.26.0"
+> ```
+
+> **SOCKS Proxy Not Supported**
+>
+> **Error:** `Unknown scheme for proxy URL URL('socks://127.0.0.1:xxxx/')`
+>
+> If a SOCKS proxy is set in your environment (e.g. `ALL_PROXY=socks://...`), the `bert-base-uncased` model download will fail. Unset proxy variables before starting the server:
+> ```bash
+> unset ALL_PROXY HTTPS_PROXY HTTP_PROXY all_proxy https_proxy http_proxy
+> ```
+> Or install SOCKS support: `pip install httpx[socks]`
+
 ---
 
 ### 4. Moondream - Vision Language Model
