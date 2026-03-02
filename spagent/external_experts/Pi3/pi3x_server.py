@@ -460,12 +460,14 @@ def infer():
         ply_path = f"outputs/{ply_filename}"
         os.makedirs("outputs", exist_ok=True)
         
-        ply_b64 = write_ply(
-            points_filtered, 
-            colors_filtered,  # 使用过滤后的颜色数据
+        write_ply(
+            points_filtered,
+            colors_filtered,
             ply_path
         )
-        
+
+        with open(ply_path, 'rb') as f:
+            ply_b64 = base64.b64encode(f.read()).decode('utf-8')
 
         # 提取原始相机位姿信息（未经旋转）
         original_camera_poses = results['camera_poses'][0].cpu().numpy()
