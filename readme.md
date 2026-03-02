@@ -49,6 +49,7 @@ We introduce **SPAgent**, a spatial intelligence agent designed to operate in th
 - ✅ **Parallel Tool Execution** - Automatic concurrent processing when possible
 - ✅ **Multi-Image Analysis** - Handle single or multiple images seamlessly
 - ✅ **Multiple Model Support** - GPT, Qwen, and local VLLM models
+- ✅ **Customizable System Prompt** - Per-agent prompt templates; built-in 3D spatial and general vision presets
 - ✅ **Flexible Configuration** - Easy to customize and extend
 - ✅ **Reinforcement Learning** - Support reinforcement learning
 
@@ -56,13 +57,13 @@ We introduce **SPAgent**, a spatial intelligence agent designed to operate in th
 
 | Module | Path | Description |
 |--------|------|-------------|
-| **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system<br>- Data collection utilities |
+| **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool<br>- Pi3XTool |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
-| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`)<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- Integration tests |
+| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`)<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
 | **Train** | `train/` | Reinforcement learning training scripts:<br>- GRPO training configurations<br>- LoRA merge and model compression utilities<br>- System prompts for different training modes |
 
 ## 🔍 External Experts
@@ -176,7 +177,37 @@ print(f"Used tools: {result['used_tools']}")
 print(f"Additional images: {result['additional_images']}")
 ```
 
-### 3. Dynamic Tool Management
+### 3. Custom System Prompt
+
+`SPAgent` accepts an optional `system_prompt` parameter. Pass one of the built-in
+templates or supply your own string. A `{tools_json}` placeholder is replaced
+automatically with the live tool schema; if omitted, the tools block is appended.
+
+```python
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT, SPATIAL_3D_SYSTEM_PROMPT
+
+# General vision agent (GroundingDINO + SAM2, no 3D instructions)
+agent = SPAgent(
+    model=GPTModel(model_name="gpt-4o"),
+    tools=[ObjectDetectionTool(...), SegmentationTool(...)],
+    system_prompt=GENERAL_VISION_SYSTEM_PROMPT,
+)
+
+# 3D spatial agent (default, same as omitting system_prompt)
+agent = SPAgent(model=..., tools=[Pi3XTool(...)], system_prompt=SPATIAL_3D_SYSTEM_PROMPT)
+
+# Fully custom prompt
+agent = SPAgent(model=..., tools=tools,
+                system_prompt="You are a specialist.\n<tools>\n{tools_json}\n</tools>\n...")
+```
+
+The same parameter is forwarded by `evaluate_tool_config`:
+
+```python
+evaluate_tool_config(..., system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+```
+
+### 4. Dynamic Tool Management
 
 ```python
 # Start with a basic agent
@@ -197,7 +228,7 @@ from spagent.models import QwenModel
 agent.set_model(QwenModel(model_name="qwen2.5-vl-7b-instruct"))
 ```
 
-### 4. Multi-Image Analysis
+### 5. Multi-Image Analysis
 
 ```python
 # Analyze multiple images
@@ -208,7 +239,7 @@ result = agent.solve_problem(
 )
 ```
 
-### 5. Image Dataset Evaluation
+### 6. Image Dataset Evaluation
 
 For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
 
@@ -271,6 +302,13 @@ print(f"Rendered image saved to: {output_path}")
 |-------------|-------------|
 | `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection) |
 | `test/test_pi3_llm.py` | Pi3 integration testing through Agent + LLM |
+| `test/test_prompt.py` | Verify system prompt construction — no server or API key needed |
+
+```bash
+python test/test_prompt.py                  # run all cases
+python test/test_prompt.py --case general   # general vision prompt
+python test/test_prompt.py --case 3d        # 3D spatial prompt
+```
 
 ### Real Service Mode
 ```python
