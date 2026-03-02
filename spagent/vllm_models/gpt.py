@@ -59,11 +59,13 @@ def create_message_with_image(text: str, image_path: Optional[str] = None) -> di
     return message
 
 def gpt_single_image_inference(
-    image_path: str, 
-    prompt: str, 
+    image_path: str,
+    prompt: str,
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = 4096  # 设置合理的默认值
+    max_tokens: Optional[int] = 4096,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> str:
     """GPT单图像推理函数
     
@@ -83,12 +85,18 @@ def gpt_single_image_inference(
         
         message = create_message_with_image(prompt, image_path)
         
-        response = client.chat.completions.create(
+        kwargs = dict(
             model=model,
             messages=[message],
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
+        if seed is not None:
+            kwargs["seed"] = seed
+        if top_p is not None:
+            kwargs["top_p"] = top_p
+
+        response = client.chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")
@@ -102,11 +110,13 @@ def gpt_single_image_inference(
         raise
 
 def gpt_multiple_images_inference(
-    image_paths: List[str], 
-    prompt: str, 
+    image_paths: List[str],
+    prompt: str,
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = 4096  # 设置合理的默认值
+    max_tokens: Optional[int] = 4096,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> str:
     """GPT多图像推理函数
     
@@ -154,12 +164,18 @@ def gpt_multiple_images_inference(
         
         print(f"[图像处理] 成功编码 {valid_images}/{len(image_paths)} 张图像")
         
-        response = client.chat.completions.create(
+        kwargs = dict(
             model=model,
             messages=[message],
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
+        if seed is not None:
+            kwargs["seed"] = seed
+        if top_p is not None:
+            kwargs["top_p"] = top_p
+
+        response = client.chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")
@@ -173,10 +189,12 @@ def gpt_multiple_images_inference(
         raise
 
 def gpt_text_only_inference(
-    prompt: str, 
+    prompt: str,
     model: str = "gpt-4o-mini",
     temperature: float = 0.7,
-    max_tokens: Optional[int] = 4096  # 设置合理的默认值
+    max_tokens: Optional[int] = 4096,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> str:
     """GPT纯文本推理函数
     
@@ -193,17 +211,18 @@ def gpt_text_only_inference(
         print(f"[推理开始] 模型: {model}, 纯文本推理")
         print(f"[参数] max_tokens: {max_tokens}, temperature: {temperature}")
         
-        response = client.chat.completions.create(
+        kwargs = dict(
             model=model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
+        if seed is not None:
+            kwargs["seed"] = seed
+        if top_p is not None:
+            kwargs["top_p"] = top_p
+
+        response = client.chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")

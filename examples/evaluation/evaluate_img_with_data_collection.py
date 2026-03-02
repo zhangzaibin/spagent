@@ -69,7 +69,10 @@ def evaluate_tool_config_with_data_collection(
     max_iterations: int = 3,
     enable_data_collection: bool = True,
     data_collection_dir: str = None,
-    only_save_correct: bool = False  # 是否只保存正确的样本
+    only_save_correct: bool = False,
+    temperature: float = 0.0,
+    seed: int = 42,
+    top_p: float = 1.0,
 ) -> Dict[str, Any]:
     """
     Evaluate a specific tool configuration with data collection
@@ -120,10 +123,10 @@ def evaluate_tool_config_with_data_collection(
     
     # Create SPAgent instance with DataCollector
     agent = SPAgent(
-        model=GPTModel(model_name=model),
+        model=GPTModel(model_name=model, temperature=temperature, seed=seed, top_p=top_p),
         tools=tools,
         max_workers=max_workers,
-        data_collector=collector  # Pass collector to agent
+        data_collector=collector,
     )
     
     print(f"Evaluating {len(data)} samples with {model}")
@@ -318,6 +321,12 @@ def main():
                         help='Directory for collected data (auto-generated if not specified)')
     parser.add_argument('--only_save_correct', action='store_true', default=False,
                         help='Only save samples with correct predictions')
+    parser.add_argument('--temperature', type=float, default=0.0,
+                        help='Sampling temperature (default: 0.0 for deterministic output)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for reproducibility (default: 42)')
+    parser.add_argument('--top_p', type=float, default=1.0,
+                        help='Nucleus sampling probability mass (default: 1.0)')
 
     args = parser.parse_args()
     
@@ -344,7 +353,10 @@ def main():
             max_iterations=args.max_iterations,
             enable_data_collection=args.enable_data_collection,
             data_collection_dir=args.data_collection_dir,
-            only_save_correct=args.only_save_correct
+            only_save_correct=args.only_save_correct,
+            temperature=args.temperature,
+            seed=args.seed,
+            top_p=args.top_p,
         )
         all_results[config_name] = results
         

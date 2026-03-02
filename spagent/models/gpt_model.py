@@ -22,20 +22,28 @@ class GPTModel(Model):
     """GPT model wrapper for SPAgent"""
     
     def __init__(
-        self, 
+        self,
         model_name: str = "gpt-4o-mini",
         temperature: float = 1.0,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        seed: Optional[int] = None,
+        top_p: Optional[float] = None,
     ):
         """
         Initialize GPT model wrapper
-        
+
         Args:
             model_name: GPT model name (e.g., "gpt-4o", "gpt-4o-mini")
-            temperature: Sampling temperature
+            temperature: Sampling temperature. Use 0 for greedy / deterministic output.
             max_tokens: Maximum tokens to generate
+            seed: Optional integer seed passed to the OpenAI API for reproducibility
+                  (best-effort; combine with temperature=0 for strongest guarantee).
+            top_p: Nucleus sampling probability mass (e.g. 1.0 = no truncation).
+                   Cannot be used together with temperature != 0 per OpenAI guidelines.
         """
         super().__init__(model_name, temperature, max_tokens)
+        self.seed = seed
+        self.top_p = top_p
         
         # Import GPT functions
         try:
@@ -80,7 +88,9 @@ class GPTModel(Model):
                 prompt=prompt,
                 model=self.model_name,
                 temperature=temp,
-                max_tokens=tokens
+                max_tokens=tokens,
+                seed=self.seed,
+                top_p=self.top_p,
             )
             
             return result
@@ -117,7 +127,9 @@ class GPTModel(Model):
                 prompt=prompt,
                 model=self.model_name,
                 temperature=temp,
-                max_tokens=tokens
+                max_tokens=tokens,
+                seed=self.seed,
+                top_p=self.top_p,
             )
             
             return result
@@ -151,7 +163,9 @@ class GPTModel(Model):
                 prompt=prompt,
                 model=self.model_name,
                 temperature=temp,
-                max_tokens=tokens
+                max_tokens=tokens,
+                seed=self.seed,
+                top_p=self.top_p,
             )
             
             return result

@@ -129,6 +129,12 @@ def main():
                         help='Maximum number of tool-call iterations (default: 3)')
     parser.add_argument('--task', type=str, default="all",
                         help='Task to evaluate (default: all)')
+    parser.add_argument('--temperature', type=float, default=0.0,
+                        help='Sampling temperature (default: 0.0 for deterministic output)')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='Random seed for reproducibility (default: 42)')
+    parser.add_argument('--top_p', type=float, default=1.0,
+                        help='Nucleus sampling probability mass (default: 1.0)')
     
     # NEW: Data collection arguments
     parser.add_argument('--enable_data_collection', action='store_true',
@@ -175,7 +181,10 @@ def main():
             max_samples=args.max_samples,
             max_workers=args.max_workers,
             max_iterations=args.max_iterations,
-            data_collector=data_collector  # NEW: Pass DataCollector
+            data_collector=data_collector,
+            temperature=args.temperature,
+            seed=args.seed,
+            top_p=args.top_p,
         )
         all_results[config_name] = results
         
