@@ -23,7 +23,9 @@ from spagent.tools import (
     SupervisionTool,
     YOLOETool,
     MoondreamTool,
-    Pi3Tool
+    Pi3Tool,
+    VGGTTool,
+    MapAnythingTool
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -44,11 +46,15 @@ TOOL_SERVERS = {
     "detection": "http://10.7.8.94:20022",  # dino
     "pi3": "http://10.7.33.15:20030",  # pi3
     "moondream": "http://192.168.3.2:20024",  # moondream
+    "vggt": "http://0.0.0.0:20022",  # vggt
+    "mapanything": "http://0.0.0.0:20022",  # mapanything
 }
 
 TOOL_CONFIGS = {
     "depth_detection_segmentation": [
-        Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"], mode='inference'),
+        # Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"], mode='inference'),
+        # VGGTTool(use_mock=False, server_url=TOOL_SERVERS["vggt"], mode='inference'),
+        MapAnythingTool(use_mock=False, server_url=TOOL_SERVERS["mapanything"], mode='inference'),
     ]
 }
 

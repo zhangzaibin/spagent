@@ -12,6 +12,8 @@ from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
 from .moondream_tool import MoondreamTool
 from .pi3_tool import Pi3Tool
+from .vggt_tool import VGGTTool
+from .mapanything_tool import MapAnythingTool
 
 __all__ = [
     'DepthEstimationTool',
@@ -20,5 +22,7 @@ __all__ = [
     'SupervisionTool',
     'YOLOETool',
     'MoondreamTool',
-    'Pi3Tool'
+    'Pi3Tool',
+    'VGGTTool',
+    'MapAnythingTool'
 ] 

@@ -1,0 +1,1 @@
+/home/ubuntu/projects/vggt/demo_colmap.py
