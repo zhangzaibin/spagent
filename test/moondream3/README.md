@@ -1,94 +1,154 @@
-# Moondream3 测试说明
+# Moondream3 test directory
 
-## 输入 / 输出
+This folder contains scripts to test `Moondream3Tool`: a full test suite and a real-API diagnostic script.
 
-- **输入**：`example_input.json`（同目录），包含 `image_path` 和 `question`。
-- **输出**：使用 `--output result.json` 时，结果写入同目录的 `result.json`。
-
----
-
-## 1. Mock 测试（不连真实服务）
-
-不启动任何服务，用假数据跑通流程：
-
-```powershell
-cd F:\lab\spagent\test\moondream3
-python test_moondream3_tool.py --json --output result.json
-```
-
-结果里的 `tool_call_result` 是固定文案，**不会**根据图片真正数人数。
-
----
-
-## 2. 真实服务测试（会真正看图回答）
-
-### 2.1 启动 Moondream Station（推荐）
-
-在终端运行：
-
-```powershell
-moondream-station
-```
-
-启动后选择模型（如 Moondream 3 Preview），等出现 **Service: Running**、**API Endpoint: http://localhost:2020/v1** 后再做测试。
-
-### 2.2 用真实服务跑测试
-
-在 `test/moondream3` 目录下执行：
-
-```powershell
-cd F:\lab\spagent\test\moondream3
-python test_moondream3_tool.py --json --output result.json --no-mock
-```
-
-默认会连 **http://localhost:2020/v1**（Moondream Station）。若 Station 用了别的端口或地址，可指定：
-
-```powershell
-python test_moondream3_tool.py --json --output result.json --no-mock --server_url http://localhost:2020/v1
-```
-
-- `--no-mock`：使用真实服务。
-- `--server_url`：默认 `http://localhost:2020/v1`（Moondream Station）。
-
-此时会用 `example_input.json` 里的图片和问题请求真实模型，**会真正数人数**，结果在 `result.json` 的 `tool_call_result` 里。
-
-### 2.3 使用项目自带的 md_server（可选）
-
-若不用 Station，可用项目里的 Moondream 服务（端口 20024）：
-
-```powershell
-cd F:\lab\spagent
-set MOONDREAM_API_KEY=你的API密钥
-python spagent/external_experts/moondream/md_server.py --port 20024
-```
-
-测试时指定该地址：
-
-```powershell
-python test_moondream3_tool.py --json --output result.json --no-mock --server_url http://localhost:20024
-```
-
-### 2.3 确保图片存在
-
-`example_input.json` 里的 `image_path` 必须是本机存在的路径，例如：
+**Shared input:** Both scripts can use `example_input.json` in this directory. It must contain:
 
 ```json
 {
-    "image_path": "F:\\photo\\2023.1.20\\1.jpg",
-    "question": "count the number of people"
+    "image_path": "test/moondream3/dog.png",
+    "question": "What is in this image?"
 }
 ```
 
-若路径错误或文件不存在，`tool_call_result` 里会返回 `success: false` 和 `error: "Image file not found: ..."`。
+- `image_path`: path to an image file (absolute or relative to current working directory).
+- `question`: question to ask the vision model.
 
 ---
 
-## 参数汇总
+## 1. test_moondream3_tool.py
 
-| 参数 | 说明 |
-|------|------|
-| `--json` | 以 JSON 形式输出测试结果 |
-| `--output result.json` | 将 JSON 写入当前目录的 result.json |
-| `--no-mock` | 使用真实 Moondream/Moondream3 服务 |
-| `--server_url URL` | 真实服务地址，默认 `http://localhost:20024` |
-| `--image 路径` | 指定图片路径做单张图测试（可选） |
+Runs the full test suite for `Moondream3Tool` (interface, return format, validation, mock VQA, optional real server call).
+
+### How to run
+
+From project root:
+
+```bash
+python test/moondream3/test_moondream3_tool.py [options]
+```
+
+From this directory (`test/moondream3`):
+
+```bash
+python test_moondream3_tool.py [options]
+```
+
+### Input
+
+- **Default:** reads `example_input.json` in this directory for the optional “run tool once” step (used when `--image` is not set).
+- **Optional:** `--image PATH` — use this image for the real-image test instead of `example_input.json`. Path can be absolute or relative to current working directory.
+
+### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `--json` | Print results as JSON (tests + optional tool_call_result). |
+| `--output FILE` | Write that JSON to `FILE`. If path is relative, it is under `test/moondream3`. Example: `--output result.json`. |
+| `--no-mock` | Use real Moondream/Station server instead of mock. Requires a running server. |
+| `--server_url URL` | Server base URL when using `--no-mock`. Default: `http://localhost:2020/v1`. |
+| `--timeout N` | Request timeout in seconds for real API. Default: 300. |
+| `--image PATH` | Image path for the single real-image test (see above). |
+
+### Output
+
+- **Without `--json`:** Human-readable lines like `[PASS] ...`, `[SKIP] ...`, then `All tests passed. Moondream3 tool is OK.` or an exception.
+- **With `--json`:** A single JSON object printed to stdout (and optionally written to `--output`), e.g.:
+
+```json
+{
+  "tests": [
+    { "name": "test_tool_interface", "status": "pass" },
+    { "name": "test_return_format_success", "status": "pass" },
+    ...
+  ],
+  "all_passed": true,
+  "tool_call_result": {
+    "success": true,
+    "answer": "...",
+    "result": { ... }
+  }
+}
+```
+
+- `tests`: one object per test with `name`, `status` (`pass` / `fail` / `skip`), and optional `error`.
+- `all_passed`: `true` if every non-skipped test passed.
+- `tool_call_result`: result of one `tool.call()` when no `--image` is given (from `example_input.json`) or when running the real-image test; same shape as `Moondream3Tool.call()` (e.g. `success`, `answer`, `result`, or `error` on failure).
+
+### Examples
+
+```bash
+# Mock only, human-readable
+python test_moondream3_tool.py
+
+# Mock, JSON to stdout
+python test_moondream3_tool.py --json
+
+# Mock, JSON to result.json, use dog.png for the image test
+python test_moondream3_tool.py --json --output result.json --image test/moondream3/dog.png
+
+# Real server (Station must be running)
+python test_moondream3_tool.py --json --output result.json --no-mock
+```
+
+---
+
+## 2. test_real_api.py
+
+Checks that the environment is ready for a **real** API call (no mock), then performs one `tool.call()` and prints the raw return value. Use this to verify Station is reachable and to inspect the exact response.
+
+### How to run
+
+From this directory:
+
+```bash
+python test_real_api.py
+```
+
+Must be run from `test/moondream3` (or with Python path set so that `example_input.json` and the project root are correct).
+
+### Input
+
+- **Only:** `example_input.json` in this directory. It must contain `image_path` and `question`. The script does not accept command-line arguments for image or question.
+
+### Output
+
+All output is to **stdout**:
+
+1. **Checks:** Lines like `[OK] Image exists: ...`, `[OK] requests is installed`, `[OK] Station reachable: ...`, or `[MISSING] ...` / `--- Currently missing ---` with a list of missing items.
+2. If anything is missing (e.g. no `example_input.json`, image not found, no `requests`, Station not reachable), the script stops after printing the missing list and **does not** call the tool.
+3. If all checks pass: `--- Sending real query request ---`, then the full JSON returned by `tool.call()` (e.g. `success`, `answer`, `result`, or `error`).
+
+Example when everything is OK:
+
+```
+[OK] Image exists: test/moondream3/dog.png
+[OK] requests is installed
+[OK] Station reachable: http://localhost:2020/v1 (status 200)
+
+--- Sending real query request ---
+tool.call() returned:
+{
+  "success": true,
+  "answer": "...",
+  "result": { ... }
+}
+```
+
+If `success` is true but `answer` is empty, a short note is printed suggesting to check Station’s response format (e.g. field name or empty body).
+
+### Prerequisites
+
+- `example_input.json` with valid `image_path` and `question`.
+- Image file exists at `image_path`.
+- `requests` installed: `pip install requests`.
+- Moondream Station (or compatible server) running, e.g. `moondream-station`, with API at `http://localhost:2020/v1`.
+
+---
+
+## Summary
+
+| Script | Purpose | Input | Output |
+|--------|---------|--------|--------|
+| `test_moondream3_tool.py` | Full test suite (mock or real) | `example_input.json` and/or `--image` | Pass/fail lines or JSON (optional file with `--output`) |
+| `test_real_api.py` | Real-API readiness check + one call | `example_input.json` only | Stdout: checks + raw `tool.call()` JSON |

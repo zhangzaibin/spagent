@@ -31,11 +31,14 @@ def _is_station_url(server_url: str) -> bool:
 class _MoondreamStationClient:
     """Client for Moondream Station API: POST {base}/query with image_url (base64) + question."""
 
-    def __init__(self, server_url: str):
+    def __init__(self, server_url: str, request_timeout: int = 300):
         self.base = server_url.rstrip("/")
         if not self.base.endswith("/v1"):
             self.base = f"{self.base}/v1"
         self._session = None
+        # VLM inference can be slow; use long client timeout. If you get "Request timeout",
+        # that is from the *server* (Moondream Station) — try `settings` in Station CLI to raise server timeout.
+        self.request_timeout = request_timeout
 
     # def query(self, image_path: str, question: str) -> Dict[str, Any]:
     #     import requests
@@ -82,19 +85,16 @@ class _MoondreamStationClient:
                 f"{self.base}/query",
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=120,
+                timeout=self.request_timeout,
             )
-
-            print("=== STATUS ===")
-            print(resp.status_code)
-            print("=== RESPONSE TEXT ===")
-            print(resp.text)
 
             resp.raise_for_status()
 
             data = resp.json()
-            print("=== RESPONSE JSON ===")
-            print(data)
+
+            # Server-side error (e.g. timeout)
+            if data.get("status") == "timeout" or data.get("error"):
+                return {"success": False, "error": data.get("error", "Request timeout")}
 
             answer = (
                 data.get("answer")
@@ -112,13 +112,21 @@ class _MoondreamStationClient:
 class Moondream3Tool(Tool):
     """Tool for vision-language tasks using Moondream 3 (frontier-level VLM with pointing, captioning, VQA, etc.)"""
 
-    def __init__(self, use_mock: bool = True, server_url: str = "http://localhost:20025"):
+    def __init__(
+        self,
+        use_mock: bool = True,
+        server_url: str = "http://localhost:20025",
+        request_timeout: int = 300,
+    ):
         """
         Initialize Moondream3 tool.
 
         Args:
             use_mock: Whether to use mock client for testing.
             server_url: URL of the Moondream3 server (default port 20025 to avoid conflict with Moondream).
+            request_timeout: Seconds to wait for the server (default 300). If you see "Request timeout",
+                it is usually the *server* (e.g. Moondream Station) timing out — increase timeout in Station
+                via `settings` CLI if available.
         """
         super().__init__(
             name="moondream3_tool",
@@ -126,6 +134,7 @@ class Moondream3Tool(Tool):
         )
         self.use_mock = use_mock
         self.server_url = server_url
+        self.request_timeout = request_timeout
         self._client = None
         self._init_client()
 
@@ -135,7 +144,10 @@ class Moondream3Tool(Tool):
             self._client = _SimpleMockMoondream3()
             logger.info("Using mock Moondream3 service")
         elif _is_station_url(self.server_url):
-            self._client = _MoondreamStationClient(server_url=self.server_url)
+            self._client = _MoondreamStationClient(
+                server_url=self.server_url,
+                request_timeout=self.request_timeout,
+            )
             logger.info(f"Using Moondream Station at {self.server_url}")
         else:
             try:

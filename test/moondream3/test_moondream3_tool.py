@@ -167,7 +167,7 @@ def test_registration_with_agent():
         print(f"[SKIP] Registration test (SPAgent/GPTModel not available: {e})")
 
 
-def test_with_real_image(image_path: str, use_mock: bool = True, server_url: str = "http://localhost:20025"):
+def test_with_real_image(image_path: str, use_mock: bool = True, server_url: str = "http://localhost:20025", request_timeout: int = 300):
     """Optional: run VQA with a real image path (mock or server)."""
     from spagent.tools import Moondream3Tool
 
@@ -175,7 +175,7 @@ def test_with_real_image(image_path: str, use_mock: bool = True, server_url: str
     if not path.exists():
         print(f"[SKIP] Image not found: {image_path}")
         return
-    tool = Moondream3Tool(use_mock=use_mock, server_url=server_url)
+    tool = Moondream3Tool(use_mock=use_mock, server_url=server_url, request_timeout=request_timeout)
     out = tool.call(image_path=image_path, question="What is in this image?")
     if not _json_mode():
         print(f"  success={out.get('success')}, answer={out.get('answer', '')[:80]}...")
@@ -184,7 +184,7 @@ def test_with_real_image(image_path: str, use_mock: bool = True, server_url: str
         print("[PASS] Real image (mock) OK")
 
 
-def run_tool_with_example_input(use_mock: bool = True, server_url: str = "http://localhost:20025"):
+def run_tool_with_example_input(use_mock: bool = True, server_url: str = "http://localhost:20025", request_timeout: int = 300):
     """Run tool once with example_input.json; return result dict or None if file missing."""
     example_path = Path(__file__).parent / "example_input.json"
     if not example_path.exists():
@@ -194,7 +194,7 @@ def run_tool_with_example_input(use_mock: bool = True, server_url: str = "http:/
     if "image_path" not in args or "question" not in args:
         return None
     from spagent.tools import Moondream3Tool
-    tool = Moondream3Tool(use_mock=use_mock, server_url=server_url)
+    tool = Moondream3Tool(use_mock=use_mock, server_url=server_url, request_timeout=request_timeout)
     return tool.call(**args)
 
 
@@ -209,6 +209,8 @@ def main():
                         help="Use real Moondream/Moondream3 server (requires server running).")
     parser.add_argument("--server_url", type=str, default="http://localhost:2020/v1",
                         help="Server URL when --no-mock. Moondream Station: http://localhost:2020/v1 (default).")
+    parser.add_argument("--timeout", type=int, default=300,
+                        help="Request timeout in seconds for real API (default 300).")
     args = parser.parse_args()
 
     sys.modules[__name__]._output_json = args.json
@@ -269,16 +271,17 @@ def main():
 
     use_mock = not args.no_mock
     server_url = args.server_url
+    request_timeout = getattr(args, "timeout", 300)
 
     tool_call_result = None
     if args.image:
         try:
-            test_with_real_image(args.image, use_mock=use_mock, server_url=server_url)
+            test_with_real_image(args.image, use_mock=use_mock, server_url=server_url, request_timeout=request_timeout)
             results.append({"name": "test_with_real_image", "status": "pass"})
         except Exception as e:
             results.append({"name": "test_with_real_image", "status": "fail", "error": str(e)})
     else:
-        tool_call_result = run_tool_with_example_input(use_mock=use_mock, server_url=server_url)
+        tool_call_result = run_tool_with_example_input(use_mock=use_mock, server_url=server_url, request_timeout=request_timeout)
 
     all_passed = all(r["status"] == "pass" for r in results if r["status"] != "skip")
 
