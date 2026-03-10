@@ -13,6 +13,7 @@ from .yoloe_tool import YOLOETool
 from .moondream_tool import MoondreamTool
 from .pi3_tool import Pi3Tool
 from .pi3x_tool import Pi3XTool
+from .robotracer_tool import RoboTracerTool
 
 __all__ = [
     'DepthEstimationTool',
@@ -22,5 +23,6 @@ __all__ = [
     'YOLOETool',
     'MoondreamTool',
     'Pi3Tool',
-    'Pi3XTool'
+    'Pi3XTool',
+    'RoboTracerTool'
 ] 
