@@ -30,10 +30,10 @@ class MyCustomTool(Tool):
         self._client = None
         self._init_client()
 
-    def _init_client(self):
+        def _init_client(self):
         """Initialize the robotracer client (mock or real)"""
         if self.use_mock:
-             try:
+            try:                
                 from external_experts.robotracer.mock_rt_service import MockRoboTracer
                 self._client = MockRoboTracer()
                 logger.info("Using mock RoboTracer service")
