@@ -1,7 +1,7 @@
 """
 Robotracer
 
-Predict 3D spatial trace waypoints for robotic manipulation; 
+Predict 3D spatial trace waypoints for robotic manipulation;
 Use when: planning a robot arm movement path from A to B in a scene.
 """
 
@@ -17,12 +17,12 @@ from core.tool import Tool
 logger = logging.getLogger(__name__)
 
 
-class MyCustomTool(Tool):
+class RoboTracerTool(Tool):
     """Tool for [Ref_3dkeypoints]"""
 
     def __init__(self, use_mock: bool = True, server_url: str = "http://localhost:8000"):
         super().__init__(
-            name="robotracerl",
+            name="robotracer",
             description="Predict 3D spatial trace waypoints for robotic manipulation; use when: planning a robot arm movement path from A to B in a scene."
         )
         self.use_mock = use_mock
@@ -33,7 +33,7 @@ class MyCustomTool(Tool):
     def _init_client(self):
         """Initialize the robotracer client (mock or real)"""
         if self.use_mock:
-            try:                
+            try:
                 from external_experts.robotracer.mock_rt_service import MockRoboTracer
                 self._client = MockRoboTracer()
                 logger.info("Using mock RoboTracer service")
