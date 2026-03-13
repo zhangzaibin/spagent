@@ -20,7 +20,7 @@ The tool is integrated into **SPAgent**, but it depends on an external local clo
 A recommended directory structure:
 
 ```
-/data/sjq/
+
 ├── spagent/
 │   ├── spagent/
 │   │   ├── tools/

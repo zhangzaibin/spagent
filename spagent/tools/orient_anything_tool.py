@@ -22,7 +22,7 @@ class OrientAnythingTool(Tool):
     def __init__(
         self,
         use_mock: bool = True,
-        repo_root: str = "/data/sjq/Orient-Anything",
+        repo_root: str = "./../Orient-Anything",
         device: str = "cuda:0",
         cache_dir: Optional[str] = None,
     ):

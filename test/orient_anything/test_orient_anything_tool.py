@@ -18,11 +18,11 @@ def test_orient_anything_tool():
 
     image_path = os.getenv(
         "ORIENT_ANYTHING_TEST_IMAGE",
-        "test/orient_anything/assets/bus.png"
+        "assets/example.png"
     )
     repo_root = os.getenv(
         "ORIENT_ANYTHING_REPO_ROOT",
-        "/data/sjq/Orient-Anything"
+        "./Orient-Anything"
     )
     device = os.getenv("ORIENT_ANYTHING_DEVICE", "cuda:0")
     model_size = os.getenv("ORIENT_ANYTHING_MODEL_SIZE", "large")

@@ -3,6 +3,7 @@ import sys
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+import importlib.util
 
 import torch
 from PIL import Image
@@ -46,41 +47,62 @@ class OrientAnythingClient:
 
     def __init__(
         self,
-        repo_root: str,
+        repo_root: Optional[str] = None,
         device: str = "cuda:0",
         cache_dir: Optional[str] = None,
+        use_mock: bool = True,
     ):
-        self.repo_root = Path(repo_root).resolve()
+        # 优先从参数或环境变量获取 repo_root
+        repo_root = repo_root or os.getenv("ORIENT_ANYTHING_REPO_ROOT")
+        if not use_mock and not repo_root:
+            raise ValueError(
+                "repo_root must be specified when use_mock=False "
+                "or set environment variable ORIENT_ANYTHING_REPO_ROOT"
+            )
+        self.repo_root = Path(repo_root).resolve() if repo_root else None
+
         self.device = device if torch.cuda.is_available() else "cpu"
-        self.cache_dir = cache_dir or "./spagent/orient_anything_cache"
 
-        if not self.repo_root.exists():
-            raise FileNotFoundError(f"Orient-Anything repo not found: {self.repo_root}")
+        # 用户可写缓存路径
+        default_cache = Path.home() / ".cache" / "spagent" / "orient_anything"
+        self.cache_dir = Path(cache_dir or default_cache).resolve()
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        if str(self.repo_root) not in sys.path:
+        # 插入 repo_root 到 sys.path
+        if self.repo_root and str(self.repo_root) not in sys.path:
             sys.path.insert(0, str(self.repo_root))
 
-        old_cwd = os.getcwd()
-        try:
-            os.chdir(str(self.repo_root))
-
-            from paths import DINO_SMALL, DINO_BASE, DINO_LARGE
-            from vision_tower import DINOv2_MLP
-            from inference import get_3angle, get_3angle_infer_aug
-            from utils import background_preprocess
-
-            self.DINO_SMALL = DINO_SMALL
-            self.DINO_BASE = DINO_BASE
-            self.DINO_LARGE = DINO_LARGE
-            self.DINOv2_MLP = DINOv2_MLP
-            self.get_3angle = get_3angle
-            self.get_3angle_infer_aug = get_3angle_infer_aug
-            self.background_preprocess = background_preprocess
-        finally:
-            os.chdir(old_cwd)
+        # 动态导入 Orient-Anything 模块
+        self._import_repo_modules()
 
         self._models: Dict[str, Any] = {}
         self._preprocessors: Dict[str, Any] = {}
+
+    def _import_repo_modules(self):
+        """Thread-safe import of Orient-Anything modules without changing cwd"""
+        if self.repo_root is None:
+            return
+
+        def import_from_file(name: str, path: Path):
+            spec = importlib.util.spec_from_file_location(name, str(path))
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[name] = module
+            spec.loader.exec_module(module)
+            return module
+
+        self.paths_module = import_from_file("paths", self.repo_root / "paths.py")
+        self.vision_tower_module = import_from_file("vision_tower", self.repo_root / "vision_tower.py")
+        self.inference_module = import_from_file("inference", self.repo_root / "inference.py")
+        self.utils_module = import_from_file("utils", self.repo_root / "utils.py")
+
+        # 保存方法和常量
+        self.DINO_SMALL = self.paths_module.DINO_SMALL
+        self.DINO_BASE = self.paths_module.DINO_BASE
+        self.DINO_LARGE = self.paths_module.DINO_LARGE
+        self.DINOv2_MLP = self.vision_tower_module.DINOv2_MLP
+        self.get_3angle = self.inference_module.get_3angle
+        self.get_3angle_infer_aug = self.inference_module.get_3angle_infer_aug
+        self.background_preprocess = self.utils_module.background_preprocess
 
     def _get_processor_name(self, model_size: str) -> str:
         if model_size == "small":
@@ -154,10 +176,7 @@ class OrientAnythingClient:
         img_path = Path(image_path)
 
         if not img_path.exists():
-            return {
-                "success": False,
-                "error": f"Image not found: {image_path}",
-            }
+            return {"success": False, "error": f"Image not found: {image_path}"}
 
         run_device = device or self.device
         if "cuda" in str(run_device) and not torch.cuda.is_available():
@@ -168,38 +187,17 @@ class OrientAnythingClient:
             model, processor = self._load_model(model_size)
             origin_image = Image.open(img_path).convert("RGB")
 
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(str(self.repo_root))
+            # 使用绝对路径调用 repo 模块
+            if use_tta:
+                rm_bkg_img = self.background_preprocess(origin_image, True)
+                angles = self.get_3angle_infer_aug(
+                    origin_image, rm_bkg_img, model, processor, self.device
+                )
+            else:
+                input_img = self.background_preprocess(origin_image, remove_background)
+                angles = self.get_3angle(input_img, model, processor, self.device)
 
-                if use_tta:
-                    rm_bkg_img = self.background_preprocess(origin_image, True)
-                    angles = self.get_3angle_infer_aug(
-                        origin_image,
-                        rm_bkg_img,
-                        model,
-                        processor,
-                        self.device,
-                    )
-                else:
-                    input_img = self.background_preprocess(
-                        origin_image,
-                        remove_background,
-                    )
-                    angles = self.get_3angle(
-                        input_img,
-                        model,
-                        processor,
-                        self.device,
-                    )
-            finally:
-                os.chdir(old_cwd)
-
-            azimuth = float(angles[0])
-            polar = float(angles[1])
-            rotation = float(angles[2])
-            confidence = float(angles[3])
-
+            azimuth, polar, rotation, confidence = map(float, angles)
             return {
                 "success": True,
                 "azimuth": azimuth,
@@ -214,7 +212,4 @@ class OrientAnythingClient:
 
         except Exception as e:
             logger.exception("OrientAnything prediction failed")
-            return {
-                "success": False,
-                "error": str(e),
-            }
+            return {"success": False, "error": str(e)}

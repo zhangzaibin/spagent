@@ -1,13 +1,9 @@
 """
 Depth Anything 3 Tool
 
-A single-file SPAgent tool for monocular depth estimation.
-
-Features:
-- Mock mode for development / CI
-- Real inference mode for Depth Anything V3
-- Standard SPAgent tool return format
-- Saves depth visualization and/or raw depth array
+SPAgent tool for monocular depth estimation. Uses the server/client pattern:
+- Real: external_experts.depth_anything3.depth_anything3_client.DepthAnything3Client
+- Mock: external_experts.depth_anything3.mock_depth_anything3.MockDepthAnything3
 """
 
 import sys
@@ -39,10 +35,10 @@ class DepthAnything3Tool(Tool):
     ):
         """
         Args:
-            use_mock: If True, use a fake depth predictor for testing.
+            use_mock: If True, use mock client (no real model).
             device: Device for inference, e.g. "cuda" or "cpu".
             encoder: Depth Anything V3 encoder variant: "vits", "vitb", or "vitl".
-            checkpoint_path: Path to model checkpoint (.pth). Required for real inference.
+            checkpoint_path: Path to model checkpoint (.pth or model dir). Required for real inference.
             save_dir: Directory to save outputs. If None, save next to input image.
             input_size: Input size for the model (used in real inference).
         """
@@ -60,11 +56,29 @@ class DepthAnything3Tool(Tool):
         self.checkpoint_path = checkpoint_path
         self.save_dir = Path(save_dir) if save_dir else None
         self.input_size = input_size
+        self._client = None
+        self._init_client()
 
-        self.model = None
-        self.torch = None
-
-        self._init_model()
+    def _init_client(self) -> None:
+        """Initialize mock or real client from external_experts (per ADDING_NEW_TOOLS.md)."""
+        if self.use_mock:
+            from external_experts.depth_anything3.mock_depth_anything3 import MockDepthAnything3
+            self._client = MockDepthAnything3()
+            logger.info("DepthAnything3Tool initialized in mock mode.")
+        else:
+            from external_experts.depth_anything3.depth_anything3_client import DepthAnything3Client
+            if not self.checkpoint_path:
+                raise ValueError("checkpoint_path is required when use_mock=False.")
+            self._client = DepthAnything3Client(
+                checkpoint_path=self.checkpoint_path,
+                device=self.device,
+                encoder=self.encoder,
+                input_size=self.input_size,
+            )
+            logger.info(
+                "DepthAnything3Tool real client loaded: encoder=%s, checkpoint=%s",
+                self.encoder, self.checkpoint_path,
+            )
 
     @property
     def parameters(self) -> Dict[str, Any]:
@@ -101,87 +115,6 @@ class DepthAnything3Tool(Tool):
             "required": ["image_path"]
         }
 
-    def _init_model(self) -> None:
-        """Initialize mock or real model."""
-        if self.use_mock:
-            logger.info("DepthAnything3Tool initialized in mock mode.")
-            return
-
-        try:
-            import torch
-            self.torch = torch
-
-            # Adjust this import if your Depth Anything V3 package path differs.
-            # Common pattern:
-            # from depth_anything_v3.dpt import DepthAnythingV3
-            from depth_anything_v3.dpt import DepthAnythingV3
-
-            model_configs = {
-                "vits": {"encoder": "vits", "features": 64, "out_channels": [48, 96, 192, 384]},
-                "vitb": {"encoder": "vitb", "features": 128, "out_channels": [96, 192, 384, 768]},
-                "vitl": {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]},
-            }
-
-            if self.encoder not in model_configs:
-                raise ValueError(
-                    f"Unsupported encoder: {self.encoder}. "
-                    f"Expected one of {list(model_configs.keys())}."
-                )
-
-            if not self.checkpoint_path:
-                raise ValueError(
-                    "checkpoint_path is required when use_mock=False."
-                )
-
-            checkpoint_path = Path(self.checkpoint_path)
-            if not checkpoint_path.exists():
-                raise FileNotFoundError(f"Checkpoint not found: {self.checkpoint_path}")
-
-            self.model = DepthAnythingV3(**model_configs[self.encoder])
-            state_dict = torch.load(str(checkpoint_path), map_location="cpu")
-            self.model.load_state_dict(state_dict)
-            self.model = self.model.to(self.device).eval()
-
-            logger.info(
-                "DepthAnything3Tool real model loaded successfully. "
-                f"encoder={self.encoder}, checkpoint={self.checkpoint_path}, device={self.device}"
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to initialize DepthAnything3Tool real model: {e}", exc_info=True)
-            raise
-
-    def _mock_predict(self, image_bgr: np.ndarray) -> np.ndarray:
-        """Return a simple vertical gradient as fake depth."""
-        h, w = image_bgr.shape[:2]
-        depth = np.tile(
-            np.linspace(0.0, 1.0, h, dtype=np.float32).reshape(h, 1),
-            (1, w)
-        )
-        return depth
-
-    def _real_predict(self, image_bgr: np.ndarray) -> np.ndarray:
-        """Run real Depth Anything V3 inference."""
-        if self.model is None or self.torch is None:
-            raise RuntimeError("Real model is not initialized.")
-
-        # Depth Anything implementations often expect RGB input.
-        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-
-        # Many public DA-V3 repos expose model.infer_image(image_rgb, input_size=...)
-        if hasattr(self.model, "infer_image"):
-            depth = self.model.infer_image(image_rgb, input_size=self.input_size)
-        else:
-            raise NotImplementedError(
-                "Your Depth Anything V3 model does not expose infer_image(...). "
-                "Please adapt _real_predict() to your local implementation."
-            )
-
-        if not isinstance(depth, np.ndarray):
-            depth = np.array(depth, dtype=np.float32)
-
-        return depth.astype(np.float32)
-
     @staticmethod
     def _apply_colormap(depth_uint8: np.ndarray, colormap: str) -> np.ndarray:
         cmap_dict = {
@@ -191,7 +124,6 @@ class DepthAnything3Tool(Tool):
             "viridis": cv2.COLORMAP_VIRIDIS,
             "plasma": cv2.COLORMAP_PLASMA,
         }
-
         cmap = cmap_dict[colormap]
         if cmap is None:
             return depth_uint8
@@ -217,7 +149,6 @@ class DepthAnything3Tool(Tool):
 
         if output_format in ["png", "both"]:
             depth_vis = depth.copy()
-
             if normalize:
                 depth_vis = depth_vis - depth_vis.min()
                 if depth_vis.max() > 1e-8:
@@ -249,15 +180,7 @@ class DepthAnything3Tool(Tool):
         normalize: bool = True,
     ) -> Dict[str, Any]:
         """
-        Run depth estimation.
-
-        Returns:
-            A dict with:
-            - success: bool
-            - result: nested dict on success
-            - output_path: optional main output path
-            - summary: short summary on success
-            - error: error string on failure
+        Run depth estimation via external_experts client; save and return result.
         """
         try:
             image_path_obj = Path(image_path)
@@ -273,22 +196,18 @@ class DepthAnything3Tool(Tool):
                     "error": f"Invalid output_format: {output_format}"
                 }
 
-            image_bgr = cv2.imread(str(image_path_obj))
-            if image_bgr is None:
+            result = self._client.predict(image_path=str(image_path_obj))
+            if not result.get("success"):
                 return {
                     "success": False,
-                    "error": f"Failed to read image: {image_path}"
+                    "error": result.get("error", "Unknown depth estimation error"),
                 }
 
-            if self.use_mock:
-                depth = self._mock_predict(image_bgr)
-            else:
-                depth = self._real_predict(image_bgr)
-
-            if depth.ndim != 2:
+            depth = result.get("depth")
+            if depth is None or depth.ndim != 2:
                 return {
                     "success": False,
-                    "error": f"Depth output must be 2D, got shape={depth.shape}"
+                    "error": f"Depth output invalid (shape={getattr(depth, 'shape', None)})",
                 }
 
             outputs = self._save_outputs(
@@ -299,7 +218,7 @@ class DepthAnything3Tool(Tool):
                 normalize=normalize,
             )
 
-            result = {
+            out_result = {
                 "depth_min": float(depth.min()),
                 "depth_max": float(depth.max()),
                 "shape": list(depth.shape),
@@ -309,17 +228,17 @@ class DepthAnything3Tool(Tool):
 
             return {
                 "success": True,
-                "result": result,
+                "result": out_result,
                 "output_path": outputs["output_path"],
                 "summary": (
                     f"Depth estimation completed for {image_path_obj.name}. "
                     f"Depth shape: {depth.shape[0]}x{depth.shape[1]}."
-                )
+                ),
             }
 
         except Exception as e:
             logger.error(f"DepthAnything3Tool error: {e}", exc_info=True)
             return {
                 "success": False,
-                "error": str(e)
+                "error": str(e),
             }
