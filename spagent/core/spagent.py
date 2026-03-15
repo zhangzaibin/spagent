@@ -133,6 +133,7 @@ class SPAgent:
         video_path: Optional[str] = None,
         pi3_num_frames: int = 7,
         use_baseline_comparison: bool = False,
+        video_num_frames: int = 4,
         **model_kwargs
     ) -> Dict[str, Any]:
         """
@@ -146,6 +147,8 @@ class SPAgent:
             pi3_num_frames: Number of frames to uniformly sample for pi3 tool (default 10)
             use_baseline_comparison: If True, run a naive baseline (no tools) in parallel
                                     and synthesize final answer from both results (default: False)
+            video_num_frames: Number of frames to uniformly sample from a tool-generated video
+                              and pass back to the model (default: 4)
             **model_kwargs: Additional arguments for model inference
             
         Returns:
@@ -294,8 +297,15 @@ class SPAgent:
                     all_successful_tools.append(f"{tool_name}_iter{iteration}")
                     # Collect additional images
                     if 'output_path' in result and result['output_path'] is not None:
-                        if Path(result['output_path']).exists():
-                            iteration_additional_images.append(result['output_path'])
+                        out_path = result['output_path']
+                        if Path(out_path).exists():
+                            if Path(out_path).suffix.lower() == '.mp4':
+                                # Generated video: extract frames uniformly and use them
+                                frame_paths = self._extract_video_frames(out_path, video_num_frames)
+                                logger.info(f"Extracted {len(frame_paths)} frames from generated video: {out_path}")
+                                iteration_additional_images.extend(frame_paths)
+                            else:
+                                iteration_additional_images.append(out_path)
                     if 'vis_path' in result and result['vis_path'] is not None:
                         if Path(result['vis_path']).exists():
                             iteration_additional_images.append(result['vis_path'])
@@ -602,7 +612,7 @@ class SPAgent:
                         "success": False,
                         "error": str(e)
                     }
-        
+
         return tool_results
     
     def _safe_tool_call(self, tool: Tool, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -797,6 +807,51 @@ You have {remaining} more iteration(s) available.
 Please continue:"""
         
         return prompt
+    def _extract_video_frames(self, video_path: str, num_frames: int = 4) -> List[str]:
+        """Uniformly sample frames from a video file and save them as JPEG images.
+
+        Args:
+            video_path: Path to the input video file.
+            num_frames: Number of frames to extract uniformly.
+
+        Returns:
+            List of paths to the extracted JPEG frame images.
+        """
+        try:
+            import cv2
+        except ImportError:
+            logger.error("opencv-python is required for video frame extraction. pip install opencv-python")
+            return []
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logger.error(f"Cannot open video file: {video_path}")
+            return []
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total_frames <= 0:
+            cap.release()
+            logger.error(f"Video has no frames: {video_path}")
+            return []
+
+        frame_interval = max(total_frames / num_frames, 1)
+        temp_dir = Path("temp_veo_frames")
+        temp_dir.mkdir(exist_ok=True)
+        video_stem = Path(video_path).stem
+
+        frame_paths: List[str] = []
+        for i in range(num_frames):
+            frame_idx = int(i * frame_interval)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if ret:
+                frame_path = temp_dir / f"{video_stem}_frame{i:02d}.jpg"
+                cv2.imwrite(str(frame_path), frame)
+                frame_paths.append(str(frame_path))
+
+        cap.release()
+        return frame_paths
+
     def _extract_frames_for_pi3(self, video_path: str, num_frames: int = 10) -> List[str]:
         """
         Extract frames from video for pi3 tool by uniformly sampling

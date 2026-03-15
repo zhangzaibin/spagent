@@ -18,7 +18,7 @@
 
 ## 📌 Introduction
 
-We introduce **SPAgent**, a spatial intelligence agent designed to operate in the **physical and spatial world**. SPAgent enables agents to invoke a diverse set of **multi-modal expert tools** (depth estimation, segmentation, 3D reconstruction, etc.) to perceive, understand, and reason about real-world spatial environments.
+We introduce **SPAgent**, a spatial intelligence agent designed to operate in the **physical and spatial world**. SPAgent enables agents to invoke a diverse set of **multi-modal expert tools** (depth estimation, segmentation, 3D reconstruction, video generation, etc.) to perceive, understand, and reason about real-world spatial environments.
 
 ## 📋 Table of Contents
 
@@ -58,25 +58,27 @@ We introduce **SPAgent**, a spatial intelligence agent designed to operate in th
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool<br>- Pi3XTool |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool<br>- Pi3XTool<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Each includes client/server implementations and can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
-| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`)<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
+| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Veo, Sora<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
 | **Train** | `train/` | Reinforcement learning training scripts:<br>- GRPO training configurations<br>- LoRA merge and model compression utilities<br>- System prompts for different training modes |
 
 ## 🔍 External Experts
 
-| Tool Name | Type | Main Function | Default Port | Notes |
+| Tool Name | Type | Main Function | Deployment | Notes |
 | --- | --- | --- | --- | --- |
-| **Depth-AnythingV2** | 3D | Monocular Depth Estimation | 20019 | Convert 2D images to pixel-level depth maps |
-| **SAM2** | 2D | Image Segmentation | 20020 | Segment Anything Model 2nd generation, interactive or automatic segmentation |
-| **GroundingDINO** | 2D | Open-vocabulary Object Detection | 20022 | Detect arbitrary objects based on text descriptions |
-| **Moondream** | 2D | Vision Language Model | 20024 | Small and efficient visual Q&A model, supports image description and Q&A |
-| **Pi3** | 3D | 3D Point Cloud Reconstruction | 20030 | Generate 3D point clouds and multi-view rendered images from images |
-| **Pi3X** | 3D | 3D Point Cloud Reconstruction (Enhanced) | 20031 | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning |
-| **Supervision** | 2D | Object Detection Annotation | - | YOLO models and visualization tools, used for result visualization and post-processing |
+| **Depth-AnythingV2** | 3D | Monocular Depth Estimation | Local server (20019) | Convert 2D images to pixel-level depth maps |
+| **SAM2** | 2D | Image Segmentation | Local server (20020) | Segment Anything Model 2nd generation, interactive or automatic segmentation |
+| **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions |
+| **Moondream** | 2D | Vision Language Model | Local server (20024) | Small and efficient visual Q&A model, supports image description and Q&A |
+| **Pi3** | 3D | 3D Point Cloud Reconstruction | Local server (20030) | Generate 3D point clouds and multi-view rendered images from images |
+| **Pi3X** | 3D | 3D Point Cloud Reconstruction (Enhanced) | Local server (20031) | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning |
+| **Supervision** | 2D | Object Detection Annotation | Local | YOLO models and visualization tools, used for result visualization and post-processing |
+| **Veo** | Video | Text/Image-to-Video Generation | API (no server) | Google Veo via Gemini API; requires `GOOGLE_API_KEY`; supports t2v and i2v |
+| **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 
 ## 🛠️ Installation & Setup
 
@@ -95,7 +97,7 @@ pip install "httpx[socks]"
 ### 2. API Configuration
 
 ```bash
-# OpenAI API
+# OpenAI API (also used by SoraTool)
 export OPENAI_API_KEY="your_api_key"
 export OPENAI_BASE_URL="your_base_url"
 
@@ -104,6 +106,11 @@ export DASHSCOPE_API_KEY="your_api_key"
 
 # Moondream API (Apply at: https://moondream.ai)
 export MOONDREAM_API_KEY="your_api_key"
+
+# Google Gemini API (used by VeoTool)
+export GOOGLE_API_KEY="your_google_api_key"
+# or alternatively
+export GCP_API_KEY="your_gcp_api_key"
 
 # Test API connection
 python spagent/vllm_models/qwen.py
@@ -239,7 +246,35 @@ result = agent.solve_problem(
 )
 ```
 
-### 6. Image Dataset Evaluation
+### 6. Video Generation with Veo / Sora
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import VeoTool, SoraTool
+
+model = GPTModel(model_name="gpt-4o")
+
+# Text-to-video with Google Veo
+agent = SPAgent(model=model, tools=[VeoTool()])
+result = agent.solve_problem(
+    "dummy",
+    "Generate a video of a golden retriever running on a beach at sunset",
+    video_num_frames=4   # frames sampled from the output video for evaluation
+)
+print(result['answer'])
+
+# Image-to-video with OpenAI Sora
+agent = SPAgent(model=model, tools=[SoraTool()])
+result = agent.solve_problem(
+    "assets/dog.jpeg",
+    "Make the dog start running across the field",
+    video_num_frames=4
+)
+print(result['answer'])
+```
+
+### 7. Image Dataset Evaluation
 
 For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
 
@@ -257,7 +292,34 @@ python examples/evaluation/evaluate_img_with_data_collection.py --data_path path
 
 # Example: Evaluate on BLINK dataset
 python examples/evaluation/evaluate_img.py --data_path dataset/Multi-view_Reasoning_BLINK_subset.jsonl --max_samples 20 --model gpt-4.1 --max_iterations 4
+
+
+# Evaluation examples with the video generation tool. 
+
+# Evaluate Veo on a custom prompt dataset
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+
+# Evaluate Veo with mock service (no API key needed)
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --use_mock --max_samples 5
+
+# Evaluate Sora on a custom prompt dataset
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+# Evaluate Sora with mock service
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --use_mock --max_samples 5
 ```
+
 
 For more advanced usage patterns, specialized agents, tool mixing strategies, video analysis, and reinforcement learning training, please refer to: **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)**
 
@@ -282,6 +344,37 @@ python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 90 --eleva
 
 # Multiple input images
 python test/test_tool.py --tool pi3x --image img1.jpg img2.jpg --azimuth 45 --elevation -30
+
+# Test Veo (text-to-video, requires GOOGLE_API_KEY)
+python test/test_tool.py --tool veo \
+    --image dummy \
+    --prompt "A golden retriever running on a beach at sunset" \
+    --duration 8
+
+# Test Veo (image-to-video)
+python test/test_tool.py --tool veo \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running across the field" \
+    --duration 8
+
+# Test Veo with mock service (no API key needed)
+python test/test_tool.py --tool veo --image dummy --prompt "test" --use_mock
+
+# Test Sora (text-to-video, requires OPENAI_API_KEY)
+python test/test_tool.py --tool sora \
+    --image dummy \
+    --prompt "A timelapse of a city skyline at night" \
+    --duration 5 \
+    --resolution 1280x720
+
+# Test Sora (image-to-video)
+python test/test_tool.py --tool sora \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running" \
+    --duration 5
+
+# Test Sora with mock service (no API key needed)
+python test/test_tool.py --tool sora --image dummy --prompt "test" --use_mock
 ```
 
 You can also call the test function directly in Python:
@@ -300,7 +393,7 @@ print(f"Rendered image saved to: {output_path}")
 
 | Test Script | Description |
 |-------------|-------------|
-| `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection) |
+| `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection, Veo, Sora) |
 | `test/test_pi3_llm.py` | Pi3 integration testing through Agent + LLM |
 | `test/test_prompt.py` | Verify system prompt construction — no server or API key needed |
 

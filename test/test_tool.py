@@ -19,6 +19,22 @@ Usage:
 
     # Test Pi3 with custom server url
     python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --elevation -30 --server_url http://10.7.8.94:20030
+
+    # Test Veo video generation (text-to-video)
+    python test/test_tool.py --tool veo --image dummy --prompt "A dog running on a beach" --duration 8
+
+    # Test Veo video generation (image-to-video)
+    python test/test_tool.py --tool veo --image assets/dog.jpeg --prompt "The dog starts running" --duration 8
+
+    # Test Sora video generation (text-to-video)
+    python test/test_tool.py --tool sora --image dummy --prompt "A cat playing with yarn" --duration 10 --resolution 1080p
+
+    # Test Sora video generation (image-to-video)
+    python test/test_tool.py --tool sora --image assets/dog.jpeg --prompt "The dog starts running" --duration 10
+
+    # Test with mock service (no API keys needed)
+    python test/test_tool.py --tool veo --image dummy --prompt "test video" --use_mock
+    python test/test_tool.py --tool sora --image dummy --prompt "test video" --use_mock
 """
 
 import sys
@@ -270,6 +286,158 @@ def test_detection(
 
 
 # ============================================================
+# Veo Video Generation Tool Test
+# ============================================================
+
+def test_veo(
+    prompt: str,
+    image_path: str = None,
+    duration: int = 8,
+    aspect_ratio: str = "16:9",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test Veo video generation tool.
+
+    Args:
+        prompt: Text description of the video to generate.
+        image_path: Optional reference image for image-to-video.
+        duration: Video duration in seconds (5 or 8).
+        aspect_ratio: '16:9' or '9:16'.
+        use_mock: If True, use mock service instead of real API.
+        output_dir: Directory to save output video.
+
+    Returns:
+        Path to the saved output video, or None on failure.
+    """
+    from spagent.tools import VeoTool
+
+    if image_path and not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Veo Video Generation Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Prompt           : {prompt[:80]}...")
+    logger.info(f"  Image path       : {image_path or 'None (text-to-video)'}")
+    logger.info(f"  Duration         : {duration}s")
+    logger.info(f"  Aspect ratio     : {aspect_ratio}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = VeoTool(use_mock=use_mock)
+
+    call_kwargs = {
+        "prompt": prompt,
+        "duration": duration,
+        "aspect_ratio": aspect_ratio,
+    }
+    if image_path:
+        call_kwargs["image_path"] = image_path
+
+    result = tool.call(**call_kwargs)
+
+    if not result.get("success"):
+        logger.error(f"Veo tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("Veo video generation succeeded!")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    else:
+        logger.warning("No output video path in result.")
+        return None
+
+
+# ============================================================
+# Sora Video Generation Tool Test
+# ============================================================
+
+def test_sora(
+    prompt: str,
+    image_path: str = None,
+    duration: int = 10,
+    resolution: str = "1080p",
+    aspect_ratio: str = "16:9",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test Sora video generation tool.
+
+    Args:
+        prompt: Text description of the video to generate.
+        image_path: Optional reference image for image-to-video.
+        duration: Video duration in seconds (5-20).
+        resolution: '480p', '720p', or '1080p'.
+        aspect_ratio: '16:9', '9:16', or '1:1'.
+        use_mock: If True, use mock service instead of real API.
+        output_dir: Directory to save output video.
+
+    Returns:
+        Path to the saved output video, or None on failure.
+    """
+    from spagent.tools import SoraTool
+
+    if image_path and not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Sora Video Generation Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Prompt           : {prompt[:80]}...")
+    logger.info(f"  Image path       : {image_path or 'None (text-to-video)'}")
+    logger.info(f"  Duration         : {duration}s")
+    logger.info(f"  Resolution       : {resolution}")
+    logger.info(f"  Aspect ratio     : {aspect_ratio}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = SoraTool(use_mock=use_mock)
+
+    call_kwargs = {
+        "prompt": prompt,
+        "duration": duration,
+        "resolution": resolution,
+        "aspect_ratio": aspect_ratio,
+    }
+    if image_path:
+        call_kwargs["image_path"] = image_path
+
+    result = tool.call(**call_kwargs)
+
+    if not result.get("success"):
+        logger.error(f"Sora tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("Sora video generation succeeded!")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    else:
+        logger.warning("No output video path in result.")
+        return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -282,15 +450,15 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora"],
         help="Which tool to test.",
     )
     parser.add_argument(
         "--image",
         type=str,
         nargs="+",
-        required=True,
-        help="Input image path(s).",
+        default=None,
+        help="Input image path(s). Required for pi3/pi3x/depth/segmentation/detection. Optional for veo/sora.",
     )
     parser.add_argument(
         "--output_dir",
@@ -337,7 +505,34 @@ def parse_args():
         "--prompt",
         type=str,
         default="object",
-        help="Text prompt for object detection (default: 'object').",
+        help="Text prompt for object detection (default: 'object'). Also used as the video prompt for veo/sora.",
+    )
+
+    # --- Video generation (Veo / Sora) specific ---
+    vid_group = parser.add_argument_group("Video generation options (Veo / Sora)")
+    vid_group.add_argument(
+        "--duration",
+        type=int,
+        default=8,
+        help="Video duration in seconds (default: 8).",
+    )
+    vid_group.add_argument(
+        "--aspect_ratio",
+        type=str,
+        default="16:9",
+        help="Aspect ratio, e.g. '16:9', '9:16', '1:1' (default: '16:9').",
+    )
+    vid_group.add_argument(
+        "--resolution",
+        type=str,
+        default="1080p",
+        choices=["480p", "720p", "1080p"],
+        help="Video resolution for Sora (default: '1080p').",
+    )
+    vid_group.add_argument(
+        "--use_mock",
+        action="store_true",
+        help="Use mock service instead of real API (for testing without keys).",
     )
 
     return parser.parse_args()
@@ -345,6 +540,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection"}
+    if args.tool in image_required_tools and not args.image:
+        print(f"Error: --image is required for tool '{args.tool}'")
+        sys.exit(1)
 
     if args.tool == "pi3":
         server = args.server_url or "http://localhost:20030"
@@ -392,6 +592,27 @@ def main():
             image_path=args.image[0],
             prompt=args.prompt,
             server_url=server,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "veo":
+        result_path = test_veo(
+            prompt=args.prompt,
+            image_path=args.image[0] if args.image else None,
+            duration=args.duration,
+            aspect_ratio=args.aspect_ratio,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "sora":
+        result_path = test_sora(
+            prompt=args.prompt,
+            image_path=args.image[0] if args.image else None,
+            duration=args.duration,
+            resolution=args.resolution,
+            aspect_ratio=args.aspect_ratio,
+            use_mock=args.use_mock,
             output_dir=args.output_dir,
         )
 

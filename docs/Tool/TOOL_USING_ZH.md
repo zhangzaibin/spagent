@@ -1,6 +1,6 @@
 # External Experts Module
 
-External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建等功能。所有工具都采用 server/client 架构，支持独立部署和调用。
+External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建、视频生成等功能。工具分为两类：本地 server/client 架构和云端 API 直调（Veo、Sora），均支持独立部署和调用。
 
 ## 📁 模块结构
 
@@ -18,21 +18,25 @@ external_experts/
 ├── Depth_AnythingV2/              # 深度估计
 ├── Pi3/                           # 3D重建 (Pi3 & Pi3X)
 ├── moondream/                     # 视觉语言模型
+├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
+├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 └── supervision/                   # YOLO目标检测和标注工具
 ```
 
 ## 🛠️ 工具概览
 
-| 工具名称 | Tool Class | 功能 | 主要用途 | 默认端口 | 主要参数 |
+| 工具名称 | Tool Class | 功能 | 主要用途 | 部署方式 | 主要参数 |
 |---------|------------|------|----------|----------|----------|
-| **Depth AnythingV2** | `DepthEstimationTool` | 深度估计 | 单目深度估计，分析图像中的3D深度关系 | 20019 | `image_path` |
-| **SAM2** | `SegmentationTool` | 图像/视频分割 | 高精度分割任务，精确分割图像中的对象 | 20020 | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
-| **GroundingDINO** | `ObjectDetectionTool` | 开放词汇目标检测 | 基于文本描述检测任意物体 | 20022 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
-| **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 20024 | `image_path`, `task`, `object_name` |
-| **Pi3** | `Pi3Tool` | 3D重建 | 从图像生成3D点云和多视角渲染图 | 20030 | `image_path`, `azimuth_angle`, `elevation_angle` |
-| **Pi3X** | `Pi3XTool` | 3D重建（增强版） | Pi3升级版，更平滑点云、近似度量尺度、可选多模态条件注入 | 20031 | `image_path`, `azimuth_angle`, `elevation_angle` |
-| **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | - | `image_path`, `task` ("image_det" 或 "image_seg") |
-| **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | - | `image_path`, `task`, `class_names` |
+| **Depth AnythingV2** | `DepthEstimationTool` | 深度估计 | 单目深度估计，分析图像中的3D深度关系 | 本地服务器（20019） | `image_path` |
+| **SAM2** | `SegmentationTool` | 图像/视频分割 | 高精度分割任务，精确分割图像中的对象 | 本地服务器（20020） | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
+| **GroundingDINO** | `ObjectDetectionTool` | 开放词汇目标检测 | 基于文本描述检测任意物体 | 本地服务器（20022） | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 本地服务器（20024） | `image_path`, `task`, `object_name` |
+| **Pi3** | `Pi3Tool` | 3D重建 | 从图像生成3D点云和多视角渲染图 | 本地服务器（20030） | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **Pi3X** | `Pi3XTool` | 3D重建（增强版） | Pi3升级版，更平滑点云、近似度量尺度、可选多模态条件注入 | 本地服务器（20031） | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | 本地 | `image_path`, `task` ("image_det" 或 "image_seg") |
+| **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | 本地 | `image_path`, `task`, `class_names` |
+| **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
+| **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -328,6 +332,196 @@ python download_weights.py
 **资源链接**:
 - [官方仓库](https://github.com/roboflow/supervision)
 - [文档](https://supervision.roboflow.com/)
+
+---
+
+### 7. Veo - 视频生成（Google）
+
+**功能**：通过 Google Veo 模型（Gemini API）实现文生视频和图生视频。**无需启动本地服务器**，直接调用云端 API。
+
+**特点**：
+- 支持文生视频（t2v）和图生视频（i2v）
+- 生成的 `.mp4` 文件保存在本地 `outputs/` 目录
+- 提供 mock 模式，无需 API Key 即可离线测试
+
+**文件结构**：
+```
+Veo/
+├── __init__.py
+├── veo_client.py          # 真实 Gemini API 客户端
+└── mock_veo_service.py    # 测试用 mock 服务
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `prompt` | string | ✅ | — | 视频内容的文字描述 |
+| `image_path` | string | ❌ | None | 图生视频的参考图片路径 |
+| `duration` | integer | ❌ | 8 | 时长（秒），可选 5 或 8 |
+| `aspect_ratio` | string | ❌ | `"16:9"` | 宽高比：`"16:9"` 或 `"9:16"` |
+
+**API Key 配置**：
+```bash
+export GOOGLE_API_KEY="your_google_api_key"
+# 或
+export GCP_API_KEY="your_gcp_api_key"
+```
+
+**工具测试**：
+```bash
+# 文生视频（无参考图）
+python test/test_tool.py --tool veo \
+    --image dummy \
+    --prompt "A golden retriever running on a beach at sunset" \
+    --duration 8
+
+# 图生视频（有参考图）
+python test/test_tool.py --tool veo \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running across the field" \
+    --duration 8 \
+    --aspect_ratio 16:9
+
+# mock 模式（无需 API Key）
+python test/test_tool.py --tool veo \
+    --image dummy \
+    --prompt "test video" \
+    --use_mock
+```
+
+**评测**：
+```bash
+# 准备 JSONL 格式数据集（每行一条）：
+# {"id":"1","prompt":"A sunset over the ocean","image":[],"task":"t2v","duration":8}
+# {"id":"2","prompt":"The dog starts running","image":["assets/dog.jpeg"],"task":"i2v"}
+
+# 使用真实 Veo API 跑评测
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+# 使用 mock 服务跑评测
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --use_mock \
+    --max_samples 5
+
+# 使用已有对话格式数据集
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/tmp.jsonl \
+    --image_base_path dataset \
+    --model gpt-4o
+```
+
+**常用参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--data_path` | `dataset/veo_eval_data.jsonl` | JSONL 评测数据集路径 |
+| `--image_base_path` | `.` | 图片路径的基础目录 |
+| `--model` | `gpt-4o` | LLM 编排模型 |
+| `--max_samples` | 全部 | 限制评测样本数 |
+| `--video_num_frames` | `4` | 生成视频中抽取帧数后回传给模型 |
+| `--use_mock` | false | 使用 mock 服务（无需 API Key） |
+| `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
+
+---
+
+### 8. Sora - 视频生成（OpenAI）
+
+**功能**：通过 OpenAI Sora 模型实现文生视频和图生视频。**无需启动本地服务器**，直接调用云端 API。
+
+**特点**：
+- 支持文生视频（t2v）和图生视频（i2v）
+- 支持分辨率控制：480p / 720p / 1080p
+- 宽高比支持 1:1 方形（在 Veo 基础上新增）
+- 生成的 `.mp4` 文件保存在本地 `outputs/` 目录
+- 提供 mock 模式，无需 API Key 即可离线测试
+
+**文件结构**：
+```
+Sora/
+├── __init__.py
+├── sora_client.py          # 真实 OpenAI API 客户端
+└── mock_sora_service.py    # 测试用 mock 服务
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `prompt` | string | ✅ | — | 视频内容的文字描述 |
+| `image_path` | string | ❌ | None | 图生视频的参考图片路径 |
+| `duration` | integer | ❌ | 10 | 时长（秒），范围 5–20 |
+| `resolution` | string | ❌ | `"1080p"` | 分辨率：`"480p"`、`"720p"` 或 `"1080p"` |
+| `aspect_ratio` | string | ❌ | `"16:9"` | 宽高比：`"16:9"`、`"9:16"` 或 `"1:1"` |
+
+**API Key 配置**：
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+```
+
+**工具测试**：
+```bash
+# 文生视频
+python test/test_tool.py --tool sora \
+    --image dummy \
+    --prompt "A cat sitting on a windowsill watching rain fall outside" \
+    --duration 10 \
+    --resolution 1080p
+
+# 图生视频
+python test/test_tool.py --tool sora \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running" \
+    --duration 10 \
+    --aspect_ratio 16:9
+
+# mock 模式（无需 API Key）
+python test/test_tool.py --tool sora \
+    --image dummy \
+    --prompt "test video" \
+    --use_mock
+```
+
+**评测**：
+```bash
+# 准备 JSONL 格式数据集（每行一条）：
+# {"id":"1","prompt":"A cat playing with yarn","image":[],"task":"t2v","duration":10,"resolution":"1080p"}
+# {"id":"2","prompt":"The dog runs","image":["assets/dog.jpeg"],"task":"i2v","resolution":"720p"}
+
+# 使用真实 Sora API 跑评测
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+# 使用 mock 服务跑评测
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --use_mock \
+    --max_samples 5
+
+# 使用已有对话格式数据集
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/tmp.jsonl \
+    --image_base_path dataset \
+    --model gpt-4o
+```
+
+**常用参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--data_path` | `dataset/sora_eval_data.jsonl` | JSONL 评测数据集路径 |
+| `--image_base_path` | `.` | 图片路径的基础目录 |
+| `--model` | `gpt-4o` | LLM 编排模型 |
+| `--max_samples` | 全部 | 限制评测样本数 |
+| `--video_num_frames` | `4` | 生成视频中抽取帧数后回传给模型 |
+| `--use_mock` | false | 使用 mock 服务（无需 API Key） |
+| `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
 
 ---
 

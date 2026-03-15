@@ -2,7 +2,7 @@
 
 > **中文版本**: [中文文档](TOOL_USING_ZH.md) | **English Version**: This document
 
-The External Experts module contains specialized models for spatial intelligence tasks, including depth estimation, object detection, segmentation, 3D reconstruction, and more. All tools adopt a server/client architecture, supporting independent deployment and invocation.
+The External Experts module contains specialized models for spatial intelligence tasks, including depth estimation, object detection, segmentation, 3D reconstruction, video generation, and more. All tools adopt a server/client architecture or direct API call pattern, supporting independent deployment and invocation.
 
 ## 📁 Module Structure
 
@@ -20,21 +20,25 @@ external_experts/
 ├── Depth_AnythingV2/              # Depth estimation
 ├── Pi3/                           # 3D reconstruction (Pi3 & Pi3X)
 ├── moondream/                     # Vision language model
+├── Veo/                           # Google Veo video generation (API-based)
+├── Sora/                          # OpenAI Sora video generation (API-based)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
 ## 🛠️ Tool Overview
 
-| Tool Name | Tool Class | Function | Main Purpose | Default Port | Main Parameters |
-|---------|------------|----------|--------------|--------------|----------------|
-| **Depth AnythingV2** | `DepthEstimationTool` | Depth Estimation | Monocular depth estimation, analyze 3D depth relationships in images | 20019 | `image_path` |
-| **SAM2** | `SegmentationTool` | Image/Video Segmentation | High-precision segmentation tasks, precisely segment objects in images | 20020 | `image_path`, `point_coords`(optional), `point_labels`(optional), `box`(optional) |
-| **GroundingDINO** | `ObjectDetectionTool` | Open-vocabulary Object Detection | Detect arbitrary objects based on text descriptions | 20022 | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
-| **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | 20024 | `image_path`, `task`, `object_name` |
-| **Pi3** | `Pi3Tool` | 3D Reconstruction | Generate 3D point clouds and multi-view rendered images from images | 20030 | `image_path`, `azimuth_angle`, `elevation_angle` |
-| **Pi3X** | `Pi3XTool` | 3D Reconstruction (Enhanced) | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning | 20031 | `image_path`, `azimuth_angle`, `elevation_angle` |
-| **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | - | `image_path`, `task` ("image_det" or "image_seg") |
-| **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | - | `image_path`, `task`, `class_names` |
+| Tool Name | Tool Class | Function | Main Purpose | Deployment | Main Parameters |
+|---------|------------|----------|--------------|------------|----------------|
+| **Depth AnythingV2** | `DepthEstimationTool` | Depth Estimation | Monocular depth estimation, analyze 3D depth relationships in images | Server (port 20019) | `image_path` |
+| **SAM2** | `SegmentationTool` | Image/Video Segmentation | High-precision segmentation tasks, precisely segment objects in images | Server (port 20020) | `image_path`, `point_coords`(optional), `point_labels`(optional), `box`(optional) |
+| **GroundingDINO** | `ObjectDetectionTool` | Open-vocabulary Object Detection | Detect arbitrary objects based on text descriptions | Server (port 20022) | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | Server (port 20024) | `image_path`, `task`, `object_name` |
+| **Pi3** | `Pi3Tool` | 3D Reconstruction | Generate 3D point clouds and multi-view rendered images from images | Server (port 20030) | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **Pi3X** | `Pi3XTool` | 3D Reconstruction (Enhanced) | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning | Server (port 20031) | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | Local | `image_path`, `task` ("image_det" or "image_seg") |
+| **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
+| **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
+| **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -351,6 +355,196 @@ python download_weights.py
 **Resources**:
 - [Official Repository](https://github.com/roboflow/supervision)
 - [Documentation](https://supervision.roboflow.com/)
+
+---
+
+### 7. Veo - Video Generation (Google)
+
+**Function**: Text-to-video and image-to-video generation via Google's Veo model through the Gemini API. No local server required — calls the cloud API directly.
+
+**Features**:
+- Text-to-video (t2v) and image-to-video (i2v) generation
+- Returns a `.mp4` file saved locally under `outputs/`
+- Mock mode available for offline testing (no API key needed)
+
+**File Structure**:
+```
+Veo/
+├── __init__.py
+├── veo_client.py          # Real Gemini API client
+└── mock_veo_service.py    # Mock service for testing
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `prompt` | string | ✅ | — | Text description of the video to generate |
+| `image_path` | string | ❌ | None | Reference image path for image-to-video |
+| `duration` | integer | ❌ | 8 | Duration in seconds (5 or 8) |
+| `aspect_ratio` | string | ❌ | `"16:9"` | `"16:9"` or `"9:16"` |
+
+**API Key Setup**:
+```bash
+export GOOGLE_API_KEY="your_google_api_key"
+# or
+export GCP_API_KEY="your_gcp_api_key"
+```
+
+**Tool Test**:
+```bash
+# Text-to-video (no reference image)
+python test/test_tool.py --tool veo \
+    --image dummy \
+    --prompt "A golden retriever running on a beach at sunset" \
+    --duration 8
+
+# Image-to-video (with reference image)
+python test/test_tool.py --tool veo \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running across the field" \
+    --duration 8 \
+    --aspect_ratio 16:9
+
+# Mock mode — no API key required
+python test/test_tool.py --tool veo \
+    --image dummy \
+    --prompt "test video" \
+    --use_mock
+```
+
+**Evaluation**:
+```bash
+# Prepare a JSONL dataset (one sample per line):
+# {"id":"1","prompt":"A sunset over the ocean","image":[],"task":"t2v","duration":8}
+# {"id":"2","prompt":"The dog starts running","image":["assets/dog.jpeg"],"task":"i2v"}
+
+# Run evaluation with real Veo API
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+# Run evaluation with mock service
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/veo_eval_data.jsonl \
+    --use_mock \
+    --max_samples 5
+
+# Run on existing dataset (conversations format)
+python examples/evaluation/evaluate_veo.py \
+    --data_path dataset/tmp.jsonl \
+    --image_base_path dataset \
+    --model gpt-4o
+```
+
+**Key CLI Options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--data_path` | `dataset/veo_eval_data.jsonl` | Path to JSONL evaluation dataset |
+| `--image_base_path` | `.` | Base directory for resolving image paths |
+| `--model` | `gpt-4o` | LLM orchestrator model |
+| `--max_samples` | all | Limit number of samples |
+| `--video_num_frames` | `4` | Frames extracted from generated video to feed back to model |
+| `--use_mock` | false | Use mock Veo service (no API key needed) |
+| `--max_iterations` | `3` | Max tool-call iterations per sample |
+
+---
+
+### 8. Sora - Video Generation (OpenAI)
+
+**Function**: Text-to-video and image-to-video generation via OpenAI's Sora model. No local server required — calls the cloud API directly.
+
+**Features**:
+- Text-to-video (t2v) and image-to-video (i2v) generation
+- Resolution control (480p / 720p / 1080p)
+- Supports 1:1 square aspect ratio in addition to 16:9 and 9:16
+- Returns a `.mp4` file saved locally under `outputs/`
+- Mock mode available for offline testing (no API key needed)
+
+**File Structure**:
+```
+Sora/
+├── __init__.py
+├── sora_client.py          # Real OpenAI API client
+└── mock_sora_service.py    # Mock service for testing
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `prompt` | string | ✅ | — | Text description of the video to generate |
+| `image_path` | string | ❌ | None | Reference image path for image-to-video |
+| `duration` | integer | ❌ | 10 | Duration in seconds (5–20) |
+| `resolution` | string | ❌ | `"1080p"` | `"480p"`, `"720p"`, or `"1080p"` |
+| `aspect_ratio` | string | ❌ | `"16:9"` | `"16:9"`, `"9:16"`, or `"1:1"` |
+
+**API Key Setup**:
+```bash
+export OPENAI_API_KEY="your_openai_api_key"
+```
+
+**Tool Test**:
+```bash
+# Text-to-video
+python test/test_tool.py --tool sora \
+    --image dummy \
+    --prompt "A cat sitting on a windowsill watching rain fall outside" \
+    --duration 10 \
+    --resolution 1080p
+
+# Image-to-video
+python test/test_tool.py --tool sora \
+    --image assets/dog.jpeg \
+    --prompt "The dog starts running" \
+    --duration 10 \
+    --aspect_ratio 16:9
+
+# Mock mode — no API key required
+python test/test_tool.py --tool sora \
+    --image dummy \
+    --prompt "test video" \
+    --use_mock
+```
+
+**Evaluation**:
+```bash
+# Prepare a JSONL dataset (one sample per line):
+# {"id":"1","prompt":"A cat playing with yarn","image":[],"task":"t2v","duration":10,"resolution":"1080p"}
+# {"id":"2","prompt":"The dog runs","image":["assets/dog.jpeg"],"task":"i2v","resolution":"720p"}
+
+# Run evaluation with real Sora API
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --model gpt-4o \
+    --video_num_frames 4
+
+# Run evaluation with mock service
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/sora_eval_data.jsonl \
+    --use_mock \
+    --max_samples 5
+
+# Run on existing dataset (conversations format)
+python examples/evaluation/evaluate_sora.py \
+    --data_path dataset/tmp.jsonl \
+    --image_base_path dataset \
+    --model gpt-4o
+```
+
+**Key CLI Options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--data_path` | `dataset/sora_eval_data.jsonl` | Path to JSONL evaluation dataset |
+| `--image_base_path` | `.` | Base directory for resolving image paths |
+| `--model` | `gpt-4o` | LLM orchestrator model |
+| `--max_samples` | all | Limit number of samples |
+| `--video_num_frames` | `4` | Frames extracted from generated video to feed back to model |
+| `--use_mock` | false | Use mock Sora service (no API key needed) |
+| `--max_iterations` | `3` | Max tool-call iterations per sample |
 
 ---
 
