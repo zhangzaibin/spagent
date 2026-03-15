@@ -70,7 +70,7 @@ We introduce **SPAgent**, a spatial intelligence agent designed to operate in th
 
 | Tool Name | Type | Main Function | Deployment | Notes |
 | --- | --- | --- | --- | --- |
-| **Depth-AnythingV2** | 3D | Monocular Depth Estimation | Local server (20019) | Convert 2D images to pixel-level depth maps |
+| **Depth-AnythingV2** | 2D | Monocular Depth Estimation | Local server (20019) | Convert 2D images to pixel-level depth maps |
 | **SAM2** | 2D | Image Segmentation | Local server (20020) | Segment Anything Model 2nd generation, interactive or automatic segmentation |
 | **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions |
 | **Moondream** | 2D | Vision Language Model | Local server (20024) | Small and efficient visual Q&A model, supports image description and Q&A |
