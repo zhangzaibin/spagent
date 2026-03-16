@@ -15,10 +15,13 @@ external_experts/
 │   └──pi3
 │   └──pi3x
 │   └──sam2
+│   └──vggt
 ├── GroundingDINO/                  # Open-vocabulary object detection
 ├── SAM2/                          # Image and video segmentation
 ├── Depth_AnythingV2/              # Depth estimation
 ├── Pi3/                           # 3D reconstruction (Pi3 & Pi3X)
+├── VGGT/                          # Multi-view 3D reconstruction & camera pose estimation
+├── mapanything/                   # Dense 3D reconstruction via depth estimation
 ├── moondream/                     # Vision language model
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
@@ -35,6 +38,8 @@ external_experts/
 | **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | Server (port 20024) | `image_path`, `task`, `object_name` |
 | **Pi3** | `Pi3Tool` | 3D Reconstruction | Generate 3D point clouds and multi-view rendered images from images | Server (port 20030) | `image_path`, `azimuth_angle`, `elevation_angle` |
 | **Pi3X** | `Pi3XTool` | 3D Reconstruction (Enhanced) | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning | Server (port 20031) | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **VGGT** | `VGGTTool` | Multi-view 3D Reconstruction & Camera Pose Estimation | Reconstruct 3D point clouds and estimate camera poses from multiple images or video frames | 20032 | `image_paths`, `azimuth_angle`, `elevation_angle`, `rotation_reference_camera`, `camera_view` |
+| **MapAnything** | `MapAnythingTool` | Dense 3D Reconstruction via Depth Estimation | Reconstruct dense 3D point clouds from multiple images using depth maps and camera poses | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | Local | `image_path`, `task` ("image_det" or "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
@@ -312,7 +317,78 @@ wget https://huggingface.co/yyfz233/Pi3X/resolve/main/model.safetensors
 
 ---
 
-### 6. Supervision - Object Detection and Annotation Tools
+### 6. VGGT - Multi-view 3D Reconstruction & Camera Pose Estimation
+
+**Function**: Reconstruct 3D point clouds and estimate camera extrinsics/intrinsics from multiple images using the VGGT-1B model
+
+**Features**:
+- Multi-view input (image list or video frames)
+- Outputs dense 3D point cloud (PLY format) and multi-view rendered images
+- Camera pose estimation (extrinsic & intrinsic matrices)
+- Confidence-based point filtering and Mahalanobis outlier removal
+- Supports custom viewing angles (azimuth & elevation)
+
+**File Structure**:
+```
+VGGT/
+├── vggt_server.py        # Flask server
+├── vggt_client.py        # Client
+└── vggt/                 # VGGT model code
+```
+
+**Weight Download**:
+
+The model is automatically downloaded from HuggingFace on first launch:
+```bash
+# Automatic download (default)
+# python vggt_server.py  →  downloads facebook/VGGT-1B automatically
+
+# Or download manually and pass the path
+huggingface-cli download facebook/VGGT-1B --local-dir checkpoints/vggt
+```
+
+**Resources**:
+- [Official Repository](https://github.com/facebookresearch/vggt)
+- [HuggingFace Model](https://huggingface.co/facebook/VGGT-1B)
+
+---
+
+### 7. MapAnything - Dense 3D Reconstruction via Depth Estimation
+
+**Function**: Reconstruct dense 3D point clouds from multiple images using predicted depth maps and camera poses
+
+**Features**:
+- Dense 3D reconstruction from multi-view images or video frames
+- Built-in edge filtering and confidence-based point masking
+- Outputs dense 3D point cloud (PLY format) and multi-view rendered images
+- Interface compatible with Pi3 for easy comparison
+- Supports custom viewing angles (azimuth & elevation)
+
+**File Structure**:
+```
+mapanything/
+├── mapanything_server.py   # Flask server
+├── mapanything_client.py   # Client
+└── mapanything/            # MapAnything model code
+```
+
+**Weight Download**:
+
+The model is automatically downloaded from HuggingFace on first launch:
+```bash
+# Automatic download (default)
+# python mapanything_server.py  →  downloads facebook/map-anything automatically
+
+# Or pre-download manually
+huggingface-cli download facebook/map-anything --local-dir ~/.cache/huggingface/hub/models--facebook--map-anything
+```
+
+**Resources**:
+- [HuggingFace Model](https://huggingface.co/facebook/map-anything)
+
+---
+
+### 8. Supervision - Object Detection and Annotation Tools
 
 **Function**: YOLO object detection and visualization annotation tools
 
@@ -358,7 +434,7 @@ python download_weights.py
 
 ---
 
-### 7. Veo - Video Generation (Google)
+### 9. Veo - Video Generation (Google)
 
 **Function**: Text-to-video and image-to-video generation via Google's Veo model through the Gemini API. No local server required — calls the cloud API directly.
 
@@ -452,7 +528,7 @@ python examples/evaluation/evaluate_veo.py \
 
 ---
 
-### 8. Sora - Video Generation (OpenAI)
+### 10. Sora - Video Generation (OpenAI)
 
 **Function**: Text-to-video and image-to-video generation via OpenAI's Sora model. No local server required — calls the cloud API directly.
 
@@ -601,6 +677,15 @@ python spagent/external_experts/Pi3/pi3_server.py \
 python spagent/external_experts/Pi3/pi3x_server.py \
   --checkpoint_path checkpoints/pi3x/model.safetensors \
   --port 20031
+  
+# VGGT multi-view 3D reconstruction service 
+python spagent/external_experts/VGGT/vggt_server.py \
+  --checkpoint_path checkpoints/vggt \
+  --port 20032
+
+# MapAnything dense 3D reconstruction service (downloads facebook/map-anything automatically)
+python spagent/external_experts/mapanything/mapanything_server.py \
+  --port 20033
 
 # Vision language model service
 python spagent/external_experts/moondream/md_server.py \

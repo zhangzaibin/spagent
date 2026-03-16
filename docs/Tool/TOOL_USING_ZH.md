@@ -13,10 +13,13 @@ external_experts/
 │   └──pi3
 │   └──pi3x
 │   └──sam2
+│   └──vggt
 ├── GroundingDINO/                  # 开放词汇目标检测
 ├── SAM2/                          # 图像和视频分割
 ├── Depth_AnythingV2/              # 深度估计
 ├── Pi3/                           # 3D重建 (Pi3 & Pi3X)
+├── VGGT/                          # 多视角3D重建与相机位姿估计
+├── mapanything/                   # 基于深度估计的稠密3D重建
 ├── moondream/                     # 视觉语言模型
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
@@ -33,6 +36,8 @@ external_experts/
 | **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 本地服务器（20024） | `image_path`, `task`, `object_name` |
 | **Pi3** | `Pi3Tool` | 3D重建 | 从图像生成3D点云和多视角渲染图 | 本地服务器（20030） | `image_path`, `azimuth_angle`, `elevation_angle` |
 | **Pi3X** | `Pi3XTool` | 3D重建（增强版） | Pi3升级版，更平滑点云、近似度量尺度、可选多模态条件注入 | 本地服务器（20031） | `image_path`, `azimuth_angle`, `elevation_angle` |
+| **VGGT** | `VGGTTool` | 多视角3D重建与相机位姿估计 | 从多张图像或视频帧重建3D点云并估计相机位姿 | 20032 | `image_paths`, `azimuth_angle`, `elevation_angle`, `rotation_reference_camera`, `camera_view` |
+| **MapAnything** | `MapAnythingTool` | 基于深度估计的稠密3D重建 | 利用深度图和相机位姿从多张图像重建稠密3D点云 | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | 本地 | `image_path`, `task` ("image_det" 或 "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | 本地 | `image_path`, `task`, `class_names` |
 | **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
@@ -289,7 +294,78 @@ wget https://huggingface.co/yyfz233/Pi3X/resolve/main/model.safetensors
 
 ---
 
-### 6. Supervision - 目标检测和标注工具
+### 6. VGGT - 多视角3D重建与相机位姿估计
+
+**功能**: 利用VGGT-1B模型从多张图像重建3D点云并估计相机外参/内参
+
+**特点**:
+- 支持多视角图像输入（图像列表或视频帧）
+- 输出稠密3D点云（PLY格式）及多视角渲染图
+- 相机位姿估计（外参矩阵与内参矩阵）
+- 基于置信度的点云过滤与马氏距离离群点去除
+- 支持自定义观察角度（方位角与仰角）
+
+**文件结构**:
+```
+VGGT/
+├── vggt_server.py        # Flask服务器
+├── vggt_client.py        # 客户端
+└── vggt/                 # VGGT模型代码
+```
+
+**权重下载**:
+
+首次启动时自动从HuggingFace下载：
+```bash
+# 自动下载（默认）
+# python vggt_server.py  →  自动下载 facebook/VGGT-1B
+
+# 或手动下载后指定路径
+huggingface-cli download facebook/VGGT-1B --local-dir checkpoints/vggt
+```
+
+**资源链接**:
+- [官方仓库](https://github.com/facebookresearch/vggt)
+- [HuggingFace 模型](https://huggingface.co/facebook/VGGT-1B)
+
+---
+
+### 7. MapAnything - 基于深度估计的稠密3D重建
+
+**功能**: 利用预测深度图和相机位姿从多张图像重建稠密3D点云
+
+**特点**:
+- 支持多视角图像或视频帧的稠密3D重建
+- 内置边缘过滤与置信度点云掩码
+- 输出稠密3D点云（PLY格式）及多视角渲染图
+- 接口与Pi3兼容，方便对比实验
+- 支持自定义观察角度（方位角与仰角）
+
+**文件结构**:
+```
+mapanything/
+├── mapanything_server.py   # Flask服务器
+├── mapanything_client.py   # 客户端
+└── mapanything/            # MapAnything模型代码
+```
+
+**权重下载**:
+
+首次启动时自动从HuggingFace下载：
+```bash
+# 自动下载（默认）
+# python mapanything_server.py  →  自动下载 facebook/map-anything
+
+# 或手动预下载
+huggingface-cli download facebook/map-anything --local-dir ~/.cache/huggingface/hub/models--facebook--map-anything
+```
+
+**资源链接**:
+- [HuggingFace 模型](https://huggingface.co/facebook/map-anything)
+
+---
+
+### 8. Supervision - 目标检测和标注工具
 
 **功能**: YOLO目标检测和可视化标注工具
 
@@ -335,7 +411,7 @@ python download_weights.py
 
 ---
 
-### 7. Veo - 视频生成（Google）
+### 9. Veo - 视频生成（Google）
 
 **功能**：通过 Google Veo 模型（Gemini API）实现文生视频和图生视频。**无需启动本地服务器**，直接调用云端 API。
 
@@ -429,7 +505,7 @@ python examples/evaluation/evaluate_veo.py \
 
 ---
 
-### 8. Sora - 视频生成（OpenAI）
+### 10. Sora - 视频生成（OpenAI）
 
 **功能**：通过 OpenAI Sora 模型实现文生视频和图生视频。**无需启动本地服务器**，直接调用云端 API。
 
@@ -571,11 +647,20 @@ python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
 python spagent/external_experts/Pi3/pi3_server.py \
   --checkpoint_path checkpoints/pi3/model.safetensors \
   --port 20030
-
+  
 # 3D重建服务（Pi3X - 增强版，推荐）
 python spagent/external_experts/Pi3/pi3x_server.py \
   --checkpoint_path checkpoints/pi3x/model.safetensors \
   --port 20031
+
+# VGGT多视角3D重建服务
+python spagent/external_experts/VGGT/vggt_server.py \
+  --checkpoint_path checkpoints/vggt \
+  --port 20032
+
+# MapAnything稠密3D重建服务（自动下载 facebook/map-anything）
+python spagent/external_experts/mapanything/mapanything_server.py \
+  --port 20033
 
 # 视觉语言模型服务
 python spagent/external_experts/moondream/md_server.py \

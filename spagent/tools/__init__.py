@@ -13,6 +13,8 @@ from .yoloe_tool import YOLOETool
 from .moondream_tool import MoondreamTool
 from .pi3_tool import Pi3Tool
 from .pi3x_tool import Pi3XTool
+from .vggt_tool import VGGTTool
+from .mapanything_tool import MapAnythingTool
 from .veo_tool import VeoTool
 from .sora_tool import SoraTool
 
@@ -25,6 +27,8 @@ __all__ = [
     'MoondreamTool',
     'Pi3Tool',
     'Pi3XTool',
+    'VGGTTool',
+    'MapAnythingTool'
     'VeoTool',
     'SoraTool',
 ] 
