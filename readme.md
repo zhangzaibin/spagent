@@ -1,12 +1,13 @@
 <div align="center">
 
-<img src="assets/arts.jpg" alt="SPAgent Logo" width="300">
+<img src="assets/logo.png.jpg" alt="SPAgent Logo" width="300">
 
 # 🌍 SPAgent: Agent in the Physical & Spatial World
 
 ### Think3D: Thinking with Space for Spatial Reasoning
 
-[![arXiv](https://img.shields.io/badge/arXiv-2506.13029-b31b1b.svg)](https://arxiv.org/abs/2601.13029)
+[![Project Page](https://img.shields.io/badge/Project-Page-blue)](https://zhangzaibin.github.io/spagent/)
+[![arXiv](https://img.shields.io/badge/arXiv-2601.13029-b31b1b.svg)](https://arxiv.org/abs/2601.13029)
 [![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Model-yellow)](https://huggingface.co/collections/jialianjie/spagent)
 [![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-Dataset-orange)](https://huggingface.co/datasets/spagent)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
