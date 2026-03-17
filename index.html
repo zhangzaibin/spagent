@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPAgent — Agent in the Physical & Spatial World</title>
+<meta name="description" content="SPAgent: A foundation agent for perception, reasoning, and action in the physical and spatial world.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+  --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+  --mono:'SF Mono','Fira Code','Cascadia Code',monospace;
+  --black:#111;
+  --gray-1:#333;
+  --gray-2:#666;
+  --gray-3:#999;
+  --gray-4:#ccc;
+  --gray-5:#e8e8e8;
+  --gray-6:#f5f5f5;
+  --white:#fff;
+  --content:720px;
+  --wide:960px;
+  --transition:.2s ease;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--sans);
+  background:var(--white);color:var(--black);
+  line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+
+/* NAV */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(255,255,255,.85);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.nav-inner{
+  max-width:var(--wide);margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2rem;height:56px;
+}
+.logo{
+  font-family:var(--sans);font-size:.8125rem;
+  font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--black);text-decoration:none;
+  display:flex;align-items:center;gap:.625rem;
+}
+.logo img{height:22px;width:auto;opacity:.9}
+.nav-links{display:flex;gap:2rem;align-items:center}
+.nav-links a{
+  font-size:.875rem;color:var(--gray-2);
+  text-decoration:none;transition:color var(--transition);
+}
+.nav-links a:hover{color:var(--black)}
+.nav-toggle{display:none;background:none;border:none;cursor:pointer;padding:.5rem}
+.nav-toggle svg{width:20px;height:20px;stroke:var(--black);stroke-width:2}
+
+/* HERO */
+.hero{
+  text-align:center;padding:10rem 2rem 6rem;
+  max-width:var(--wide);margin:0 auto;
+}
+.hero-img{
+  max-width:500px;width:100%;margin:0 auto 3rem;display:block;
+}
+.hero h1{
+  font-family:var(--serif);font-size:clamp(2rem,4.5vw,3.25rem);
+  font-weight:700;line-height:1.2;letter-spacing:-.02em;
+  margin-bottom:1.25rem;color:var(--black);
+}
+.hero .subtitle{
+  font-size:1rem;color:var(--gray-2);
+  max-width:520px;margin:0 auto 2.5rem;line-height:1.75;
+}
+.hero-actions{
+  display:flex;gap:.75rem;justify-content:center;align-items:center;
+  flex-wrap:wrap;
+}
+.btn-pill{
+  display:inline-flex;align-items:center;gap:.375rem;
+  padding:.5rem 1.25rem;border-radius:100px;
+  font-size:.8125rem;font-weight:500;
+  text-decoration:none;transition:all var(--transition);
+  border:1px solid var(--gray-5);color:var(--black);
+  background:var(--gray-6);
+}
+.btn-pill:hover{background:var(--gray-5);border-color:var(--gray-4)}
+.btn-pill.primary{background:var(--black);color:var(--white);border-color:var(--black)}
+.btn-pill.primary:hover{opacity:.85}
+.btn-arrow{
+  font-size:.875rem;color:var(--gray-2);text-decoration:none;
+  display:inline-flex;align-items:center;gap:.25rem;
+  transition:color var(--transition);
+}
+.btn-arrow:hover{color:var(--black)}
+.btn-arrow::after{content:'›';font-size:1.125rem;line-height:1}
+
+/* DIVIDER */
+.divider{
+  width:40px;height:2px;background:var(--gray-4);
+  margin:0 auto;
+}
+
+/* SECTIONS */
+section{padding:5rem 2rem}
+.section-inner{max-width:var(--wide);margin:0 auto}
+.section-narrow{max-width:var(--content);margin:0 auto}
+.section-title{
+  font-family:var(--serif);font-size:clamp(1.5rem,3vw,2.25rem);
+  font-weight:700;letter-spacing:-.015em;
+  text-align:center;margin-bottom:3rem;color:var(--black);
+}
+
+/* FEATURES */
+.features-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:3rem 4rem;
+  max-width:var(--content);margin:0 auto;
+}
+.feature-item .feature-icon{
+  width:28px;height:28px;margin-bottom:.75rem;
+  color:var(--gray-3);
+}
+.feature-item h3{
+  font-family:var(--sans);font-size:.9375rem;font-weight:600;
+  margin-bottom:.375rem;color:var(--black);
+}
+.feature-item p{
+  font-size:.875rem;color:var(--gray-2);line-height:1.65;
+}
+
+/* TOOLS */
+.tools-subtitle{
+  text-align:center;font-size:1rem;color:var(--gray-2);
+  max-width:520px;margin:-2rem auto 3rem;line-height:1.7;
+}
+.tools-group{margin-bottom:3rem}
+.tools-group:last-child{margin-bottom:0}
+.tools-group-header{
+  display:flex;align-items:center;gap:.625rem;
+  margin-bottom:1rem;
+}
+.tools-group-label{
+  font-size:.6875rem;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--gray-3);
+  padding:.1875rem .5rem;border:1px solid var(--gray-5);border-radius:4px;
+}
+.tools-group-line{flex:1;height:1px;background:var(--gray-5)}
+.tools-cards{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.75rem;
+}
+.tool-card{
+  padding:1.25rem;border:1px solid var(--gray-5);border-radius:8px;
+  transition:all var(--transition);
+}
+.tool-card:hover{border-color:var(--gray-4);background:var(--gray-6)}
+.tool-card h4{font-size:.9375rem;font-weight:600;margin-bottom:.25rem;color:var(--black)}
+.tool-card p{font-size:.8125rem;color:var(--gray-3);line-height:1.55}
+.tool-card .tool-source{
+  font-size:.6875rem;color:var(--gray-4);margin-top:.5rem;
+  font-family:var(--mono);
+}
+
+/* CODE */
+.code-block{
+  background:var(--black);border-radius:8px;
+  padding:1.75rem 2rem;max-width:var(--content);margin:0 auto;
+  overflow-x:auto;
+}
+.code-block pre{
+  font-family:var(--mono);font-size:.8rem;
+  line-height:1.85;color:#d4d4d4;white-space:pre;
+}
+.code-block .kw{color:#c792ea}
+.code-block .fn{color:#82aaff}
+.code-block .str{color:#c3e88d}
+.code-block .cm{color:#676e95}
+.code-block .op{color:#89ddff}
+
+/* ARCHITECTURE */
+.arch-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;
+  max-width:var(--content);margin:0 auto;
+  border:1px solid var(--gray-5);border-radius:8px;overflow:hidden;
+}
+.arch-item{
+  padding:1.75rem 1.5rem;
+  border-bottom:1px solid var(--gray-5);
+  border-right:1px solid var(--gray-5);
+}
+.arch-item:nth-child(2n){border-right:none}
+.arch-item:nth-child(n+3){border-bottom:none}
+.arch-item h4{font-size:.9375rem;font-weight:600;margin-bottom:.375rem}
+.arch-item p{font-size:.8125rem;color:var(--gray-2);line-height:1.6}
+
+/* RESEARCH */
+.research-card{
+  display:block;text-decoration:none;color:inherit;
+  max-width:var(--content);margin:0 auto;
+  padding:2rem 0;
+  border-bottom:1px solid var(--gray-5);
+  transition:background var(--transition);
+}
+.research-card:first-of-type{border-top:1px solid var(--gray-5)}
+.research-card:hover{background:var(--gray-6);padding-left:1rem;padding-right:1rem}
+.research-meta{margin-bottom:.625rem}
+.research-venue{
+  font-size:.6875rem;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--gray-3);
+}
+.research-title{
+  font-family:var(--serif);font-size:1.125rem;font-weight:600;
+  line-height:1.4;margin-bottom:.5rem;color:var(--black);
+}
+.research-authors{font-size:.8125rem;color:var(--gray-3);line-height:1.5;margin-bottom:.5rem}
+.research-desc{font-size:.875rem;color:var(--gray-2);line-height:1.65}
+
+/* CONTACT */
+.contact-institutions{
+  display:flex;justify-content:center;align-items:center;
+  gap:4rem;flex-wrap:wrap;margin-bottom:3.5rem;
+}
+.inst{
+  display:flex;flex-direction:column;align-items:center;gap:.25rem;
+  text-decoration:none;color:inherit;
+  transition:opacity var(--transition);
+}
+.inst:hover{opacity:.7}
+.inst img{height:56px;width:auto;object-fit:contain}
+.inst-text{
+  font-family:var(--serif);font-size:1.375rem;font-weight:700;
+  letter-spacing:-.01em;line-height:1.2;text-align:center;
+}
+.inst-sub{
+  font-size:.6875rem;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;text-align:center;
+}
+.contact-email{
+  text-align:center;margin-top:2rem;
+}
+.contact-email a{
+  font-family:var(--mono);font-size:.9375rem;
+  color:var(--gray-2);text-decoration:none;
+  padding:.625rem 1.5rem;border:1px solid var(--gray-5);
+  border-radius:100px;transition:all var(--transition);
+  display:inline-flex;align-items:center;gap:.5rem;
+}
+.contact-email a:hover{border-color:var(--gray-4);color:var(--black);background:var(--gray-6)}
+.contact-label{
+  text-align:center;font-size:.8125rem;color:var(--gray-3);margin-bottom:.625rem;
+}
+
+/* CTA */
+.cta{
+  text-align:center;padding:6rem 2rem 5rem;
+  max-width:var(--wide);margin:0 auto;
+}
+.cta h2{
+  font-family:var(--serif);font-size:clamp(1.5rem,3vw,2rem);
+  font-weight:700;margin-bottom:.75rem;
+}
+.cta p{
+  font-size:.9375rem;color:var(--gray-2);
+  max-width:420px;margin:0 auto 2rem;line-height:1.7;
+}
+
+/* FOOTER */
+footer{
+  text-align:center;padding:2rem;
+  font-size:.75rem;color:var(--gray-3);
+  border-top:1px solid var(--gray-5);
+}
+footer a{color:var(--gray-3);text-decoration:none}
+footer a:hover{color:var(--black)}
+
+/* FADE */
+.fade-up{
+  opacity:0;transform:translateY(20px);
+  transition:opacity .6s ease,transform .6s ease;
+}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .nav-links{
+    display:none;position:absolute;top:56px;left:0;right:0;
+    background:rgba(255,255,255,.98);backdrop-filter:blur(12px);
+    flex-direction:column;padding:1.25rem 2rem;gap:.75rem;
+    border-bottom:1px solid var(--gray-5);
+  }
+  .nav-links.open{display:flex}
+  .nav-toggle{display:block}
+  .hero{padding:7rem 1.5rem 4rem}
+  .features-grid{grid-template-columns:1fr;gap:2rem}
+  section{padding:3.5rem 1.5rem}
+  .tools-cards{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .arch-grid{grid-template-columns:1fr}
+  .arch-item{border-right:none !important}
+  .arch-item:nth-child(n+3){border-bottom:1px solid var(--gray-5)}
+  .arch-item:last-child{border-bottom:none}
+  .tools-cards{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <img src="assets/logo.png" alt="SPAgent">
+      SPAgent
+    </a>
+    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
+    </button>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#tools">Tools</a>
+      <a href="#quickstart">Quick Start</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#research">Research</a>
+      <a href="#contact">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <img src="assets/arts.jpg" alt="SPAgent" class="hero-img">
+  <h1>SPAgent is a foundation agent for the physical & spatial world</h1>
+  <p class="subtitle">
+    Perception, reasoning, and action in the physical and spatial world, powered by an open-ended multimodal ecosystem of tools spanning 2D, 3D, world models, and beyond.
+  </p>
+  <div class="hero-actions">
+    <a href="https://github.com/zhangzaibin/spagent" target="_blank" class="btn-pill primary">Get Started</a>
+    <a href="https://huggingface.co/collections/jialianjie/spagent" target="_blank" class="btn-pill">Models</a>
+    <a href="https://huggingface.co/datasets/spagent" target="_blank" class="btn-pill">Dataset</a>
+    <a href="#research" class="btn-arrow">Research</a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- FEATURES -->
+<section id="features">
+  <h2 class="section-title fade-up">Capabilities</h2>
+  <div class="features-grid">
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      <h3>Modular Tool System</h3>
+      <p>Mix and match any combination of expert tools. Add or remove tools at runtime with a single function call.</p>
+    </div>
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+      <h3>Open Tool Integration</h3>
+      <p>Integrate any tool into the ecosystem. Define a schema, plug it in, and the agent will use it automatically.</p>
+    </div>
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+      <h3>Spatial Reasoning</h3>
+      <p>Purpose-built prompts for 3D spatial understanding. Grounded perception in complex physical environments.</p>
+    </div>
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <h3>RL Training</h3>
+      <p>Built-in reinforcement learning pipeline. Train agents with tool-calling rewards.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TOOLS -->
+<section id="tools">
+  <h2 class="section-title fade-up">Supported tools</h2>
+  <p class="tools-subtitle fade-up">An open-ended ecosystem spanning 2D perception, 3D reconstruction, video generation, and beyond.</p>
+  <div class="section-inner">
+
+    <div class="tools-group fade-up">
+      <div class="tools-group-header">
+        <span class="tools-group-label">2D Perception</span>
+        <span class="tools-group-line"></span>
+      </div>
+      <div class="tools-cards">
+        <div class="tool-card">
+          <h4>Depth Anything V2</h4>
+          <p>Monocular depth estimation — pixel-level depth maps from single images</p>
+          <div class="tool-source">:20019</div>
+        </div>
+        <div class="tool-card">
+          <h4>SAM 2</h4>
+          <p>Segment Anything Model 2 — interactive and automatic segmentation</p>
+          <div class="tool-source">:20020</div>
+        </div>
+        <div class="tool-card">
+          <h4>Grounding DINO</h4>
+          <p>Open-vocabulary object detection driven by natural language prompts</p>
+          <div class="tool-source">:20022</div>
+        </div>
+        <div class="tool-card">
+          <h4>Moondream</h4>
+          <p>Lightweight vision-language model for visual Q&A and captioning</p>
+          <div class="tool-source">:20024</div>
+        </div>
+        <div class="tool-card">
+          <h4>YOLO-E / Supervision</h4>
+          <p>YOLO detection with annotation and visualization post-processing</p>
+          <div class="tool-source">local</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tools-group fade-up">
+      <div class="tools-group-header">
+        <span class="tools-group-label">3D Reconstruction</span>
+        <span class="tools-group-line"></span>
+      </div>
+      <div class="tools-cards">
+        <div class="tool-card">
+          <h4>Pi3 / Pi3X</h4>
+          <p>3D point cloud reconstruction from single or multiple images with metric scale</p>
+          <div class="tool-source">:20030 / :20031</div>
+        </div>
+        <div class="tool-card">
+          <h4>VGGT</h4>
+          <p>Multi-view 3D reconstruction and camera pose estimation</p>
+          <div class="tool-source">:20032</div>
+        </div>
+        <div class="tool-card">
+          <h4>MapAnything</h4>
+          <p>Dense 3D point clouds via depth estimation and camera poses</p>
+          <div class="tool-source">:20033</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tools-group fade-up">
+      <div class="tools-group-header">
+        <span class="tools-group-label">Video Generation</span>
+        <span class="tools-group-line"></span>
+      </div>
+      <div class="tools-cards">
+        <div class="tool-card">
+          <h4>Veo</h4>
+          <p>Text-to-video and image-to-video via Google Veo / Gemini API</p>
+          <div class="tool-source">API</div>
+        </div>
+        <div class="tool-card">
+          <h4>Sora</h4>
+          <p>Text-to-video and image-to-video via OpenAI Sora API</p>
+          <div class="tool-source">API</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- QUICK START -->
+<section id="quickstart">
+  <h2 class="section-title fade-up">Quick start</h2>
+  <div class="code-block fade-up">
+    <pre><span class="kw">from</span> <span class="fn">spagent</span> <span class="kw">import</span> SPAgent
+<span class="kw">from</span> <span class="fn">spagent.models</span> <span class="kw">import</span> GPTModel
+<span class="kw">from</span> <span class="fn">spagent.tools</span> <span class="kw">import</span> DepthEstimationTool, SegmentationTool
+
+<span class="cm"># Create model and tools</span>
+model <span class="op">=</span> <span class="fn">GPTModel</span>(model_name<span class="op">=</span><span class="str">"gpt-4o-mini"</span>)
+tools <span class="op">=</span> [
+    <span class="fn">DepthEstimationTool</span>(),
+    <span class="fn">SegmentationTool</span>()
+]
+
+<span class="cm"># Create agent and solve</span>
+agent <span class="op">=</span> <span class="fn">SPAgent</span>(model<span class="op">=</span>model, tools<span class="op">=</span>tools)
+result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
+    <span class="str">"image.jpg"</span>,
+    <span class="str">"Analyze depth relationships and main objects"</span>
+)
+<span class="fn">print</span>(result[<span class="str">'answer'</span>])</pre>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <h2 class="section-title fade-up">Architecture</h2>
+  <div class="arch-grid fade-up">
+    <div class="arch-item">
+      <h4>SPAgent Core</h4>
+      <p>Agent logic, tool registry, prompt system, data collection</p>
+    </div>
+    <div class="arch-item">
+      <h4>Tools</h4>
+      <p>Modular expert implementations with client/server architecture</p>
+    </div>
+    <div class="arch-item">
+      <h4>Models</h4>
+      <p>OpenAI,Anthropic,Google,Qwen,Kimi,Minimax,GLM,Seed,etc.</p>
+    </div>
+    <div class="arch-item">
+      <h4>Training</h4>
+      <p>Reinforcement learning with supervised fine-tuning</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- RESEARCH -->
+<section id="research">
+  <h2 class="section-title fade-up">Research</h2>
+  <div class="section-narrow">
+    <a href="https://arxiv.org/abs/2601.13029" target="_blank" class="research-card fade-up">
+      <div class="research-meta">
+        <span class="research-venue">arXiv 2026</span>
+      </div>
+      <h3 class="research-title">Think3D: Thinking with Space for Spatial Reasoning</h3>
+      <p class="research-authors">Zaibin Zhang, Yuhan Wu, Lianjie Jia, Yifan Wang, Zhongbo Zhang, Yijiang Li, Binghao Ran, Fuxi Zhang, Zhuohan Sun, Zhenfei Yin, et al.</p>
+      <p class="research-desc">Equipping agents with spatial thinking capabilities through an open-ended ecosystem of 2D, 3D, and world-modeling tools for grounded understanding and reasoning in complex physical environments.</p>
+    </a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CONTACT -->
+<section id="contact">
+  <h2 class="section-title fade-up">Contact</h2>
+  <div class="contact-institutions fade-up">
+    <a href="https://www.dlut.edu.cn/" target="_blank" class="inst">
+      <div class="inst-text" style="color:#003d7c">大连理工大学</div>
+      <div class="inst-sub" style="color:#003d7c">Dalian University of Technology</div>
+    </a>
+    <a href="https://ucsd.edu/" target="_blank" class="inst">
+      <div class="inst-text" style="color:#182B49">UC San Diego</div>
+      <div class="inst-sub" style="color:#C69214">University of California</div>
+    </a>
+    <a href="https://www.ox.ac.uk/" target="_blank" class="inst">
+      <img src="assets/logo-oxford.png" alt="University of Oxford">
+      <div class="inst-sub" style="color:#002147">University of Oxford</div>
+    </a>
+  </div>
+  <div class="contact-label fade-up">Get in touch</div>
+  <div class="contact-email fade-up">
+    <a href="mailto:dlutzzb@gmail.com">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>
+      dlutzzb@gmail.com
+    </a>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- CTA -->
+<section class="cta">
+  <h2>Start building with SPAgent</h2>
+  <p>Open-source and ready to use. Deploy expert tools, connect your model, and reason about the physical world.</p>
+  <div class="hero-actions">
+    <a href="https://github.com/zhangzaibin/spagent" target="_blank" class="btn-pill primary">View on GitHub</a>
+    <a href="#research" class="btn-arrow">Research</a>
+  </div>
+</section>
+
+<footer>
+  SPAgent &copy; 2026 &middot; Apache 2.0 &middot;
+  <a href="https://github.com/zhangzaibin/spagent" target="_blank">GitHub</a> &middot;
+  <a href="https://huggingface.co/collections/jialianjie/spagent" target="_blank">Hugging Face</a> &middot;
+  <a href="https://huggingface.co/datasets/spagent" target="_blank">Dataset</a>
+</footer>
+
+<script>
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
