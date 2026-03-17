@@ -66,7 +66,7 @@ nav{
   max-width:var(--wide);margin:0 auto;
 }
 .hero-img{
-  max-width:500px;width:100%;margin:0 auto 3rem;display:block;
+  max-width:420px;width:100%;margin:0 auto 3rem;display:block;
 }
 .hero h1{
   font-family:var(--serif);font-size:clamp(2rem,4.5vw,3.25rem);
@@ -216,7 +216,9 @@ section{padding:5rem 2rem}
   font-family:var(--serif);font-size:1.125rem;font-weight:600;
   line-height:1.4;margin-bottom:.5rem;color:var(--black);
 }
-.research-authors{font-size:.8125rem;color:var(--gray-3);line-height:1.5;margin-bottom:.5rem}
+.research-authors{font-size:.8125rem;color:var(--gray-3);line-height:1.5;margin-bottom:.25rem}
+.research-authors sup{font-size:.5625rem;color:var(--gray-3);vertical-align:super;margin-left:1px}
+.research-legend{font-size:.6875rem;color:var(--gray-4);margin-bottom:.5rem}
 .research-desc{font-size:.875rem;color:var(--gray-2);line-height:1.65}
 
 /* CONTACT */
@@ -313,7 +315,7 @@ footer a:hover{color:var(--black)}
 <nav>
   <div class="nav-inner">
     <a href="#" class="logo">
-      <img src="assets/arts.jpg" alt="SPAgent">
+      <img src="assets/logo.png" alt="SPAgent">
       SPAgent
     </a>
     <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
@@ -325,7 +327,7 @@ footer a:hover{color:var(--black)}
       <a href="#quickstart">Quick Start</a>
       <a href="#architecture">Architecture</a>
       <a href="#research">Research</a>
-      <a href="#contact">Contact</a>
+      <a href="#contact">Institutions</a>
     </div>
   </div>
 </nav>
@@ -390,27 +392,27 @@ footer a:hover{color:var(--black)}
       <div class="tools-cards">
         <div class="tool-card">
           <h4>Depth Anything V2</h4>
-          <p>Monocular depth estimation — pixel-level depth maps from single images</p>
+          <p>High-accuracy monocular depth estimation for dense depth maps from a single image.</p>
           <div class="tool-source">:20019</div>
         </div>
         <div class="tool-card">
           <h4>SAM 2</h4>
-          <p>Segment Anything Model 2 — interactive and automatic segmentation</p>
+          <p>Promptable image and video segmentation with fast, precise masks and tracking.</p>
           <div class="tool-source">:20020</div>
         </div>
         <div class="tool-card">
           <h4>Grounding DINO</h4>
-          <p>Open-vocabulary object detection driven by natural language prompts</p>
+          <p>Open-vocabulary object detection driven by natural-language prompts and referring expressions.</p>
           <div class="tool-source">:20022</div>
         </div>
         <div class="tool-card">
           <h4>Moondream</h4>
-          <p>Lightweight vision-language model for visual Q&A and captioning</p>
+          <p>A small, fast vision-language model for captioning, visual Q&amp;A, and lightweight visual reasoning.</p>
           <div class="tool-source">:20024</div>
         </div>
         <div class="tool-card">
           <h4>YOLO-E / Supervision</h4>
-          <p>YOLO detection with annotation and visualization post-processing</p>
+          <p>Real-time open-vocabulary detection and segmentation with annotation, tracking, and visualization utilities.</p>
           <div class="tool-source">local</div>
         </div>
       </div>
@@ -424,17 +426,17 @@ footer a:hover{color:var(--black)}
       <div class="tools-cards">
         <div class="tool-card">
           <h4>Pi3 / Pi3X</h4>
-          <p>3D point cloud reconstruction from single or multiple images with metric scale</p>
+          <p>3D point cloud reconstruction from single or multiple images, with Pi3X adding smoother metric-scale outputs.</p>
           <div class="tool-source">:20030 / :20031</div>
         </div>
         <div class="tool-card">
           <h4>VGGT</h4>
-          <p>Multi-view 3D reconstruction and camera pose estimation</p>
+          <p>Feed-forward multi-view 3D reconstruction with camera pose, depth, and geometry prediction in one pass.</p>
           <div class="tool-source">:20032</div>
         </div>
         <div class="tool-card">
           <h4>MapAnything</h4>
-          <p>Dense 3D point clouds via depth estimation and camera poses</p>
+          <p>Universal metric 3D reconstruction for dense point clouds, depth, poses, and multi-view geometry.</p>
           <div class="tool-source">:20033</div>
         </div>
       </div>
@@ -448,12 +450,12 @@ footer a:hover{color:var(--black)}
       <div class="tools-cards">
         <div class="tool-card">
           <h4>Veo</h4>
-          <p>Text-to-video and image-to-video via Google Veo / Gemini API</p>
+          <p>Cinematic text-to-video and image-to-video generation with audio and strong creative control.</p>
           <div class="tool-source">API</div>
         </div>
         <div class="tool-card">
           <h4>Sora</h4>
-          <p>Text-to-video and image-to-video via OpenAI Sora API</p>
+          <p>Text-to-video and image-to-video generation for realistic, dynamic scenes with strong prompt fidelity.</p>
           <div class="tool-source">API</div>
         </div>
       </div>
@@ -505,7 +507,7 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
     </div>
     <div class="arch-item">
       <h4>Models</h4>
-      <p>OpenAI,Anthropic,Google,Qwen,Kimi,Minimax,GLM,Seed,etc.</p>
+      <p>Supports leading open-source and closed-source models worldwide.</p>
     </div>
     <div class="arch-item">
       <h4>Training</h4>
@@ -525,8 +527,9 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
         <span class="research-venue">arXiv 2026</span>
       </div>
       <h3 class="research-title">Think3D: Thinking with Space for Spatial Reasoning</h3>
-      <p class="research-authors">Zaibin Zhang*, Yuhan Wu*, Lianjie Jia, Yifan Wang, Zhongbo Zhang, Yijiang Li, Binghao Ran, Fuxi Zhang, Zhuohan Sun, Zhenfei Yin, Lijun Wang, Huchuan Lu.</p>
-      <p class="research-desc">Equipping agents with spatial thinking capabilities through an open-ended ecosystem of 2D, 3D, and world-modeling tools for grounded understanding and reasoning in complex physical environments.</p>
+      <p class="research-authors">Zaibin Zhang*, Yuhan Wu*, Lianjie Jia*, Yifan Wang, Zhongbo Zhang, Yijiang Li<sup>&#9670;</sup>, Binghao Ran, Fuxi Zhang, Zhuohan Sun, Zhenfei Yin, Lijun Wang<sup>&#9993;</sup>, Huchuan Lu.</p>
+      <p class="research-legend">* Equal contribution &nbsp; ◆ Project leader &nbsp; ✉ Corresponding author</p>
+      <p class="research-desc">Teaching agents to think in 3D space like humans, through drag-based spatial interaction.</p>
     </a>
   </div>
 </section>
@@ -535,18 +538,18 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
 
 <!-- CONTACT -->
 <section id="contact">
-  <h2 class="section-title fade-up">Contact</h2>
+  <h2 class="section-title fade-up">Institutions</h2>
   <div class="contact-institutions fade-up">
     <a href="https://www.dlut.edu.cn/" target="_blank" class="inst">
-      <div class="inst-text" style="color:#003d7c">大连理工大学</div>
+      <img src="assets/DUT-logo.jpg"">
       <div class="inst-sub" style="color:#003d7c">Dalian University of Technology</div>
     </a>
     <a href="https://ucsd.edu/" target="_blank" class="inst">
-      <div class="inst-text" style="color:#182B49">UC San Diego</div>
-      <div class="inst-sub" style="color:#C69214">University of California</div>
+      <img src="assets/UCSD-logo.png"">
+      <div class="inst-sub" style="color:#C69214">University of California, San Diego</div>
     </a>
     <a href="https://www.ox.ac.uk/" target="_blank" class="inst">
-      <img src="assets/logo-oxford.png" alt="University of Oxford">
+      <img src="assets/logo-oxford.png">
       <div class="inst-sub" style="color:#002147">University of Oxford</div>
     </a>
   </div>
