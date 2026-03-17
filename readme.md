@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="SPAgent Logo" width="300">
+<img src="assets/arts.jpg" alt="SPAgent Logo" width="300">
 
 # 🌍 SPAgent: Agent in the Physical & Spatial World
 
