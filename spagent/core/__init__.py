@@ -10,7 +10,11 @@ This module contains the core components of the SPAgent architecture:
 
 from .spagent import SPAgent
 from .tool import Tool, ToolRegistry
+from .skill import Skill, SkillRegistry
 from .model import Model
 from .data_collector import DataCollector, InferenceSample, SessionData
 
-__all__ = ['SPAgent', 'Tool', 'ToolRegistry', 'Model', 'DataCollector', 'InferenceSample', 'SessionData'] 
+__all__ = [
+    'SPAgent', 'Tool', 'ToolRegistry', 'Skill', 'SkillRegistry',
+    'Model', 'DataCollector', 'InferenceSample', 'SessionData',
+] 
