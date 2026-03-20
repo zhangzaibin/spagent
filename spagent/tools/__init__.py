@@ -18,6 +18,7 @@ from .pi3x_tool import Pi3XTool
 from .depth_anything3_tool import DepthAnything3Tool
 from .orient_anything_tool import OrientAnythingTool
 from .roborefer_tool import RoboReferTool
+from .d4rt_tool import D4RTTool
 
 __all__ = [
     'DepthEstimationTool',
@@ -32,5 +33,6 @@ __all__ = [
     'Pi3XTool',
     'DepthAnything3Tool',
     'OrientAnythingTool',
-    'RoboReferTool'
+    'RoboReferTool',
+    'D4RTTool'
 ] 
