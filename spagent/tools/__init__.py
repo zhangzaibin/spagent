@@ -19,6 +19,8 @@ from .depth_anything3_tool import DepthAnything3Tool
 from .orient_anything_tool import OrientAnythingTool
 from .roborefer_tool import RoboReferTool
 from .d4rt_tool import D4RTTool
+from .map_anything_tool import MapAnythingTool
+
 
 __all__ = [
     'DepthEstimationTool',
@@ -34,5 +36,6 @@ __all__ = [
     'DepthAnything3Tool',
     'OrientAnythingTool',
     'RoboReferTool',
-    'D4RTTool'
+    'D4RTTool',
+    'MapAnythingTool'
 ] 
