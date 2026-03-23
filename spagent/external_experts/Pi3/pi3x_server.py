@@ -916,11 +916,8 @@ def _create_view_image(points_sample, colors_sample, camera_centers, camera_pose
         )
 
     # 以下为全局视角模式的matplotlib渲染
-    if False:
-        pass
-    else:
-        # 全局视角模式：使用当前相机（cam_idx）
-        view_cam_pose = camera_poses[cam_idx]
+    # 全局视角模式：使用当前相机（cam_idx）
+    view_cam_pose = camera_poses[cam_idx]
     
     # 提取视角相机的旋转矩阵和平移（camera-to-world）
     if view_cam_pose.shape == (4, 4):
