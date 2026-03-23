@@ -17,6 +17,7 @@ from .vggt_tool import VGGTTool
 from .mapanything_tool import MapAnythingTool
 from .veo_tool import VeoTool
 from .sora_tool import SoraTool
+from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     'MapAnythingTool',
     'VeoTool',
     'SoraTool',
+    'QwenVLTool',
     'WanTool',
 ] 
