@@ -1338,7 +1338,9 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
             ('SegmentationTool', 'segmentation_tool'),
             ('ObjectDetectionTool', 'object_detection_tool'),
             ('Pi3Tool', 'pi3_tool'),
-            ('RoboTracerTool', 'robotracer_tool'),
+            ('VeoTool', 'video_generation_veo_tool'),
+            ('SoraTool', 'video_generation_sora_tool'),
+            ('WanTool', 'video_generation_wan_tool'),
         ]
         
         for tool_class_name, tool_name in tool_classes:
