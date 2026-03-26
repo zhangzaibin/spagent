@@ -44,6 +44,7 @@ external_experts/
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
+| **D4RT** | `D4RTTool` | Dynamic 4D Reconstruction | Joint depth, camera pose, and 3D point tracking from monocular video (Google DeepMind, 300x faster than prior methods) | Server (port 20035) | `frame_dir`, `task`, `query_points`, `output_dir`, `max_frames` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
