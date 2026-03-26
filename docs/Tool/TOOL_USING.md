@@ -44,6 +44,7 @@ external_experts/
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
+| **SoFar** | `SoFarTool` | Robot Manipulation Pose | Language-grounded 6-DoF pose estimation and grasp affordance for robot manipulation (NeurIPS 2025 Spotlight) | Server (port 20036) | `image_path`, `instruction`, `camera_intrinsics` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)

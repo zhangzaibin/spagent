@@ -19,6 +19,7 @@ from .veo_tool import VeoTool
 from .sora_tool import SoraTool
 from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
+from .sofar_tool import SoFarTool
 
 __all__ = [
     'DepthEstimationTool',
@@ -35,4 +36,5 @@ __all__ = [
     'SoraTool',
     'QwenVLTool',
     'WanTool',
+    'SoFarTool',
 ] 
