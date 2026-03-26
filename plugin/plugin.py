@@ -1342,6 +1342,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
             ('SoraTool', 'video_generation_sora_tool'),
             ('QwenVLTool', 'qwenvl_detection_tool'),
             ('WanTool', 'video_generation_wan_tool'),
+            ('OrientAnythingV2Tool', 'orient_anything_v2_tool'),
         ]
         
         for tool_class_name, tool_name in tool_classes:
