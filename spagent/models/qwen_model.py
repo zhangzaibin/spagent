@@ -23,7 +23,7 @@ class QwenModel(Model):
     
     def __init__(
         self, 
-        model_name: str = "qwen2.5-vl-7b-instruct",
+        model_name: str = "qwen3-vl-plus",
         temperature: float = 0.7,
         max_tokens: Optional[int] = None
     ):

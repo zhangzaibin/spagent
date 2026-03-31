@@ -78,19 +78,34 @@ GENERAL_VISION_CONTINUATION_HINT = """1. **Continue investigating** - Call the a
 Instructions:
 - Think: Do you need more information from the tools to answer confidently?
 - If YES: Use <tool_call></tool_call> to call a tool with appropriate parameters.
-- If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
+- If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Put your concise final answer in <answer></answer> tags."""
+
+SKILL_VISION_CONTINUATION_HINT = """1. **Continue investigating** - Call already-activated tools with <tool_call></tool_call>, or select new skills with <skill_select></skill_select> if needed.
+
+2. **Provide final answer** - If you have gathered sufficient information:
+
+Instructions:
+- Think: Do you need more information from the tools to answer confidently?
+- If YES and you already have the tool instructions: Use <tool_call></tool_call> to call a tool with appropriate parameters.
+- If YES but you need a different tool: Use <skill_select>skill_name</skill_select> to select a new skill first.
+- If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Put your concise final answer in <answer></answer> tags."""
 
 
 GENERAL_VISION_WORKFLOW = """# Multi-Step Workflow
 You can perform MULTIPLE rounds of tool calls and analysis to thoroughly understand the image.
+"""
+
+SKILL_VISION_WORKFLOW = """# Multi-Step Workflow
+You can perform MULTIPLE rounds of skill selection and tool calls to thoroughly understand the image.
 
 Workflow:
 1. Carefully analyze the image(s) and the question
-2. Decide which tools would help gather additional information
-3. Call tools with appropriate parameters — you may call the same tool multiple times with different inputs
+2. Decide which skill(s) would help gather additional information — select them with <skill_select></skill_select>
+3. After receiving the full usage instructions for each selected skill, call the corresponding tool(s) with <tool_call></tool_call> following the provided instructions
 4. After each tool result, assess whether you need more information before answering
-5. Continue until you have sufficient evidence to answer confidently
-6. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text."""
+5. You may select additional skills or call already-activated tools again with different parameters
+6. Continue until you have sufficient evidence to answer confidently
+7. Put your concise final answer in <answer></answer> tags."""
 
 # ─── Full system prompt templates (with {tools_json} placeholder) ─────────────
 
@@ -129,15 +144,116 @@ GENERAL_VISION_SYSTEM_PROMPT = (
 )
 
 
+# ─── Skill-mode prompt helpers (progressive disclosure) ───────────────────────
+
+def create_skill_system_prompt(skill_index: str, workflow: Optional[str] = None) -> str:
+    """
+    Create system prompt for skill mode (progressive disclosure).
+
+    In skill mode the model initially sees only a compact skill index
+    (name + summary).  It must output <skill_select>name</skill_select>
+    to receive the full usage instructions before it can call the tool.
+
+    Args:
+        skill_index: XML string from SkillRegistry.get_skill_index()
+        workflow: Optional workflow block.  Defaults to SKILL_VISION_WORKFLOW.
+
+    Returns:
+        System prompt string with skill index
+    """
+    chosen_workflow = workflow if workflow is not None else SKILL_VISION_WORKFLOW
+
+    return f"""You are a helpful assistant that can analyze images and answer questions.
+
+# Skills
+You have access to the following skills to assist with your analysis.
+Each skill wraps a specialized tool. You can see the skill name and a short summary below:
+
+<available_skills>
+{skill_index}
+</available_skills>
+
+# How to select a skill
+When you need to use a skill, output its name inside <skill_select></skill_select> XML tags:
+<skill_select>skill_name</skill_select>
+
+You can select multiple skills at once by using multiple <skill_select> blocks.
+After selection, you will receive the full usage instructions (parameters, call format, etc.) for each selected skill, and then you can call the tool with <tool_call></tool_call> tags.
+
+{chosen_workflow}
+"""
+
+
+def create_skill_activation_prompt(
+    activated_skills: list,
+    question: str = "",
+    image_paths: list = None,
+    previous_analysis: str = "",
+) -> str:
+    """
+    Build a prompt that injects full usage instructions for selected skills
+    and asks the model to immediately call the tool(s).
+
+    Args:
+        activated_skills: List of (skill_title, skill_usage_prompt) tuples
+        question: The original user question (for context)
+        image_paths: List of image paths being analyzed
+        previous_analysis: The model's Step-1 response (skill selection + thinking)
+
+    Returns:
+        Activation prompt string
+    """
+    blocks = []
+    for title, usage in activated_skills:
+        blocks.append(
+            f"# Skill Activated: {title}\n\n"
+            f"{usage}"
+        )
+    skill_instructions = "\n\n---\n\n".join(blocks)
+
+    images_info = ""
+    if image_paths:
+        images_info = "Images: " + ", ".join(image_paths) + "\n"
+
+    previous_block = ""
+    if previous_analysis:
+        previous_block = f"""# Your Previous Analysis
+{previous_analysis}
+
+---
+
+"""
+
+    return f"""{previous_block}The following skill(s) have been activated. You now have the full usage instructions.
+
+{skill_instructions}
+
+# How to call a tool
+When you need to use a tool, return a JSON object with the function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": "<function-name>", "arguments": {{"param1": "value1", "param2": "value2"}}}}
+</tool_call>
+
+You can call multiple tools by using multiple <tool_call> blocks.
+
+---
+
+{images_info}Question: {question}
+
+Now call the tool(s) with concrete arguments based on the instructions above.
+Output your thinking in <think></think> and your tool call(s) in <tool_call></tool_call>."""
+
+
+# ─── Legacy full-schema system prompt (backward compatible) ───────────────────
+
 def create_system_prompt(tools: List[Dict[str, Any]], workflow: Optional[str] = None) -> str:
     """
-    Create system prompt with available tools.
+    Create system prompt with available tools (legacy full-schema mode).
 
     Args:
         tools: List of tool function schemas
-        workflow: Optional workflow instruction block to override the default
-                  3D spatial workflow. Use one of the SPATIAL_3D_WORKFLOW or
-                  GENERAL_VISION_WORKFLOW constants, or supply your own string.
+        workflow: Optional workflow instruction block.
+                  Defaults to GENERAL_VISION_WORKFLOW.
 
     Returns:
         System prompt string
@@ -146,7 +262,7 @@ def create_system_prompt(tools: List[Dict[str, Any]], workflow: Optional[str] = 
         return "You are a helpful assistant that can analyze images and answer questions."
 
     tools_json = json.dumps(tools, indent=2)
-    chosen_workflow = workflow if workflow is not None else SPATIAL_3D_WORKFLOW
+    chosen_workflow = workflow if workflow is not None else GENERAL_VISION_WORKFLOW
 
     return f"""You are a helpful assistant that can analyze images and answer questions.
 
@@ -227,7 +343,7 @@ Tool Execution Summary:
 
 Tool Description: {description}"""
 
-    hint = continuation_hint if continuation_hint is not None else SPATIAL_3D_CONTINUATION_HINT
+    hint = continuation_hint if continuation_hint is not None else GENERAL_VISION_CONTINUATION_HINT
 
     prompt += f"""
 
@@ -240,14 +356,20 @@ You MUST output your thinking process in <think></think> and final choice in <an
 
     return prompt
 
-def create_user_prompt(question: str, image_paths: List[str], tool_schemas: List[Dict[str, Any]] = None) -> str:
+def create_user_prompt(
+    question: str,
+    image_paths: List[str],
+    tool_schemas: List[Dict[str, Any]] = None,
+    use_skill_mode: bool = False,
+) -> str:
     """
-    Create user prompt template
-    
+    Create user prompt template.
+
     Args:
         question: User's question
         image_paths: List of image paths to analyze
-        tool_schemas: List of tool function schemas, optional
+        tool_schemas: List of tool function schemas (legacy mode)
+        use_skill_mode: Whether skill-based progressive disclosure is active
     Returns:
         Formatted user prompt
     """
@@ -262,7 +384,16 @@ Question:
 
 Think step by step to analyze the question and provide a detailed answer."""
 
-    if tool_schemas:
+    if use_skill_mode:
+        base_prompt += """
+
+Important Notes:
+- You can select skills with <skill_select></skill_select> to get detailed tool usage instructions
+- After receiving instructions, you can call tools MULTIPLE times with different parameters to gather comprehensive information
+- After each tool execution, you'll see the results and can decide if you need more information
+- Only provide your final <answer></answer> when you have gathered sufficient information
+Notice! You MUST output the following format. You MUST output thinking process in <think> thinking process here </think> and skill selections in <skill_select> skill name here </skill_select> tags."""
+    elif tool_schemas:
         base_prompt += """
 
 Important Notes:
@@ -276,7 +407,7 @@ You MUST output your thinking process in <think></think> and tool choices in <to
 
 You MUST output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text."""
 
-    return base_prompt 
+    return base_prompt
 
 
 def create_fallback_prompt(question: str, initial_response: str) -> str:

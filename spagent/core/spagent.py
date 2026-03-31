@@ -14,10 +14,13 @@ from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
 
 from .tool import Tool, ToolRegistry
+from .skill import Skill, SkillRegistry
 from .model import Model
 from .prompts import (
     create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt,
+    create_skill_system_prompt, create_skill_activation_prompt,
     SPATIAL_3D_CONTINUATION_HINT, GENERAL_VISION_CONTINUATION_HINT,
+    SKILL_VISION_CONTINUATION_HINT,
 )
 import json as _json
 from .data_collector import DataCollector
@@ -41,6 +44,7 @@ class SPAgent:
         data_collector: Optional[DataCollector] = None,
         system_prompt: Optional[str] = None,
         continuation_hint: Optional[str] = None,
+        use_skill_mode: bool = True,
     ):
         """
         Initialize SPAgent
@@ -51,51 +55,53 @@ class SPAgent:
             max_workers: Maximum number of parallel tool executions
             data_collector: Optional DataCollector for training data collection
             system_prompt: Optional system prompt template string.
-                If provided it overrides the default 3D-spatial prompt built by
+                If provided it overrides the default prompt built by
                 ``create_system_prompt``.  The string may contain a
-                ``{tools_json}`` placeholder which will be replaced with the
-                JSON-serialised tool schemas at inference time.  If no
-                placeholder is present the tools block is appended automatically.
-                Use the ``SPATIAL_3D_SYSTEM_PROMPT`` or
-                ``GENERAL_VISION_SYSTEM_PROMPT`` constants from
-                ``spagent.core.prompts`` as starting points.
+                ``{tools_json}`` or ``{skill_index}`` placeholder which will
+                be replaced at inference time.  If no placeholder is present
+                the tools/skills block is appended automatically.
             continuation_hint: Optional next-step instructions injected into
                 every multi-step continuation prompt (iteration 2+).
-                If None, auto-selects: GENERAL_VISION_CONTINUATION_HINT when
-                system_prompt is set, SPATIAL_3D_CONTINUATION_HINT otherwise.
-                Use constants from ``spagent.core.prompts``.
+                Defaults to GENERAL_VISION_CONTINUATION_HINT.
+            use_skill_mode: If True (default), use progressive skill disclosure.
+                If False, fall back to legacy full-schema injection.
         """
         self.model = model
         self.tool_registry = ToolRegistry()
+        self.skill_registry = SkillRegistry()
         self.max_workers = max_workers
         self.data_collector = data_collector
         self.system_prompt_template = system_prompt
-        # Explicit hint takes priority; fall back to auto-detection from system_prompt.
-        if continuation_hint is not None:
+        self.use_skill_mode = use_skill_mode
+        if continuation_hint:
             self.continuation_hint = continuation_hint
+        elif use_skill_mode:
+            self.continuation_hint = SKILL_VISION_CONTINUATION_HINT
         else:
-            self.continuation_hint = (
-                GENERAL_VISION_CONTINUATION_HINT if system_prompt is not None
-                else SPATIAL_3D_CONTINUATION_HINT
-            )
+            self.continuation_hint = GENERAL_VISION_CONTINUATION_HINT
         
-        # Register provided tools
+        # Register provided tools (and auto-generate skills)
         if tools:
             for tool in tools:
                 self.add_tool(tool)
         
-        logger.info(f"Initialized SPAgent with model: {model.model_name}")
+        logger.info(
+            f"Initialized SPAgent with model: {model.model_name}, "
+            f"skill_mode={'ON' if use_skill_mode else 'OFF'}"
+        )
         if data_collector:
             logger.info("Data collection enabled")
     
     def add_tool(self, tool: Tool):
         """
-        Add a tool to the agent
+        Add a tool to the agent.  Also auto-registers a corresponding Skill.
         
         Args:
             tool: Tool instance to add
         """
         self.tool_registry.register(tool)
+        skill = tool.to_skill()
+        self.skill_registry.register(skill)
     
     def remove_tool(self, tool_name: str):
         """
@@ -105,6 +111,9 @@ class SPAgent:
             tool_name: Name of tool to remove
         """
         self.tool_registry.unregister(tool_name)
+        skill = self.skill_registry.get_by_tool_name(tool_name)
+        if skill:
+            self.skill_registry.unregister(skill.name)
     
     def list_tools(self) -> List[str]:
         """
@@ -178,23 +187,41 @@ class SPAgent:
         if self.data_collector:
             self.data_collector.start_session(question, image_paths)
         
-        # Create system prompt with available tools
+        # Create system prompt
         tool_schemas = self.tool_registry.get_function_schemas()
-        if self.system_prompt_template is not None:
-            tools_json = _json.dumps(tool_schemas, indent=2)
-            if "{tools_json}" in self.system_prompt_template:
-                system_prompt = self.system_prompt_template.replace("{tools_json}", tools_json)
+
+        if self.use_skill_mode and self.skill_registry.list_skills():
+            # ── Skill mode: progressive disclosure ──
+            skill_index = self.skill_registry.get_skill_index()
+            if self.system_prompt_template is not None:
+                if "{skill_index}" in self.system_prompt_template:
+                    system_prompt = self.system_prompt_template.replace("{skill_index}", skill_index)
+                else:
+                    system_prompt = self.system_prompt_template + (
+                        f"\n\n<available_skills>\n{skill_index}\n</available_skills>\n"
+                    )
             else:
-                # No placeholder — append the tools block automatically
-                tools_block = (
-                    f"\n# Tools\nYou have access to the following tools:\n"
-                    f"<tools>\n{tools_json}\n</tools>\n"
-                )
-                system_prompt = self.system_prompt_template + tools_block
+                system_prompt = create_skill_system_prompt(skill_index)
         else:
-            system_prompt = create_system_prompt(tool_schemas)
-        # system_prompt += '\nThis time, you need to call the function anyway in <tool_call></tool_call> format.' # Debug Only!
-        user_prompt = create_user_prompt(question, image_paths, tool_schemas)
+            # ── Legacy mode: full schema injection ──
+            if self.system_prompt_template is not None:
+                tools_json = _json.dumps(tool_schemas, indent=2)
+                if "{tools_json}" in self.system_prompt_template:
+                    system_prompt = self.system_prompt_template.replace("{tools_json}", tools_json)
+                else:
+                    tools_block = (
+                        f"\n# Tools\nYou have access to the following tools:\n"
+                        f"<tools>\n{tools_json}\n</tools>\n"
+                    )
+                    system_prompt = self.system_prompt_template + tools_block
+            else:
+                system_prompt = create_system_prompt(tool_schemas)
+
+        user_prompt = create_user_prompt(
+            question, image_paths,
+            tool_schemas=tool_schemas if not self.use_skill_mode else None,
+            use_skill_mode=self.use_skill_mode and bool(self.skill_registry.list_skills()),
+        )
         
         # Initialize tracking variables for multi-step workflow
         all_tool_calls = []
@@ -207,6 +234,7 @@ class SPAgent:
         iteration = 0
         baseline_answer = None  # For naive baseline comparison
         baseline_triggered = False  # Track if baseline has been triggered
+        activated_skill_names: set = set()  # Skills already activated in this session
         
         # Multi-step workflow loop
         while iteration < max_iterations:
@@ -227,7 +255,8 @@ class SPAgent:
                     image_paths,
                     all_additional_images,
                     iteration,
-                    max_iterations
+                    max_iterations,
+                    activated_skill_names=activated_skill_names,#把skill block都输入进去，目的是skill中要是有对于结果的分析教程，可以教模型如何对结果分析。
                 )
                 logger.info(f"Getting continuation response for iteration {iteration}...")
             
@@ -265,7 +294,48 @@ class SPAgent:
                     }
                 )
             
-            # Step 2: Parse tool calls from response
+            # Step 2a (Skill mode): Check for <skill_select> tags
+            if self.use_skill_mode:
+                selected = self._parse_skill_selects(current_response)
+                new_selections = [s for s in selected if s not in activated_skill_names]
+                if new_selections:
+                    step1_response = current_response
+
+                    activation_pairs = []
+                    for sname in new_selections:
+                        skill = self.skill_registry.get(sname)
+                        if skill:
+                            activation_pairs.append((skill.title, skill.usage_prompt))
+                            activated_skill_names.add(sname)
+                            logger.info(f"Skill activated: {sname}")
+                        else:
+                            logger.warning(f"Unknown skill selected: {sname}")
+
+                    if activation_pairs:
+                        activation_prompt = create_skill_activation_prompt(
+                            activation_pairs,
+                            question=question,
+                            image_paths=image_paths,
+                            previous_analysis=current_response,
+                        )
+                        logger.info(f"Sending activation prompt to model...")
+                        if len(current_images) == 1:
+                            current_response = self.model.single_image_inference(
+                                current_images[0], activation_prompt, **model_kwargs
+                            )
+                        else:
+                            current_response = self.model.multiple_images_inference(
+                                current_images, activation_prompt, **model_kwargs
+                            )
+                        logger.info(f"Post-activation response: {current_response}")
+                        # Merge both phases into last_response so that the next
+                        # iteration's continuation prompt sees the full picture
+                        last_response = (
+                            f"[Skill Selection Phase]\n{step1_response}\n\n"
+                            f"[Tool Calling Phase]\n{current_response}"
+                        )
+
+            # Step 2b: Parse tool calls from response
             tool_calls = self._parse_tool_calls(current_response)
             
             # Trigger naive baseline if enabled and tool calls detected
@@ -472,11 +542,12 @@ class SPAgent:
             "used_tools": all_successful_tools,
             "additional_images": all_additional_images,
             "iterations": iteration,
-            "baseline_answer": baseline_answer,  # Naive baseline answer (if enabled)
+            "baseline_answer": baseline_answer,
+            "activated_skills": list(activated_skill_names),
             "prompts": {
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
-                "follow_up_prompt": None  # This is now handled in continuation prompts
+                "follow_up_prompt": None,
             }
         }
     
@@ -508,6 +579,20 @@ class SPAgent:
         
         return tool_calls
     
+    def _parse_skill_selects(self, response: str) -> List[str]:
+        """
+        Parse <skill_select> tags from model response.
+
+        Returns:
+            List of skill names the model wants to activate.
+        """
+        pattern = r'<skill_select>\s*(.*?)\s*</skill_select>'
+        matches = re.findall(pattern, response, re.DOTALL)
+        skill_names = [m.strip() for m in matches if m.strip()]
+        if skill_names:
+            logger.info(f"Parsed skill selections: {skill_names}")
+        return skill_names
+
     def _execute_tools(self, tool_calls: List[Dict[str, Any]], video_path: Optional[str] = None, pi3_num_frames: int = 10) -> Dict[str, Any]:
         """
         Execute tool calls in parallel when possible
@@ -738,19 +823,26 @@ class SPAgent:
         original_images: List[str],
         additional_images: List[str],
         current_iteration: int,
-        max_iterations: int
+        max_iterations: int,
+        activated_skill_names: Optional[set] = None,
     ) -> str:
         """
-        Create continuation prompt for multi-step workflow
+        Create continuation prompt for multi-step workflow.
+
+        In skill mode, last_response already contains both phases concatenated:
+        [Skill Selection Phase] + [Tool Calling Phase].
         
         Args:
             question: Original user question
-            last_response: Last model response
+            last_response: Complete model output from previous iteration.
+                In skill mode this includes both the skill-selection and
+                tool-calling phases joined together.
             all_tool_results: All tool results so far
             original_images: Original image paths
             additional_images: All additional images generated
             current_iteration: Current iteration number
             max_iterations: Maximum iterations allowed
+            activated_skill_names: Set of skill names already activated in this session
             
         Returns:
             Continuation prompt string
@@ -762,7 +854,6 @@ class SPAgent:
             if result.get('success'):
                 tool_summary.append(f"- {tool_name}: Successfully executed")
                 
-                # Extract angle information if available
                 if 'azimuth_angle' in result and 'elevation_angle' in result:
                     azim = result.get('azimuth_angle')
                     elev = result.get('elevation_angle')
@@ -780,12 +871,27 @@ class SPAgent:
         additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None yet"
         
         remaining = max_iterations - current_iteration
+
+        # Build skill status block for skill mode — include full usage instructions
+        # so the model knows how to call tools in subsequent iterations
+        skill_block = ""
+        if self.use_skill_mode and activated_skill_names:
+            skill_sections = []
+            for sname in sorted(activated_skill_names):
+                skill = self.skill_registry.get(sname)
+                if skill:
+                    skill_sections.append(f"## {skill.title}\n{skill.usage_prompt}")
+            skill_block = (
+                f"\n# Activated Skills (you can call these tools with <tool_call></tool_call>)\n\n"
+                + "\n\n---\n\n".join(skill_sections)
+                + "\n\nYou can also select additional skills with <skill_select>skill_name</skill_select>.\n"
+            )
         
         prompt = f"""=== Multi-Step Analysis: Iteration {current_iteration}/{max_iterations} ===
 
 Original Question: {question}
 
-Your Previous Response: 
+Your Previous Response:
 {last_response}
 
 Tool Execution Summary:
@@ -797,7 +903,7 @@ Original Images:
 
 Generated Images Available for Analysis:
 {additional_images_info}
-
+{skill_block}
 === Next Steps ===
 
 You have {remaining} more iteration(s) available.

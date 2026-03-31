@@ -33,7 +33,7 @@ Usage:
 """
 
 # Core components
-from .core import SPAgent, Tool, ToolRegistry, Model
+from .core import SPAgent, Tool, ToolRegistry, Skill, SkillRegistry, Model
 
 # Import submodules for convenience
 from . import models
@@ -41,7 +41,7 @@ from . import tools
 from . import utils
 
 __version__ = '2.0.0'
-__all__ = ['SPAgent', 'Tool', 'ToolRegistry', 'Model', 'models', 'tools', 'utils']
+__all__ = ['SPAgent', 'Tool', 'ToolRegistry', 'Skill', 'SkillRegistry', 'Model', 'models', 'tools', 'utils']
 
 # Legacy workflow imports for backwards compatibility (deprecated)
 # These will be removed in future versions

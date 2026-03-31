@@ -1311,17 +1311,17 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
         - max_workers defaults to 4 (can't be changed via string instantiation)
         - Tools are auto-registered with mock=True if dependencies are available
     """
-    def __init__(self, max_turns: int = 5, *args, **kwargs):
+    def __init__(self, max_turns: int = 5, use_skill_mode: bool = True, *args, **kwargs):
         super().__init__(max_turns=max_turns, *args, **kwargs)
         self.logger = logger
-        # max_workers is fixed at 4 since we can't pass it via framework
         self.max_workers = 4
+        self.use_skill_mode = use_skill_mode
         
-        # Initialize tool registry for tool execution
         from spagent.core.tool import ToolRegistry
+        from spagent.core.skill import SkillRegistry
         self.tool_registry = ToolRegistry()
+        self.skill_registry = SkillRegistry()
         
-        # Auto-register common tools if available (with robust error handling)
         self._auto_register_tools()
     
     def _auto_register_tools(self):
@@ -1358,6 +1358,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                         # Other tools still use mock for now
                         tool = ToolClass(use_mock=True)
                     self.tool_registry.register(tool)
+                    self.skill_registry.register(tool.to_skill())
                     registered_count += 1
                     self.logger.debug(f"✓ Registered {tool_name} (real: {not tool.use_mock})")
                 else:
@@ -1389,6 +1390,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
             for tool in tools:
                 if isinstance(tool, Tool):
                     self.tool_registry.register(tool)
+                    self.skill_registry.register(tool.to_skill())
                     self.logger.info(f"Registered tool: {tool.name}")
     
     def register_tool(self, tool):
@@ -1401,6 +1403,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
         from spagent.core.tool import Tool
         if isinstance(tool, Tool):
             self.tool_registry.register(tool)
+            self.skill_registry.register(tool.to_skill())
             self.logger.info(f"Registered tool: {tool.name}")
         else:
             self.logger.error(f"Invalid tool type: {type(tool)}")
@@ -1432,10 +1435,15 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                 }
         return tools_info
 
+    def _parse_skill_selects(self, content: str):
+        """Parse <skill_select> tags from model output."""
+        pattern = r'<skill_select>\s*(.*?)\s*</skill_select>'
+        matches = re.findall(pattern, content, re.DOTALL)
+        return [m.strip() for m in matches if m.strip()]
+
     def _parse_tool_calls(self, content: str):
         """Parse all tool-call JSON blobs inside <tool_call>…</tool_call>."""
         tool_calls = []
-        # 匹配 <tool_call> { … } </tool_call>
         pattern = r'<tool_call>\s*({.*?})\s*</tool_call>'
         matches = re.findall(pattern, content, re.DOTALL)
         for m in matches:

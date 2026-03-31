@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class DepthEstimationTool(Tool):
     """Tool for depth estimation using Depth-AnythingV2"""
     
-    def __init__(self, use_mock: bool = True, server_url: str = "http://10.8.131.51:20019"):
+    def __init__(self, use_mock: bool = True, server_url: str = "http://127.0.0.1:20019"):
         """
         Initialize depth estimation tool
         
