@@ -22,3 +22,4 @@ Flask
 clip
 datasets
 moondream
+pytest

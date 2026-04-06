@@ -10,6 +10,7 @@ from .segmentation_tool import SegmentationTool
 from .detection_tool import ObjectDetectionTool
 from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
+from .yolo26_tool import YOLO26Tool
 from .moondream_tool import MoondreamTool
 from .pi3_tool import Pi3Tool
 from .pi3x_tool import Pi3XTool
@@ -20,12 +21,14 @@ from .sora_tool import SoraTool
 from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
 
+
 __all__ = [
     'DepthEstimationTool',
     'SegmentationTool',
     'ObjectDetectionTool',
     'SupervisionTool',
     'YOLOETool',
+    'YOLO26Tool',
     'MoondreamTool',
     'Pi3Tool',
     'Pi3XTool',

@@ -42,6 +42,7 @@ external_experts/
 | **MapAnything** | `MapAnythingTool` | Dense 3D Reconstruction via Depth Estimation | Reconstruct dense 3D point clouds from multiple images using depth maps and camera poses | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | Local | `image_path`, `task` ("image_det" or "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
+| **YOLO26** | `YOLO26Tool` | Object Detection | Fast local object detection with bounding boxes, class labels, and confidence scores using Ultralytics YOLO26 | Local (no server) | `image_path`, `conf`(optional), `save_annotated`(optional) |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 
@@ -621,6 +622,112 @@ python examples/evaluation/evaluate_sora.py \
 | `--video_num_frames` | `4` | Frames extracted from generated video to feed back to model |
 | `--use_mock` | false | Use mock Sora service (no API key needed) |
 | `--max_iterations` | `3` | Max tool-call iterations per sample |
+
+---
+
+### 11. YOLO26 - Local Object Detection
+
+**Function**: Fast object detection on a single image using Ultralytics YOLO26. No server required — the model runs entirely in-process.
+
+**Features**:
+- Detects objects and returns bounding boxes (xyxy), class labels, and confidence scores
+- Supports optional annotated output image saved to disk
+- Fully configurable confidence / IoU thresholds and max detections
+- Compatible with any YOLO26 weight file (nano, small, medium, large, …)
+
+**File Structure**:
+```
+spagent/tools/
+└── yolo26_tool.py      # YOLO26Tool implementation
+checkpoints/yolo26/
+└── yolo26n.pt          # Default weight file (place here)
+test/yolo26/
+├── test_yolo26_tool_real.py   # Real integration test
+└── README.md                  # Test guide
+```
+
+**Installation**:
+```bash
+pip install ultralytics opencv-python
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/yolo26
+# Download from Ultralytics (example: nano variant)
+wget -O checkpoints/yolo26/yolo26n.pt \
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image_path` | string | ✅ | — | Path to the input image |
+| `conf` | float | ❌ | `0.25` | Confidence threshold (0–1) |
+| `save_annotated` | boolean | ❌ | `True` | Save annotated output image to `outputs/yolo26/` |
+
+**Quick Usage**:
+```python
+from spagent.tools import YOLO26Tool
+
+tool = YOLO26Tool(
+    model_path="checkpoints/yolo26/yolo26n.pt",
+    device="cpu",          # or "cuda:0"
+    conf=0.25,
+    save_annotated=True,
+    output_dir="outputs/yolo26",
+)
+
+result = tool.call(image_path="assets/example.png")
+print(result["result"]["num_detections"])
+print(result["result"]["detections"])   # list of {bbox_xyxy, class_id, class_name, confidence}
+print(result["output_path"])            # path to annotated image
+```
+
+**Integration Test**:
+```bash
+# Run real inference test (requires weights and image)
+RUN_REAL_YOLO26_TEST=1 python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+
+# Override defaults via environment variables
+RUN_REAL_YOLO26_TEST=1 \
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cpu \
+python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+```
+
+**Evaluation**:
+```bash
+python examples/evaluation/evaluate_yolo26.py \
+    --data_path dataset/cvbench_data.jsonl \
+    --image_base_path dataset \
+    --model_path checkpoints/yolo26/yolo26n.pt \
+    --device cpu \
+    --model gpt-4o \
+    --max_samples 100
+
+# Environment variable overrides also work
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cuda:0 \
+python examples/evaluation/evaluate_yolo26.py ...
+```
+
+**Key CLI Options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--model_path` | `checkpoints/yolo26/yolo26n.pt` | Path to YOLO26 weights |
+| `--device` | `cpu` | Inference device (`cpu` or `cuda:0`) |
+| `--conf` | `0.25` | Detection confidence threshold |
+| `--yolo_output_dir` | `outputs/yolo26` | Directory for annotated output images |
+| `--model` | `gpt-4o` | LLM orchestrator model |
+| `--max_samples` | all | Limit evaluation sample count |
+| `--max_iterations` | `3` | Max tool-call iterations per sample |
+
+**Resources**:
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
+- [YOLO Documentation](https://docs.ultralytics.com/)
 
 ---
 

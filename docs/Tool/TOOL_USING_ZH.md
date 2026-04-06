@@ -40,6 +40,7 @@ external_experts/
 | **MapAnything** | `MapAnythingTool` | 基于深度估计的稠密3D重建 | 利用深度图和相机位姿从多张图像重建稠密3D点云 | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | 本地 | `image_path`, `task` ("image_det" 或 "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | 本地 | `image_path`, `task`, `class_names` |
+| **YOLO26** | `YOLO26Tool` | 目标检测 | 基于 Ultralytics YOLO26 的本地快速目标检测，返回边界框、类别标签和置信度 | 本地（无需服务器） | `image_path`, `conf`(可选), `save_annotated`(可选) |
 | **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 
@@ -598,6 +599,112 @@ python examples/evaluation/evaluate_sora.py \
 | `--video_num_frames` | `4` | 生成视频中抽取帧数后回传给模型 |
 | `--use_mock` | false | 使用 mock 服务（无需 API Key） |
 | `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
+
+---
+
+### 11. YOLO26 - 本地目标检测
+
+**功能**：基于 Ultralytics YOLO26 的本地目标检测，无需启动任何服务器，模型在进程内直接运行。
+
+**特点**：
+- 检测图像中的物体，返回边界框（xyxy 格式）、类别标签和置信度
+- 可选保存带标注框的可视化输出图片
+- 支持自定义置信度阈值、IOU 阈值及最大检测数
+- 兼容任意 YOLO26 权重文件（nano、small、medium、large 等）
+
+**文件结构**：
+```
+spagent/tools/
+└── yolo26_tool.py          # YOLO26Tool 实现
+checkpoints/yolo26/
+└── yolo26n.pt              # 默认权重文件（放置于此）
+test/yolo26/
+├── test_yolo26_tool_real.py   # 真实推理集成测试
+└── README.md                  # 测试说明文档
+```
+
+**安装依赖**：
+```bash
+pip install ultralytics opencv-python
+```
+
+**权重下载**：
+```bash
+mkdir -p checkpoints/yolo26
+# 从 Ultralytics 下载（以 nano 版本为例）
+wget -O checkpoints/yolo26/yolo26n.pt \
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image_path` | string | ✅ | — | 输入图像路径 |
+| `conf` | float | ❌ | `0.25` | 置信度阈值（0–1） |
+| `save_annotated` | boolean | ❌ | `True` | 是否将标注图片保存到 `outputs/yolo26/` |
+
+**快速使用**：
+```python
+from spagent.tools import YOLO26Tool
+
+tool = YOLO26Tool(
+    model_path="checkpoints/yolo26/yolo26n.pt",
+    device="cpu",          # 或 "cuda:0"
+    conf=0.25,
+    save_annotated=True,
+    output_dir="outputs/yolo26",
+)
+
+result = tool.call(image_path="assets/example.png")
+print(result["result"]["num_detections"])
+print(result["result"]["detections"])   # 每条检测：{bbox_xyxy, class_id, class_name, confidence}
+print(result["output_path"])            # 标注图片路径
+```
+
+**集成测试**：
+```bash
+# 真实推理测试（需要权重文件和测试图片）
+RUN_REAL_YOLO26_TEST=1 python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+
+# 通过环境变量覆盖默认路径和设备
+RUN_REAL_YOLO26_TEST=1 \
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cpu \
+python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+```
+
+**评测**：
+```bash
+python examples/evaluation/evaluate_yolo26.py \
+    --data_path dataset/cvbench_data.jsonl \
+    --image_base_path dataset \
+    --model_path checkpoints/yolo26/yolo26n.pt \
+    --device cpu \
+    --model gpt-4o \
+    --max_samples 100
+
+# 也可通过环境变量指定权重和设备
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cuda:0 \
+python examples/evaluation/evaluate_yolo26.py ...
+```
+
+**常用参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--model_path` | `checkpoints/yolo26/yolo26n.pt` | YOLO26 权重路径 |
+| `--device` | `cpu` | 推理设备（`cpu` 或 `cuda:0`） |
+| `--conf` | `0.25` | 检测置信度阈值 |
+| `--yolo_output_dir` | `outputs/yolo26` | 标注图片保存目录 |
+| `--model` | `gpt-4o` | LLM 编排模型 |
+| `--max_samples` | 全部 | 限制评测样本数 |
+| `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
+
+**资源链接**：
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
+- [YOLO 文档](https://docs.ultralytics.com/)
 
 ---
 
