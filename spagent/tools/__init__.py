@@ -20,6 +20,7 @@ from .veo_tool import VeoTool
 from .sora_tool import SoraTool
 from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
+from .ctrl_world_tool import CtrlWorldTool
 
 
 __all__ = [
@@ -38,4 +39,5 @@ __all__ = [
     'SoraTool',
     'QwenVLTool',
     'WanTool',
+    'CtrlWorldTool',
 ] 
