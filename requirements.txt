@@ -22,4 +22,10 @@ Flask
 clip
 datasets
 moondream
+<<<<<<< HEAD
 pytest
+=======
+einops
+rembg[gpu]
+timm
+>>>>>>> f2dc763 (feat: #179 support orient anything v2)

@@ -59,12 +59,18 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
+<<<<<<< HEAD
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
+=======
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation \& rotation estimation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
+| **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
+>>>>>>> f2dc763 (feat: #179 support orient anything v2)
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
-| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Veo, Sora<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
+| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Veo, Sora<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
 | **Train** | `train/` | Reinforcement learning training scripts:<br>- GRPO training configurations<br>- LoRA merge and model compression utilities<br>- System prompts for different training modes |
 
 ## 🔍 External Experts
@@ -81,7 +87,11 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **MapAnything** | 3D | Dense 3D Point Cloud Reconstruction via Depth Estimation | 20033 | Reconstruct dense 3D point clouds from multiple images using depth maps and camera poses with [facebook/map-anything](https://huggingface.co/facebook/map-anything); interface compatible with Pi3 for easy comparison |
 | **YOLO26** | 2D | Object Detection | Local (no server) | Fast object detection with bounding boxes, class labels and confidence scores; weights loaded via `ultralytics`; outputs optional annotated image |
 | **Supervision** | 2D | Object Detection Annotation | Local | YOLO models and visualization tools, used for result visualization and post-processing |
+<<<<<<< HEAD
 | **Qwen2.5-VL** | 2D | Vision-Language Detection | API / local model | Qwen2.5-VL style detection for grounding and object localization from image-text prompts |
+=======
+| **Orient-AnythingV2** | 3D | Object Orientation & Rotation Estimation | Local server (20034) | Estimate absolute azimuth/elevation/rotation and symmetry order; two-image mode for relative pose; NeurIPS 2025 Spotlight |
+>>>>>>> f2dc763 (feat: #179 support orient anything v2)
 | **Veo** | Video | Text/Image-to-Video Generation | API (no server) | Google Veo via Gemini API; requires `GOOGLE_API_KEY`; supports t2v and i2v |
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
@@ -401,6 +411,7 @@ print(f"Rendered image saved to: {output_path}")
 | Test Script | Description |
 |-------------|-------------|
 | `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection, Veo, Sora) |
+| `test/test_orient_anything_v2_tool.py` | Orient Anything V2 tool testing — mock & real server modes |
 | `test/test_pi3_llm.py` | Pi3 integration testing through Agent + LLM |
 | `test/test_prompt.py` | Verify system prompt construction — no server or API key needed |
 
