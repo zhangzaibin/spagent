@@ -21,6 +21,7 @@ from .sora_tool import SoraTool
 from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
+from .depth_anything3_tool import DepthAnything3Tool
 
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     'QwenVLTool',
     'WanTool',
     'OrientAnythingV2Tool',
+    'DepthAnything3Tool',
 ] 
