@@ -510,7 +510,7 @@ class SPAgent:
     
     def _execute_tools(self, tool_calls: List[Dict[str, Any]], video_path: Optional[str] = None, pi3_num_frames: int = 10) -> Dict[str, Any]:
         """
-        Execute tool calls in parallel when possible
+        Execute tool calls in parallel when possible (except Pi3 and VACE: sequential / single-flight)
         
         Args:
             tool_calls: List of tool call dictionaries
@@ -530,17 +530,21 @@ class SPAgent:
                 tool_groups[tool_name] = []
             tool_groups[tool_name].append((i, call))
         
-        # Execute tools in parallel, but Pi3Tool and Pi3MultiimgTool sequentially to avoid server issues
+        # Execute tools in parallel, but Pi3Tool and Pi3MultiimgTool sequentially to avoid server issues;
+        # video_generation_vace_tool runs at most once per iteration (GPU memory).
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_tool = {}
             
             # Handle Pi3Tool and Pi3MultiimgTool calls sequentially first
             pi3_calls = []
+            vace_calls = []
             other_calls = {}
             
             for tool_name, calls in tool_groups.items():
                 if tool_name in ['pi3_tool', 'pi3_multiimg_tool']:
                     pi3_calls.extend(calls)
+                elif tool_name == 'video_generation_vace_tool':
+                    vace_calls.extend(calls)
                 else:
                     other_calls[tool_name] = calls
             
@@ -578,6 +582,32 @@ class SPAgent:
                         tool_results[result_key] = {
                             "success": False,
                             "error": f"{tool_name} not found"
+                        }
+            
+            if vace_calls:
+                tool_name = 'video_generation_vace_tool'
+                tool = self.tool_registry.get(tool_name)
+                n_vace = len(vace_calls)
+                if n_vace > 1:
+                    logger.warning(
+                        "video_generation_vace_tool called %d times in one iteration; "
+                        "only the first runs (GPU memory).",
+                        n_vace,
+                    )
+                for j, (call_idx, call) in enumerate(vace_calls):
+                    result_key = tool_name if n_vace == 1 else f"{tool_name}_{call_idx}"
+                    if tool is None:
+                        logger.error("%s not found", tool_name)
+                        tool_results[result_key] = {"success": False, "error": f"{tool_name} not found"}
+                        continue
+                    if j == 0:
+                        tool_results[result_key] = self._safe_tool_call(tool, call['arguments'])
+                    else:
+                        tool_results[result_key] = {
+                            "success": False,
+                            "error": (
+                                "Skipped: only one VACE video_generation call per iteration (GPU memory)."
+                            ),
                         }
             
             # Execute other tools in parallel as before

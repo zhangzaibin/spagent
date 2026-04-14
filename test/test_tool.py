@@ -438,6 +438,62 @@ def test_sora(
 
 
 # ============================================================
+# VACE Video Generation Tool Test
+# ============================================================
+
+def test_vace(
+    image_path: str,
+    prompt: str,
+    server_url: str = "http://localhost:20034",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test VACE first-frame video generation tool.
+
+    VACE requires BOTH an image and a prompt.
+    """
+    from spagent.tools import VaceTool
+
+    if not image_path or not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+    if not prompt or not prompt.strip():
+        logger.error("Prompt is required for VACE test.")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("VACE Video Generation Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Image path       : {image_path}")
+    logger.info(f"  Prompt           : {prompt[:120]}...")
+    logger.info(f"  Server URL       : {server_url}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = VaceTool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(image_path=image_path, prompt=prompt)
+
+    if not result.get("success"):
+        logger.error(f"VACE tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("VACE video generation succeeded!")
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+
+    logger.warning("No output video path in result.")
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -450,7 +506,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace"],
         help="Which tool to test.",
     )
     parser.add_argument(
@@ -458,7 +514,7 @@ def parse_args():
         type=str,
         nargs="+",
         default=None,
-        help="Input image path(s). Required for pi3/pi3x/depth/segmentation/detection. Optional for veo/sora.",
+        help="Input image path(s). Required for pi3/pi3x/depth/segmentation/detection/vace. Optional for veo/sora.",
     )
     parser.add_argument(
         "--output_dir",
@@ -541,9 +597,12 @@ def parse_args():
 def main():
     args = parse_args()
 
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
+        sys.exit(1)
+    if args.tool == "vace" and (not args.prompt or not args.prompt.strip()):
+        print("Error: --prompt is required for tool 'vace'")
         sys.exit(1)
 
     if args.tool == "pi3":
@@ -612,6 +671,16 @@ def main():
             duration=args.duration,
             resolution=args.resolution,
             aspect_ratio=args.aspect_ratio,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "vace":
+        server = args.server_url or "http://localhost:20034"
+        result_path = test_vace(
+            image_path=args.image[0],
+            prompt=args.prompt,
+            server_url=server,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
         )

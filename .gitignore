@@ -19,3 +19,9 @@ test_data
 test_outputs
 results
 outputs_old
+
+# VACE Wan2.1 weights (large; use huggingface-cli per external_experts/vace/README.md)
+spagent/external_experts/vace/models/Wan2.1-VACE-1.3B/
+
+# Local eval outputs / caches
+qwen_eval/
