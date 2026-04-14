@@ -10,6 +10,7 @@ external_experts/
 ├── checkpoints/                    # 所有模型权重文件
 │   └──depth_anything
 │   └──grounding_dino
+│   └──orient_anything_v2
 │   └──pi3
 │   └──pi3x
 │   └──sam2
@@ -21,6 +22,7 @@ external_experts/
 ├── VGGT/                          # 多视角3D重建与相机位姿估计
 ├── mapanything/                   # 基于深度估计的稠密3D重建
 ├── moondream/                     # 视觉语言模型
+├── OrientAnythingV2/              # 物体朝向与相对旋转估计
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 └── supervision/                   # YOLO目标检测和标注工具
@@ -40,8 +42,10 @@ external_experts/
 | **MapAnything** | `MapAnythingTool` | 基于深度估计的稠密3D重建 | 利用深度图和相机位姿从多张图像重建稠密3D点云 | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | 本地 | `image_path`, `task` ("image_det" 或 "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | 本地 | `image_path`, `task`, `class_names` |
+| **YOLO26** | `YOLO26Tool` | 目标检测 | 基于 Ultralytics YOLO26 的本地快速目标检测，返回边界框、类别标签和置信度 | 本地（无需服务器） | `image_path`, `conf`(可选), `save_annotated`(可选) |
 | **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
+| **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -601,6 +605,218 @@ python examples/evaluation/evaluate_sora.py \
 
 ---
 
+### 11. YOLO26 - 本地目标检测
+
+**功能**：基于 Ultralytics YOLO26 的本地目标检测，无需启动任何服务器，模型在进程内直接运行。
+
+**特点**：
+- 检测图像中的物体，返回边界框（xyxy 格式）、类别标签和置信度
+- 可选保存带标注框的可视化输出图片
+- 支持自定义置信度阈值、IOU 阈值及最大检测数
+- 兼容任意 YOLO26 权重文件（nano、small、medium、large 等）
+
+**文件结构**：
+```
+spagent/tools/
+└── yolo26_tool.py          # YOLO26Tool 实现
+checkpoints/yolo26/
+└── yolo26n.pt              # 默认权重文件（放置于此）
+test/yolo26/
+├── test_yolo26_tool_real.py   # 真实推理集成测试
+└── README.md                  # 测试说明文档
+```
+
+**安装依赖**：
+```bash
+pip install ultralytics opencv-python
+```
+
+**权重下载**：
+```bash
+mkdir -p checkpoints/yolo26
+# 从 Ultralytics 下载（以 nano 版本为例）
+wget -O checkpoints/yolo26/yolo26n.pt \
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image_path` | string | ✅ | — | 输入图像路径 |
+| `conf` | float | ❌ | `0.25` | 置信度阈值（0–1） |
+| `save_annotated` | boolean | ❌ | `True` | 是否将标注图片保存到 `outputs/yolo26/` |
+
+**快速使用**：
+```python
+from spagent.tools import YOLO26Tool
+
+tool = YOLO26Tool(
+    model_path="checkpoints/yolo26/yolo26n.pt",
+    device="cpu",          # 或 "cuda:0"
+    conf=0.25,
+    save_annotated=True,
+    output_dir="outputs/yolo26",
+)
+
+result = tool.call(image_path="assets/example.png")
+print(result["result"]["num_detections"])
+print(result["result"]["detections"])   # 每条检测：{bbox_xyxy, class_id, class_name, confidence}
+print(result["output_path"])            # 标注图片路径
+```
+
+**集成测试**：
+```bash
+# 真实推理测试（需要权重文件和测试图片）
+RUN_REAL_YOLO26_TEST=1 python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+
+# 通过环境变量覆盖默认路径和设备
+RUN_REAL_YOLO26_TEST=1 \
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cpu \
+python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+```
+
+**评测**：
+```bash
+python examples/evaluation/evaluate_yolo26.py \
+    --data_path dataset/cvbench_data.jsonl \
+    --image_base_path dataset \
+    --model_path checkpoints/yolo26/yolo26n.pt \
+    --device cpu \
+    --model gpt-4o \
+    --max_samples 100
+
+# 也可通过环境变量指定权重和设备
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cuda:0 \
+python examples/evaluation/evaluate_yolo26.py ...
+```
+
+**常用参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--model_path` | `checkpoints/yolo26/yolo26n.pt` | YOLO26 权重路径 |
+| `--device` | `cpu` | 推理设备（`cpu` 或 `cuda:0`） |
+| `--conf` | `0.25` | 检测置信度阈值 |
+| `--yolo_output_dir` | `outputs/yolo26` | 标注图片保存目录 |
+| `--model` | `gpt-4o` | LLM 编排模型 |
+| `--max_samples` | 全部 | 限制评测样本数 |
+| `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
+
+**资源链接**：
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
+- [YOLO 文档](https://docs.ultralytics.com/)
+### 11. Orient Anything V2 - 物体朝向与旋转估计
+
+**功能**：统一的空间视觉模型，支持三维朝向估计、旋转对称性检测和两视角间相对位姿估计（NeurIPS 2025 Spotlight）
+
+**特点**：
+- 无需物体类别标签，完全类别无关
+- 绝对朝向：方位角（0-360°）、仰角（-90~90°）、平面内旋转（-180~180°）
+- 旋转对称阶数：`symmetry_alpha` ∈ {0, 1, 2, 4}
+- 双图模式：输出目标图相对于参考图的相对位姿
+- 支持背景去除（基于 `rembg`）
+- 提供 mock 模式，无需 GPU 即可开发调试
+
+**文件结构**：
+```
+OrientAnythingV2/
+├── oa_v2_server.py            # Flask 服务器（端口 20034）
+├── oa_v2_client.py            # HTTP 客户端
+├── mock_oa_v2_service.py      # 离线测试用 mock 服务
+├── download_weights.sh        # 权重下载脚本
+└── __init__.py
+```
+
+**模型规格**：
+
+| 项目 | 详情 |
+|------|------|
+| 模型 | VGGT_OriAny_Ref（VGGT-1B 骨干 + 朝向预测头） |
+| 参数量 | ~5.05 GB |
+| 权重文件 | `checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt` |
+| 源码仓库 | HuggingFace Space `Viglong/Orient-Anything-V2` |
+| 论文 | NeurIPS 2025 Spotlight |
+
+**输出字段**：
+
+| 字段 | 范围 | 说明 |
+|------|------|------|
+| `azimuth` | 0-360° | 物体正面的绝对方位角 |
+| `elevation` | -90~90° | 绝对仰角 |
+| `rotation` | -180~180° | 平面内旋转角 |
+| `symmetry_alpha` | 0/1/2/4 | 旋转对称阶数（0=不确定，1=双侧对称，2=二重，4=四重） |
+| `rel_azimuth` | 0-360° | 目标图相对参考图的方位角差（双图模式） |
+| `rel_elevation` | -90~90° | 仰角差（双图模式） |
+| `rel_rotation` | -180~180° | 旋转角差（双图模式） |
+
+**环境配置**：
+```bash
+# 1. Clone HF Space 源码（含 vggt 子包，无需单独安装 vggt）
+git clone https://huggingface.co/spaces/Viglong/Orient-Anything-V2 \
+    third_party/orient_anything_v2
+
+# 2. 安装额外依赖
+pip install rembg timm
+
+# 3. 下载权重
+bash spagent/external_experts/OrientAnythingV2/download_weights.sh
+# 权重保存至：checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt
+```
+
+**启动服务**：
+```bash
+python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \
+    --checkpoint_path checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt \
+    --repo_path third_party/orient_anything_v2 \
+    --port 20034
+```
+
+**工具测试**：
+```bash
+# mock 模式——无需 GPU 或服务器
+python test/test_orient_anything_v2_tool.py \
+    --use_mock --task orientation --image_path assets/dog.jpeg
+
+# 单图方向估计，连接真实服务器
+python test/test_orient_anything_v2_tool.py \
+    --task orientation --image_path assets/dog.jpeg
+
+# 双图相对旋转，连接真实服务器
+python test/test_orient_anything_v2_tool.py \
+    --task relative_rotation \
+    --image_path assets/dog.jpeg --image_path2 assets/example.png
+```
+
+**Python 调用示例**：
+```python
+from spagent.tools.orient_anything_v2_tool import OrientAnythingV2Tool
+
+# mock 模式
+tool = OrientAnythingV2Tool(use_mock=True)
+
+# 单图：绝对朝向
+result = tool.call(image_path="assets/dog.jpeg", object_category="dog")
+# {'success': True, 'result': {'azimuth': 143, 'elevation': -12, 'rotation': 5, 'symmetry_alpha': 1}}
+
+# 双图：绝对朝向 + 相对位姿
+result = tool.call(
+    image_path="ref.jpg",
+    task="relative_rotation",
+    image_path2="target.jpg",
+    object_category="chair",
+)
+# {'success': True, 'result': {'azimuth': 143, ..., 'rel_azimuth': 72, 'rel_elevation': 8, 'rel_rotation': -15}}
+```
+
+**资源链接**：
+- [HuggingFace Space（源码）](https://huggingface.co/spaces/Viglong/Orient-Anything-V2)
+- [HuggingFace 权重](https://huggingface.co/Viglong/OriAnyV2_ckpt)
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
@@ -661,6 +877,12 @@ python spagent/external_experts/VGGT/vggt_server.py \
 # MapAnything稠密3D重建服务（自动下载 facebook/map-anything）
 python spagent/external_experts/mapanything/mapanything_server.py \
   --port 20033
+
+# Orient Anything V2 朝向估计服务
+python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \
+  --checkpoint_path checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt \
+  --repo_path third_party/orient_anything_v2 \
+  --port 20034
 
 # 视觉语言模型服务
 python spagent/external_experts/moondream/md_server.py \

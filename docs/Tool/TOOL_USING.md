@@ -12,6 +12,7 @@ external_experts/
 ├── checkpoints/                    # All model weight files
 │   └──depth_anything
 │   └──grounding_dino
+│   └──orient_anything_v2
 │   └──pi3
 │   └──pi3x
 │   └──sam2
@@ -23,6 +24,7 @@ external_experts/
 ├── VGGT/                          # Multi-view 3D reconstruction & camera pose estimation
 ├── mapanything/                   # Dense 3D reconstruction via depth estimation
 ├── moondream/                     # Vision language model
+├── OrientAnythingV2/              # Object orientation & rotation estimation
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 └── supervision/                   # YOLO object detection and annotation tools
@@ -42,8 +44,10 @@ external_experts/
 | **MapAnything** | `MapAnythingTool` | Dense 3D Reconstruction via Depth Estimation | Reconstruct dense 3D point clouds from multiple images using depth maps and camera poses | 20033 | `image_paths`, `azimuth_angle`, `elevation_angle`, `conf_percentile`, `apply_mask` |
 | **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | Local | `image_path`, `task` ("image_det" or "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
+| **YOLO26** | `YOLO26Tool` | Object Detection | Fast local object detection with bounding boxes, class labels, and confidence scores using Ultralytics YOLO26 | Local (no server) | `image_path`, `conf`(optional), `save_annotated`(optional) |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
+| **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -624,6 +628,215 @@ python examples/evaluation/evaluate_sora.py \
 
 ---
 
+### 11. YOLO26 - Local Object Detection
+
+**Function**: Fast object detection on a single image using Ultralytics YOLO26. No server required — the model runs entirely in-process.
+
+**Features**:
+- Detects objects and returns bounding boxes (xyxy), class labels, and confidence scores
+- Supports optional annotated output image saved to disk
+- Fully configurable confidence / IoU thresholds and max detections
+- Compatible with any YOLO26 weight file (nano, small, medium, large, …)
+
+**File Structure**:
+```
+spagent/tools/
+└── yolo26_tool.py      # YOLO26Tool implementation
+checkpoints/yolo26/
+└── yolo26n.pt          # Default weight file (place here)
+test/yolo26/
+├── test_yolo26_tool_real.py   # Real integration test
+└── README.md                  # Test guide
+```
+
+**Installation**:
+```bash
+pip install ultralytics opencv-python
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/yolo26
+# Download from Ultralytics (example: nano variant)
+wget -O checkpoints/yolo26/yolo26n.pt \
+    https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image_path` | string | ✅ | — | Path to the input image |
+| `conf` | float | ❌ | `0.25` | Confidence threshold (0–1) |
+| `save_annotated` | boolean | ❌ | `True` | Save annotated output image to `outputs/yolo26/` |
+
+**Quick Usage**:
+```python
+from spagent.tools import YOLO26Tool
+
+tool = YOLO26Tool(
+    model_path="checkpoints/yolo26/yolo26n.pt",
+    device="cpu",          # or "cuda:0"
+    conf=0.25,
+    save_annotated=True,
+    output_dir="outputs/yolo26",
+)
+
+result = tool.call(image_path="assets/example.png")
+print(result["result"]["num_detections"])
+print(result["result"]["detections"])   # list of {bbox_xyxy, class_id, class_name, confidence}
+print(result["output_path"])            # path to annotated image
+```
+
+**Integration Test**:
+```bash
+# Run real inference test (requires weights and image)
+RUN_REAL_YOLO26_TEST=1 python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+
+# Override defaults via environment variables
+RUN_REAL_YOLO26_TEST=1 \
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cpu \
+python -m pytest -q test/yolo26/test_yolo26_tool_real.py
+```
+
+**Evaluation**:
+```bash
+python examples/evaluation/evaluate_yolo26.py \
+    --data_path dataset/cvbench_data.jsonl \
+    --image_base_path dataset \
+    --model_path checkpoints/yolo26/yolo26n.pt \
+    --device cpu \
+    --model gpt-4o \
+    --max_samples 100
+
+# Environment variable overrides also work
+YOLO26_MODEL_PATH=checkpoints/yolo26/yolo26n.pt \
+YOLO26_DEVICE=cuda:0 \
+python examples/evaluation/evaluate_yolo26.py ...
+```
+
+**Key CLI Options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--model_path` | `checkpoints/yolo26/yolo26n.pt` | Path to YOLO26 weights |
+| `--device` | `cpu` | Inference device (`cpu` or `cuda:0`) |
+| `--conf` | `0.25` | Detection confidence threshold |
+| `--yolo_output_dir` | `outputs/yolo26` | Directory for annotated output images |
+| `--model` | `gpt-4o` | LLM orchestrator model |
+| `--max_samples` | all | Limit evaluation sample count |
+| `--max_iterations` | `3` | Max tool-call iterations per sample |
+
+**Resources**:
+- [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
+- [YOLO Documentation](https://docs.ultralytics.com/)
+### 11. Orient Anything V2 - Object Orientation & Rotation Estimation
+
+**Function**: Unified spatial vision model for 3D orientation, rotational symmetry, and relative pose estimation (NeurIPS 2025 Spotlight)
+
+**Features**:
+- Category-agnostic — no object label required at inference time
+- Absolute orientation: azimuth (0-360°), elevation (-90~90°), in-plane rotation (-180~180°)
+- Rotational symmetry order: `symmetry_alpha` ∈ {0, 1, 2, 4}
+- Relative pose between two views: `rel_azimuth`, `rel_elevation`, `rel_rotation`
+- Optional background removal via `rembg`
+- Mock mode for development without GPU
+
+**File Structure**:
+```
+OrientAnythingV2/
+├── oa_v2_server.py            # Flask server (port 20034)
+├── oa_v2_client.py            # HTTP client
+├── mock_oa_v2_service.py      # Mock service for offline testing
+├── download_weights.sh        # Checkpoint download script
+└── __init__.py
+```
+
+**Model Specification**:
+
+| Item | Detail |
+|------|--------|
+| Model | VGGT_OriAny_Ref (VGGT-1B backbone + orientation heads) |
+| Parameters | ~5.05 GB |
+| Checkpoint | `checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt` |
+| Source repo | HuggingFace Space `Viglong/Orient-Anything-V2` |
+| Paper | NeurIPS 2025 Spotlight |
+
+**Output Fields**:
+
+| Field | Range | Description |
+|-------|-------|-------------|
+| `azimuth` | 0-360° | Absolute azimuth of the object's front face |
+| `elevation` | -90~90° | Absolute elevation |
+| `rotation` | -180~180° | In-plane rotation |
+| `symmetry_alpha` | 0/1/2/4 | Rotational symmetry order (0=uncertain, 1=bilateral, 2=2-fold, 4=4-fold) |
+| `rel_azimuth` | 0-360° | Relative azimuth of target w.r.t. reference (two-image mode only) |
+| `rel_elevation` | -90~90° | Relative elevation (two-image mode only) |
+| `rel_rotation` | -180~180° | Relative rotation (two-image mode only) |
+
+**Setup**:
+```bash
+# 1. Clone the HF Space (includes the bundled vggt sub-package)
+git clone https://huggingface.co/spaces/Viglong/Orient-Anything-V2 \
+    third_party/orient_anything_v2
+
+# 2. Download checkpoint
+bash spagent/external_experts/OrientAnythingV2/download_weights.sh
+# Checkpoint saved to: checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \
+    --checkpoint_path checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt \
+    --repo_path third_party/orient_anything_v2 \
+    --port 20034
+```
+
+**Tool Test**:
+```bash
+# Mock mode — no GPU or server required
+python test/test_orient_anything_v2_tool.py \
+    --use_mock --task orientation --image_path assets/dog.jpeg
+
+# Single image, real server
+python test/test_orient_anything_v2_tool.py \
+    --task orientation --image_path assets/dog.jpeg
+
+# Two-image relative rotation, real server
+python test/test_orient_anything_v2_tool.py \
+    --task relative_rotation \
+    --image_path assets/dog.jpeg --image_path2 assets/example.png
+```
+
+**Python Usage**:
+```python
+from spagent.tools.orient_anything_v2_tool import OrientAnythingV2Tool
+
+# Mock mode
+tool = OrientAnythingV2Tool(use_mock=True)
+
+# Single image: absolute orientation
+result = tool.call(image_path="assets/dog.jpeg", object_category="dog")
+# {'success': True, 'result': {'azimuth': 143, 'elevation': -12, 'rotation': 5, 'symmetry_alpha': 1}}
+
+# Two images: absolute + relative pose
+result = tool.call(
+    image_path="ref.jpg",
+    task="relative_rotation",
+    image_path2="target.jpg",
+    object_category="chair",
+)
+# {'success': True, 'result': {'azimuth': 143, ..., 'rel_azimuth': 72, 'rel_elevation': 8, 'rel_rotation': -15}}
+```
+
+**Resources**:
+- [HuggingFace Space (source code)](https://huggingface.co/spaces/Viglong/Orient-Anything-V2)
+- [HuggingFace Checkpoint](https://huggingface.co/Viglong/OriAnyV2_ckpt)
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
@@ -686,6 +899,12 @@ python spagent/external_experts/VGGT/vggt_server.py \
 # MapAnything dense 3D reconstruction service (downloads facebook/map-anything automatically)
 python spagent/external_experts/mapanything/mapanything_server.py \
   --port 20033
+
+# Orient Anything V2 orientation estimation service
+python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \
+  --checkpoint_path checkpoints/orient_anything_v2/rotmod_realrotaug_best.pt \
+  --repo_path third_party/orient_anything_v2 \
+  --port 20034
 
 # Vision language model service
 python spagent/external_experts/moondream/md_server.py \

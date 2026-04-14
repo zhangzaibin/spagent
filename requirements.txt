@@ -22,3 +22,7 @@ Flask
 clip
 datasets
 moondream
+pytest
+einops
+rembg[gpu]
+timm
