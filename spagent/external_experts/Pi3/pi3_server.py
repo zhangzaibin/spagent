@@ -459,13 +459,15 @@ def infer():
         
         ply_path = f"outputs/{ply_filename}"
         os.makedirs("outputs", exist_ok=True)
-        
-        ply_b64 = write_ply(
-            points_filtered, 
+
+        # write_ply() only writes to disk and returns None; encode file for JSON response
+        write_ply(
+            points_filtered,
             colors_filtered,  # 使用过滤后的颜色数据
-            ply_path
+            ply_path,
         )
-        
+        with open(ply_path, "rb") as _ply_f:
+            ply_b64 = base64.b64encode(_ply_f.read()).decode("utf-8")
 
         # 提取原始相机位姿信息（未经旋转）
         original_camera_poses = results['camera_poses'][0].cpu().numpy()
@@ -498,6 +500,7 @@ def infer():
             
             camera_poses_list.append({
                 "camera_id": i + 1,
+                "c2w": pose.tolist(),  # full 4x4 camera-to-world (same frame as PLY / server rendering)
                 "position": t_cw.tolist(),  # 相机中心位置 [x, y, z]
                 "azimuth_angle": float(azimuth_from_cam1),    # 方位角（相对于相机1），可直接用于 API
                 "elevation_angle": float(elevation_from_cam1)  # 仰角（相对于相机1），可直接用于 API

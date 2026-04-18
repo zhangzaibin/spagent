@@ -501,6 +501,7 @@ def infer():
             
             camera_poses_list.append({
                 "camera_id": i + 1,
+                "c2w": pose.tolist(),  # full 4x4 camera-to-world (same frame as PLY / server rendering)
                 "position": t_cw.tolist(),  # 相机中心位置 [x, y, z]
                 "azimuth_angle": float(azimuth_from_cam1),    # 方位角（相对于相机1），可直接用于 API
                 "elevation_angle": float(elevation_from_cam1)  # 仰角（相对于相机1），可直接用于 API
