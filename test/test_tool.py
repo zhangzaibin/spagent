@@ -37,7 +37,7 @@ Usage:
     python test/test_tool.py --tool sora --image dummy --prompt "test video" --use_mock
 
     # Test Molmo2 (real server)
-    python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task qa --prompt "Describe the dog" --server_url http://localhost:20035
+    python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task qa --prompt "Describe the dog" --server_url http://localhost:20025
 
     # Test Molmo2 (mock mode)
     python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task point --prompt "Point to the dog" --use_mock --save_annotated
@@ -305,7 +305,7 @@ def test_molmo2(
     image_paths: List[str],
     task: str = "qa",
     prompt: Optional[str] = None,
-    server_url: str = "http://localhost:20035",
+    server_url: str = "http://localhost:20025",
     use_mock: bool = True,
     save_annotated: bool = True,
     output_dir: Optional[str] = None,
@@ -707,7 +707,7 @@ def main():
         )
 
     elif args.tool == "molmo2":
-        server = args.server_url or "http://localhost:20035"
+        server = args.server_url or "http://localhost:20025"
         result_path = test_molmo2(
             image_paths=args.image,
             task=args.task,

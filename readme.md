@@ -67,7 +67,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
-| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode sanity checks<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
+| **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode and optional live server checks<br>- Molmo2 expert unit tests (`test_molmo2_expert.py`) — mock service and HTTP client coverage<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
 | **Train** | `train/` | Reinforcement learning training scripts:<br>- GRPO training configurations<br>- LoRA merge and model compression utilities<br>- System prompts for different training modes |
 
 ## 🔍 External Experts
@@ -78,7 +78,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **SAM2** | 2D | Image Segmentation | Local server (20020) | Segment Anything Model 2nd generation, interactive or automatic segmentation |
 | **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions |
 | **Moondream** | 2D | Vision Language Model | Local server (20024) | Small and efficient visual Q&A model, supports image description and Q&A |
-| **Molmo2** | 2D | Multimodal Reasoning & Point Grounding | Local server (20035) | Molmo2 service for image QA, multi-image comparison, and point grounding with optional annotated outputs |
+| **Molmo2** | 2D | Multimodal Reasoning & Point Grounding | Local server (20025) | Molmo2 service for `qa`, `caption`, and `point` tasks, with mock mode and optional annotated point outputs |
 | **Pi3** | 3D | 3D Point Cloud Reconstruction | Local server (20030) | Generate 3D point clouds and multi-view rendered images from images |
 | **Pi3X** | 3D | 3D Point Cloud Reconstruction (Enhanced) | Local server (20031) | Upgraded Pi3 with smoother point clouds, metric scale, and optional multimodal conditioning |
 | **VGGT** | 3D | Multi-view 3D Point Cloud Reconstruction & Camera Pose Estimation | 20032 | Reconstruct 3D point clouds and estimate camera extrinsics/intrinsics from multiple images using [facebook/VGGT-1B](https://huggingface.co/facebook/VGGT-1B); supports both image lists and video frame input |
@@ -128,17 +128,7 @@ export GCP_API_KEY="your_gcp_api_key"
 python spagent/vllm_models/qwen.py
 ```
 
-Optional for running the real Molmo2 service:
 
-```bash
-# Install Molmo2-compatible dependencies on the server host
-pip install ai2-molmo2 accelerate sentencepiece
-
-# Start the local Molmo2 service
-python spagent/external_experts/Molmo2/molmo2_server.py \
-    --checkpoint allenai/Molmo2-4B \
-    --port 20035
-```
 
 ### 3. Deploy External Expert Services
 

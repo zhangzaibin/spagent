@@ -1,7 +1,11 @@
-"""Helpers for integrating Molmo2 with SPAgent."""
+"""
+Molmo2 vision-language expert (Allen AI).
 
-from .mock_molmo2_service import MockMolmo2Service
+- molmo2_server: Flask HTTP service loading HF checkpoints (e.g. allenai/Molmo2-4B).
+- molmo2_client: HTTP client for the service.
+- download_weights: snapshot_download helper for offline/air-gapped setups.
+"""
+
 from .molmo2_client import Molmo2Client
-from .molmo2_local import Molmo2LocalClient
 
-__all__ = ["MockMolmo2Service", "Molmo2Client", "Molmo2LocalClient"]
+__all__ = ["Molmo2Client"]

@@ -1,5 +1,7 @@
-torch==2.5.1
-torchvision==0.20.1
+torch==2.6.0
+torchvision==0.21.0
+
+
 numpy==1.26.4
 plyfile
 huggingface_hub
@@ -17,7 +19,8 @@ pandas
 matplotlib
 scipy
 scikit-learn
-transformers
+transformers>=4.57.0,<5
+accelerate
 Flask
 clip
 datasets

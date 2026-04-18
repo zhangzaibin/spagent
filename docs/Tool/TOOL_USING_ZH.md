@@ -36,7 +36,7 @@ external_experts/
 | **SAM2** | `SegmentationTool` | 图像/视频分割 | 高精度分割任务，精确分割图像中的对象 | 本地服务器（20020） | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
 | **GroundingDINO** | `ObjectDetectionTool` | 开放词汇目标检测 | 基于文本描述检测任意物体 | 本地服务器（20022） | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
 | **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 本地服务器（20024） | `image_path`, `task`, `object_name` |
-| **Molmo2** | `Molmo2Tool` | 多模态推理与点选定位 | 通过本地 Molmo2 服务执行图像问答、描述、多图比较和 point grounding，可选保存标注图 | 本地服务器（20035） | `image_path`, `task`, `prompt`, `save_annotated`(可选) |
+| **Molmo2** | `Molmo2Tool` | 多模态推理与点选定位 | 通过本地 Molmo2 服务执行图像问答、描述和 point grounding，可选保存标注图 | 本地服务器（20025） | `image_path`, `task`, `prompt`(可选), `save_annotated`(可选), `max_new_tokens`(可选) |
 | **Pi3** | `Pi3Tool` | 3D重建 | 从图像生成3D点云和多视角渲染图 | 本地服务器（20030） | `image_path`, `azimuth_angle`, `elevation_angle` |
 | **Pi3X** | `Pi3XTool` | 3D重建（增强版） | Pi3升级版，更平滑点云、近似度量尺度、可选多模态条件注入 | 本地服务器（20031） | `image_path`, `azimuth_angle`, `elevation_angle` |
 | **VGGT** | `VGGTTool` | 多视角3D重建与相机位姿估计 | 从多张图像或视频帧重建3D点云并估计相机位姿 | 20032 | `image_paths`, `azimuth_angle`, `elevation_angle`, `rotation_reference_camera`, `camera_view` |
@@ -224,20 +224,20 @@ export MOONDREAM_API_KEY="your_api_key"
 
 ### 4.1 Molmo2 - 多模态推理与点选定位服务
 
-**功能**: 通过本地 Molmo2 服务执行图像问答、图像描述、多图比较和 point grounding。
+**功能**: 通过本地 Molmo2 服务执行图像问答、图像描述和 point grounding。
 
 **特点**:
 - 与项目里的其他重型工具保持一致，采用本地 server + HTTP client + mock service 的方式
-- 支持单图和多图输入
+- 支持三种任务模式：`qa`、`caption`、`point`
 - 支持 point grounding，并可选保存标注图
 - 提供 mock 模式，便于开发和测试
 
 **文件结构**:
 ```text
 spagent/external_experts/Molmo2/
+├── download_weights.py
 ├── molmo2_server.py
 ├── molmo2_client.py
-├── molmo2_local.py
 ├── mock_molmo2_service.py
 ├── point_utils.py
 └── __init__.py
@@ -246,15 +246,26 @@ spagent/external_experts/Molmo2/
 **推荐安装**:
 ```bash
 pip install -r requirements.txt
-pip install ai2-molmo2 accelerate sentencepiece
+pip install "transformers>=4.57,<5" accelerate sentencepiece huggingface_hub
 ```
 
-或参考官方源码安装:
+如需参考上游源码安装:
 ```bash
 git clone https://github.com/allenai/molmo2.git
 cd molmo2
 pip install torchcodec
 pip install -e .[all]
+```
+
+**下载权重**:
+```bash
+# 将 Hugging Face 模型快照下载到本地目录
+python spagent/external_experts/Molmo2/download_weights.py \
+    --repo allenai/Molmo2-4B \
+    --local-dir checkpoints/molmo2/Molmo2-4B
+
+# 启动服务前指定模型目录
+export MOLMO2_MODEL=checkpoints/molmo2/Molmo2-4B
 ```
 
 **启动服务**:
@@ -264,21 +275,44 @@ python spagent/external_experts/Molmo2/molmo2_server.py \
     --port 20035
 ```
 
+**参数说明**:
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image_path` | string | ✅ | — | 输入图片路径 |
+| `task` | string | ❌ | `"qa"` | `qa`、`caption`、`point` 三选一 |
+| `prompt` | string | ❌ | 按任务自动填充 | 问答问题、描述指令或 point 指令 |
+| `save_annotated` | boolean | ❌ | `True` | 当 `task="point"` 时是否保存标注图 |
+| `max_new_tokens` | integer | ❌ | `200` | Molmo2 输出的最大生成长度 |
+
+默认提示词：
+- `qa`: `What do you see in this image? Answer briefly.`
+- `caption`: `Describe this image.`
+- `point`: `Point to the requested location. Output pointing coordinates in the model's standard format.`
+
 **Python 示例**:
 ```python
 from spagent.tools import Molmo2Tool
 
 tool = Molmo2Tool(
     use_mock=False,
-    server_url="http://localhost:20035",
+    server_url="http://localhost:20025",
+    output_dir="outputs/molmo2",
 )
 
 qa_result = tool.call(
     image_path="assets/dog.jpeg",
     task="qa",
     prompt="图中是什么动物？",
+    max_new_tokens=64,
 )
 print(qa_result["response_text"])
+
+caption_result = tool.call(
+    image_path="assets/dog.jpeg",
+    task="caption",
+)
+print(caption_result["response_text"])
 
 point_result = tool.call(
     image_path="assets/dog.jpeg",
@@ -293,7 +327,12 @@ print(point_result["output_path"])  # 默认保存在系统临时目录，除非
 **直接测试**:
 ```bash
 python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task qa --prompt "Describe the dog" --server_url http://localhost:20035
+python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task caption --server_url http://localhost:20035
 python test/test_tool.py --tool molmo2 --image assets/dog.jpeg --task point --prompt "Point to the dog" --use_mock --save_annotated
+
+# 单元测试
+pytest test/test_molmo2_tool.py -v
+python -m unittest test.test_molmo2_expert -v
 ```
 
 **资源链接**:
@@ -974,5 +1013,5 @@ python spagent/external_experts/moondream/md_server.py \
 # Molmo2 多模态推理服务
 python spagent/external_experts/Molmo2/molmo2_server.py \
   --checkpoint allenai/Molmo2-4B \
-  --port 20035
+  --port 20025
 ```
