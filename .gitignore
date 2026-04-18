@@ -20,3 +20,4 @@ test_outputs
 results
 outputs_old
 third_party/*
+!dataset/sana_cases_sample.jsonl
