@@ -1,8 +1,8 @@
 """
 Wan Video Generation Tool
 
-Wraps Alibaba Wan video generation (via DashScope) for the SPAgent system.
-Supports text-to-video and image-to-video generation.
+Wraps Alibaba Wan (万相) video generation for the SPAgent system.
+Supports text-to-video and image-to-video generation via DashScope API.
 """
 
 import sys
@@ -18,22 +18,21 @@ logger = logging.getLogger(__name__)
 
 
 class WanTool(Tool):
-    """Tool for video generation using Alibaba Wan (DashScope)."""
+    """Tool for video generation using Alibaba Wan via the DashScope API."""
 
-    def __init__(self, use_mock: bool = True, api_key: str = None, model: str = "wanx2.1-t2v-turbo"):
+    def __init__(self, use_mock: bool = True, api_key: str = None):
         super().__init__(
             name="video_generation_wan_tool",
             description=(
                 "Generate a video from a text prompt (and optionally a reference image) "
-                "using Alibaba Wan. Returns the path to the generated .mp4 video file. "
+                "using Alibaba Wan (万相). Returns the path to the generated .mp4 video file. "
                 "Use this when the task requires creating a video visualization, animation, "
-                "or video content from a description. Supports text-to-video and "
-                "image-to-video generation."
+                "or video content from a description. Supports high-quality 720P/1080P output "
+                "with durations from 2 to 15 seconds."
             ),
         )
         self.use_mock = use_mock
         self.api_key = api_key
-        self.model_name = model
         self._client = None
         self._init_client()
 
@@ -48,8 +47,8 @@ class WanTool(Tool):
                 raise
         else:
             try:
-                from external_experts.Wan.wan_client import WanClient
-                self._client = WanClient(api_key=self.api_key, model=self.model_name)
+                from external_experts.Wan.mock_wan_client import WanClient
+                self._client = WanClient(api_key=self.api_key)
                 logger.info("Using real Wan service (DashScope API)")
             except ImportError as e:
                 logger.error(f"Failed to import Wan client: {e}")
@@ -66,21 +65,26 @@ class WanTool(Tool):
                 },
                 "image_path": {
                     "type": "string",
-                    "description": (
-                        "Optional path or URL to a reference image for image-to-video generation. "
-                        "When provided, the model generates a video conditioned on this image."
-                    ),
+                    "description": "Optional path to a reference image for image-to-video generation (first frame).",
                 },
                 "duration": {
                     "type": "integer",
-                    "description": "Video duration in seconds (3–10). Default is 5.",
+                    "description": "Video duration in seconds (2-15). Default is 5.",
                     "default": 5,
                 },
-                "aspect_ratio": {
+                "size": {
                     "type": "string",
-                    "description": "Aspect ratio: '16:9', '9:16', or '1:1'. Default is '16:9'.",
-                    "enum": ["16:9", "9:16", "1:1"],
-                    "default": "16:9",
+                    "description": (
+                        "Resolution in 'width*height' format. "
+                        "Options: '1280*720' (720P 16:9), '720*1280' (720P 9:16), "
+                        "'1920*1080' (1080P 16:9), '1080*1920' (1080P 9:16). "
+                        "Default is '1280*720'."
+                    ),
+                    "enum": [
+                        "1280*720", "720*1280", "960*960",
+                        "1920*1080", "1080*1920", "1440*1440",
+                    ],
+                    "default": "1280*720",
                 },
             },
             "required": ["prompt"],
@@ -91,21 +95,19 @@ class WanTool(Tool):
         prompt: str,
         image_path: str = None,
         duration: int = 5,
-        aspect_ratio: str = "16:9",
+        size: str = "1280*720",
     ) -> Dict[str, Any]:
         try:
             logger.info(f"Generating video with Wan: {prompt[:80]}...")
 
-            if image_path and not image_path.startswith("http"):
-                from pathlib import Path as _Path
-                if not _Path(image_path).exists():
-                    return {"success": False, "error": f"Image file not found: {image_path}"}
+            if image_path and not Path(image_path).exists():
+                return {"success": False, "error": f"Image file not found: {image_path}"}
 
             result = self._client.generate_video(
                 prompt=prompt,
                 image_path=image_path,
                 duration=duration,
-                aspect_ratio=aspect_ratio,
+                size=size,
             )
 
             if result and result.get("success"):

@@ -1,4 +1,5 @@
-from .wan_client import WanClient
-from .mock_wan_service import MockWanService
+from .mock_wan_client import WanClient
 
-__all__ = ["WanClient", "MockWanService"]
+__all__ = [
+    "WanClient",
+]

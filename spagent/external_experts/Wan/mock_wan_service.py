@@ -1,3 +1,9 @@
+"""
+Mock Wan video generation service for development and testing.
+
+Returns a fake .mp4 file path without calling any real API.
+"""
+
 import os
 import time
 import logging
@@ -6,24 +12,26 @@ logger = logging.getLogger(__name__)
 
 
 class MockWanService:
-    """Mock Wan service for testing without API access."""
+    """Lightweight mock that mimics WanClient.generate_video() interface."""
 
     def generate_video(
         self,
         prompt: str,
         image_path: str = None,
         duration: int = 5,
-        aspect_ratio: str = "16:9",
+        size: str = "1280*720",
     ) -> dict:
-        logger.info(f"[Mock Wan] Generating video for prompt: {prompt[:80]}...")
-
-        if image_path and not image_path.startswith("http") and not os.path.exists(image_path):
-            return {"success": False, "error": f"Image not found: {image_path}"}
-
         os.makedirs("outputs", exist_ok=True)
-        output_path = f"outputs/mock_wan_{int(time.time())}.mp4"
+        output_path = f"outputs/wan_mock_{int(time.time())}.mp4"
+
         with open(output_path, "wb") as f:
             f.write(b"\x00" * 1024)
+
+        mode = "image-to-video" if image_path else "text-to-video"
+        logger.info(
+            f"MockWanService: generated fake video ({mode}, "
+            f"duration={duration}s, size={size}) -> {output_path}"
+        )
 
         return {
             "success": True,
