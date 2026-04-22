@@ -16,9 +16,9 @@ This folder now contains a vendored VACE runtime so `spagent` can be used as a s
 
 - Model weights/checkpoints (very large files)
 
-You need to prepare checkpoints manually under this folder root, e.g.:
+You need to prepare checkpoints manually under repository `checkpoints/`, e.g.:
 
-- `models/Wan2.1-VACE-1.3B/`
+- `checkpoints/vace/Wan2.1-VACE-1.3B/`
 
 ## External dependency: `import wan`
 
@@ -56,17 +56,17 @@ mkdir -p spagent/external_experts/vace/third_party
 git clone https://github.com/Wan-Video/Wan2.1.git \
   spagent/external_experts/vace/third_party/Wan2.1
 
-# 4) Create model folders used by vendored VACE runtime
-mkdir -p spagent/external_experts/vace/models
+# 4) Create checkpoints folder used by VACE runtime
+mkdir -p checkpoints/vace
 
 # 5) Download Wan2.1-VACE-1.3B weights (required for firstframe with --base wan)
 huggingface-cli download Wan-AI/Wan2.1-VACE-1.3B \
-  --local-dir spagent/external_experts/vace/models/Wan2.1-VACE-1.3B \
+  --local-dir checkpoints/vace/Wan2.1-VACE-1.3B \
   --local-dir-use-symlinks False
 
 # 6) (Optional but recommended for other VACE tasks) Download annotator assets
 huggingface-cli download ali-vilab/VACE-Annotators \
-  --local-dir spagent/external_experts/vace/models/VACE-Annotators \
+  --local-dir checkpoints/vace/VACE-Annotators \
   --local-dir-use-symlinks False
 ```
 
@@ -89,7 +89,9 @@ If logs mention **imageio** / **FFMPEG** / “no backend” for `.mp4`, install 
 ## Start server
 
 ```bash
-python spagent/external_experts/vace/vace_server.py --port 20034
+python spagent/external_experts/vace/vace_server.py \
+  --checkpoint_path checkpoints/vace/Wan2.1-VACE-1.3B \
+  --port 20034
 ```
 
-By default, the server uses the current folder as `--vace_root`.
+By default, the server uses the current folder as `--vace_root`, and uses `checkpoints/vace/Wan2.1-VACE-1.3B` as `--checkpoint_path`.

@@ -23,8 +23,14 @@ app = Flask(__name__)
 class VaceRunner:
     """Run VACE first-frame pipeline command and collect outputs."""
 
-    def __init__(self, vace_root: str, python_exec: str = "python"):
+    def __init__(
+        self,
+        vace_root: str,
+        checkpoint_path: str,
+        python_exec: str = "python",
+    ):
         self.vace_root = Path(vace_root).expanduser().resolve()
+        self.checkpoint_path = Path(checkpoint_path).expanduser().resolve()
         self.python_exec = python_exec
         self._progress: Dict[str, Any] = {
             "active": False,
@@ -45,6 +51,9 @@ class VaceRunner:
         pipeline_path = self.vace_root / "vace" / "vace_pipeline.py"
         if not pipeline_path.exists():
             return False, f"Pipeline file not found: {pipeline_path}"
+
+        if not self.checkpoint_path.exists():
+            return False, f"Checkpoint path not found: {self.checkpoint_path}"
 
         return True, "ok"
 
@@ -96,6 +105,12 @@ class VaceRunner:
         if not absolute_image.exists():
             return {"success": False, "error": f"Image file not found: {absolute_image}"}
 
+        merged_extra_args = dict(extra_args or {})
+        checkpoint_dir_for_run = self.checkpoint_path
+        # Keep backward compatibility if caller still passes ckpt_dir via payload.
+        if "ckpt_dir" in merged_extra_args:
+            checkpoint_dir_for_run = Path(str(merged_extra_args.pop("ckpt_dir"))).expanduser().resolve()
+
         cmd = [
             self.python_exec,
             "vace/vace_pipeline.py",
@@ -109,10 +124,12 @@ class VaceRunner:
             str(absolute_image),
             "--prompt",
             str(prompt),
+            "--ckpt_dir",
+            str(checkpoint_dir_for_run),
         ]
 
-        if extra_args:
-            for key, value in extra_args.items():
+        if merged_extra_args:
+            for key, value in merged_extra_args.items():
                 if value is None:
                     continue
                 flag = f"--{key}"
@@ -328,6 +345,7 @@ def health_check():
             "runtime_deps_ok": deps_ok,
             "runtime_deps_message": deps_message,
             "vace_root": str(runner.vace_root),
+            "checkpoint_path": str(runner.checkpoint_path),
             "health_python_executable": sys.executable,
             "health_python_version": sys.version.split()[0],
         }
@@ -407,12 +425,21 @@ def infer_internal(
 
 def parse_args():
     default_vace_root = str(Path(__file__).resolve().parent)
+    default_checkpoint_path = str(
+        Path(__file__).resolve().parents[3] / "checkpoints" / "vace" / "Wan2.1-VACE-1.3B"
+    )
     parser = argparse.ArgumentParser(description="VACE firstframe Flask server")
     parser.add_argument(
         "--vace_root",
         type=str,
         default=default_vace_root,
         help="Path to vendored VACE runtime root",
+    )
+    parser.add_argument(
+        "--checkpoint_path",
+        type=str,
+        default=default_checkpoint_path,
+        help="Path to Wan VACE checkpoint directory",
     )
     parser.add_argument("--port", type=int, default=20034, help="Server port")
     parser.add_argument("--python_exec", type=str, default="python", help="Python executable")
@@ -421,9 +448,17 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    runner = VaceRunner(vace_root=args.vace_root, python_exec=args.python_exec)
+    runner = VaceRunner(
+        vace_root=args.vace_root,
+        checkpoint_path=args.checkpoint_path,
+        python_exec=args.python_exec,
+    )
     ready, message = runner.is_ready()
-    logger.info("Starting VACE server, root=%s", args.vace_root)
+    logger.info(
+        "Starting VACE server, root=%s, checkpoint_path=%s",
+        args.vace_root,
+        args.checkpoint_path,
+    )
     if not ready:
         logger.warning("VACE environment check failed: %s", message)
     # threaded=True so /progress can be polled while /infer blocks on subprocess.

@@ -88,7 +88,7 @@ def get_parser():
     parser.add_argument(
         "--ckpt_dir",
         type=str,
-        default='models/Wan2.1-VACE-1.3B/',
+        default='checkpoints/vace/Wan2.1-VACE-1.3B',
         help="The path to the checkpoint directory.")
     parser.add_argument(
         "--offload_model",
