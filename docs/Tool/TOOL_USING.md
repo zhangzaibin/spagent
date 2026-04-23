@@ -17,6 +17,7 @@ external_experts/
 │   └──pi3x
 │   └──sam2
 │   └──vggt
+│   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # Open-vocabulary object detection
 ├── SAM2/                          # Image and video segmentation
 ├── Depth_AnythingV2/              # Depth estimation
@@ -27,6 +28,7 @@ external_experts/
 ├── OrientAnythingV2/              # Object orientation & rotation estimation
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
+├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -49,6 +51,7 @@ external_experts/
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
+| **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -958,6 +961,111 @@ result = tool.call(
 
 ---
 
+---
+
+### 12. VACE - Local Video Generation (First-Frame Pipeline)
+
+**Function**: Generate a short video from a single reference image and a text motion prompt using the locally deployed Wan2.1-VACE model.
+
+**Features**:
+- Image-to-video (first-frame-to-video) generation entirely on local GPU — no cloud API needed
+- Powered by [Wan2.1-VACE-1.3B](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
+- Outputs a `.mp4` video saved under `vace/results/`
+- Mock mode available for offline development and testing
+- Works without FlashAttention (falls back to PyTorch `scaled_dot_product_attention`)
+
+**File Structure**:
+```
+vace/
+├── vace_server.py          # Flask server (port 20034)
+├── vace_client.py          # HTTP client
+├── vace/                   # VACE pipeline runtime code
+│   ├── vace_pipeline.py
+│   ├── vace_wan_inference.py
+│   ├── annotators/
+│   ├── configs/
+│   └── models/
+└── third_party/
+    └── Wan2.1/             # Vendored Wan2.1 model code
+```
+
+**Environment Requirements**:
+- NVIDIA GPU (VRAM ≥ 8 GB recommended for 1.3B model at default resolution)
+- Python 3.11, PyTorch ≥ 2.0
+
+**Installation**:
+```bash
+pip install -r requirements-vace.txt
+```
+
+**Weight Download**:
+```bash
+python -m pip install -U "huggingface_hub[cli]"
+huggingface-cli download Wan-AI/Wan2.1-VACE-1.3B \
+    --local-dir checkpoints/Wan2.1-VACE-1.3B \
+    --local-dir-use-symlinks False
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/vace/vace_server.py \
+    --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
+    --port 20034
+```
+
+Health check:
+```bash
+curl -s http://127.0.0.1:20034/health
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image_path` | string | ✅ | — | Path to the first-frame reference image |
+| `prompt` | string | ✅ | — | Motion / scene description for the generated video |
+| `base` | string | ❌ | `"wan"` | VACE base model backend |
+| `task` | string | ❌ | `"frameref"` | VACE task name |
+| `mode` | string | ❌ | `"firstframe"` | Pipeline mode (`firstframe`, `lastframe`, etc.) |
+
+**Python Usage**:
+```python
+from spagent.tools import VaceTool
+
+# Mock mode — no server or GPU needed
+tool = VaceTool(use_mock=True)
+
+# Real server
+tool = VaceTool(use_mock=False, server_url="http://localhost:20034")
+
+result = tool.call(
+    image_path="assets/example.png",
+    prompt="move forward slowly",
+)
+print(result["output_path"])   # path to generated .mp4
+```
+
+**Tool Test**:
+```bash
+# Mock mode
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --use_mock
+
+# Real server
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --server_url http://localhost:20034
+```
+
+**Resources**:
+- [Wan2.1-VACE-1.3B on HuggingFace](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
+- [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
@@ -1036,4 +1144,9 @@ python spagent/external_experts/moondream/md_server.py \
 python spagent/external_experts/Molmo2/molmo2_server.py \
   --checkpoint allenai/Molmo2-4B \
   --port 20025
+
+# VACE local video generation service (Wan2.1-VACE first-frame pipeline)
+python spagent/external_experts/vace/vace_server.py \
+  --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
+  --port 20034
 ```

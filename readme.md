@@ -59,9 +59,9 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based) |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation \& rotation estimation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
@@ -90,6 +90,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Veo** | Video | Text/Image-to-Video Generation | API (no server) | Google Veo via Gemini API; requires `GOOGLE_API_KEY`; supports t2v and i2v |
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
+| **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
 
 
 ## 🛠️ Installation & Setup
@@ -261,12 +262,12 @@ result = agent.solve_problem(
 )
 ```
 
-### 6. Video Generation with Veo / Sora
+### 6. Video Generation with Veo / Sora / VACE
 
 ```python
 from spagent import SPAgent
 from spagent.models import GPTModel
-from spagent.tools import VeoTool, SoraTool
+from spagent.tools import VeoTool, SoraTool, VaceTool
 
 model = GPTModel(model_name="gpt-4o")
 
@@ -285,6 +286,14 @@ result = agent.solve_problem(
     "assets/dog.jpeg",
     "Make the dog start running across the field",
     video_num_frames=4
+)
+print(result['answer'])
+
+# Image-to-video with local VACE (no cloud API, requires vace_server running)
+agent = SPAgent(model=model, tools=[VaceTool(use_mock=False, server_url="http://localhost:20034")])
+result = agent.solve_problem(
+    "assets/example.png",
+    "Generate a video showing the camera moving forward"
 )
 print(result['answer'])
 ```
@@ -390,6 +399,18 @@ python test/test_tool.py --tool sora \
 
 # Test Sora with mock service (no API key needed)
 python test/test_tool.py --tool sora --image dummy --prompt "test" --use_mock
+
+# Test VACE (local first-frame video generation, mock mode — no GPU or server needed)
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --use_mock
+
+# Test VACE with real server
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --server_url http://localhost:20034
 ```
 
 You can also call the test function directly in Python:

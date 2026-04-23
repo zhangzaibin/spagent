@@ -15,6 +15,7 @@ external_experts/
 │   └──pi3x
 │   └──sam2
 │   └──vggt
+│   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # 开放词汇目标检测
 ├── SAM2/                          # 图像和视频分割
 ├── Depth_AnythingV2/              # 深度估计
@@ -25,6 +26,7 @@ external_experts/
 ├── OrientAnythingV2/              # 物体朝向与相对旋转估计
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
+├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
 └── supervision/                   # YOLO目标检测和标注工具
 ```
 
@@ -47,6 +49,7 @@ external_experts/
 | **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
+| **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -938,6 +941,111 @@ result = tool.call(
 
 ---
 
+---
+
+### 12. VACE - 本地视频生成（首帧驱动流水线）
+
+**功能**：基于单张参考图和文本运动提示词，通过本地部署的 Wan2.1-VACE 模型生成短视频。
+
+**特点**：
+- 图生视频（首帧→视频）全部在本地 GPU 上运行，无需云端 API
+- 使用 [Wan2.1-VACE-1.3B](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B) 模型
+- 生成的 `.mp4` 视频保存于 `vace/results/` 目录
+- 提供 mock 模式，无需 GPU 即可离线开发测试
+- 无需 FlashAttention，自动降级至 PyTorch `scaled_dot_product_attention`
+
+**文件结构**：
+```
+vace/
+├── vace_server.py          # Flask 服务器（端口 20034）
+├── vace_client.py          # HTTP 客户端
+├── vace/                   # VACE 流水线运行时代码
+│   ├── vace_pipeline.py
+│   ├── vace_wan_inference.py
+│   ├── annotators/
+│   ├── configs/
+│   └── models/
+└── third_party/
+    └── Wan2.1/             # 内嵌的 Wan2.1 模型代码
+```
+
+**环境要求**：
+- NVIDIA GPU（默认分辨率下建议显存 ≥ 8 GB）
+- Python 3.11，PyTorch ≥ 2.0
+
+**安装依赖**：
+```bash
+pip install -r requirements-vace.txt
+```
+
+**权重下载**：
+```bash
+python -m pip install -U "huggingface_hub[cli]"
+huggingface-cli download Wan-AI/Wan2.1-VACE-1.3B \
+    --local-dir checkpoints/Wan2.1-VACE-1.3B \
+    --local-dir-use-symlinks False
+```
+
+**启动服务**：
+```bash
+python spagent/external_experts/vace/vace_server.py \
+    --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
+    --port 20034
+```
+
+健康检查：
+```bash
+curl -s http://127.0.0.1:20034/health
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `image_path` | string | ✅ | — | 首帧参考图片路径 |
+| `prompt` | string | ✅ | — | 视频运动/场景描述提示词 |
+| `base` | string | ❌ | `"wan"` | VACE 基础模型后端 |
+| `task` | string | ❌ | `"frameref"` | VACE 任务名称 |
+| `mode` | string | ❌ | `"firstframe"` | 流水线模式（`firstframe`、`lastframe` 等） |
+
+**Python 调用示例**：
+```python
+from spagent.tools import VaceTool
+
+# mock 模式——无需服务器或 GPU
+tool = VaceTool(use_mock=True)
+
+# 真实服务器
+tool = VaceTool(use_mock=False, server_url="http://localhost:20034")
+
+result = tool.call(
+    image_path="assets/example.png",
+    prompt="缓慢向前移动",
+)
+print(result["output_path"])   # 生成的 .mp4 路径
+```
+
+**工具测试**：
+```bash
+# mock 模式
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --use_mock
+
+# 真实服务器
+python test/test_tool.py --tool vace \
+    --image assets/example.png \
+    --prompt "move forward" \
+    --server_url http://localhost:20034
+```
+
+**资源链接**：
+- [Wan2.1-VACE-1.3B（HuggingFace）](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
+- [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
@@ -1014,4 +1122,9 @@ python spagent/external_experts/moondream/md_server.py \
 python spagent/external_experts/Molmo2/molmo2_server.py \
   --checkpoint allenai/Molmo2-4B \
   --port 20025
+
+# VACE 本地视频生成服务（Wan2.1-VACE 首帧流水线）
+python spagent/external_experts/vace/vace_server.py \
+  --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
+  --port 20034
 ```

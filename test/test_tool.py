@@ -772,7 +772,7 @@ def main():
             prompt=args.prompt,
             server_url=server,
             use_mock=args.use_mock,
-            output_dir=args.output_dir,
+            output_dir=args.output_dir,)
     elif args.tool == "molmo2":
         server = args.server_url or "http://localhost:20025"
         result_path = test_molmo2(

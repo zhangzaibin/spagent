@@ -30,3 +30,12 @@ einops
 rembg[gpu]
 timm
 open3d
+easydict
+pycocotools
+imageio
+imageio-ffmpeg
+decord
+diffusers>=0.31.0
+accelerate>=1.1.1
+ftfy
+einops
