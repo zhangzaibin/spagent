@@ -52,6 +52,26 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **FLUX.1/2** | `FluxTool` | Text-to-Image & Editing | Production-grade T2I with reference editing, multi-reference consistency (FLUX.2 [dev]) | Server (port 20035) | `prompt`, `reference_images`, `guidance_scale`, `num_steps` |
+| **Qwen-Image** | `QwenImageTool` | Image Generation & Editing | 20B MMDiT, best-in-class text rendering (English + Chinese), image editing | Server (port 20036) | `prompt`, `image_path`(optional), `task`(gen/edit), `resolution` |
+| **HunyuanImage-3.0** | `HunyuanImageTool` | Native Multimodal Image Generation | Largest open-source image MoE (80B total / 13B active), unified autoregressive framework | Server (port 20037) | `prompt`, `diff_infer_steps`, `image_size` |
+| **Stable Diffusion 3.5** | `SD35Tool` | Text-to-Image | Mature ecosystem MMDiT (Large/Turbo/Medium), ControlNet support, consumer-GPU friendly | Server (port 20038) | `prompt`, `model_size` (large/medium/turbo), `steps`, `controlnet` |
+| **FLUX.1-Kontext** | `FluxKontextTool` | Instruction-based Image Editing | In-context image editing via flow matching, reference image support | Server (port 20039) | `image_path`, `edit_instruction`, `reference_images` |
+| **Wan2.2** | `Wan22Tool` | Text/Image-to-Video Generation | SOTA open-source MoE video gen, cinematic 720P@24fps, T2V/I2V/TI2V | Server (port 20040) | `prompt`, `image_path`(optional), `task`(t2v/i2v/ti2v), `resolution`, `fps` |
+| **HunyuanVideo** | `HunyuanVideoTool` | Text-to-Video Generation | Tencent's flagship open video gen, strong on physical realism and motion | Server (port 20041) | `prompt`, `video_length`, `resolution`, `seed` |
+| **CogVideoX** | `CogVideoXTool` | Text/Image-to-Video | Expert-Transformer DiT (2B/5B), 10-sec 768×1360 videos, runs on RTX 3060 (5B) | Server (port 20042) | `prompt`, `image_path`(optional), `model_size` (2b/5b), `num_frames` |
+| **InternVideo2.5** | `InternVideoTool` | Video Understanding / Video MLLM | Long-context video QA, action recognition, temporal localization (6× longer context) | Server (port 20043) | `video_path`, `question`, `num_frames`, `max_tokens` |
+| **Shape-of-Motion** | `ShapeOfMotionTool` | 4D Reconstruction (monocular) | Reconstruct dynamic 3D scene + explicit 3D motion trajectories from a single video | Server (port 20044) | `video_path`, `camera_intrinsics`(optional), `mask_path`(optional) |
+| **OpenVLA** | `OpenVLATool` | Vision-Language-Action (robot manipulation) | 7B open VLA trained on Open X-Embodiment (970k trajectories), fine-tunable via LoRA | Server (port 20045) | `image_path`, `instruction`, `unnorm_key`, `center_crop` |
+| **Pi0 (openpi)** | `OpenpiTool` | Flow-matching VLA | π₀ / π₀-FAST / π₀.₅ — SOTA generalist from Physical Intelligence, 10k+ hr pretraining | Server (port 20046) | `image_path`, `prompt`, `proprio_state`, `checkpoint_variant` |
+| **Isaac GR00T** | `GR00TTool` | Humanoid VLA (N1.6/N1.7) | NVIDIA's foundation model for humanoid robot skills, Apache 2.0, diffusion transformer head | Server (port 20047) | `image_path`, `instruction`, `embodiment_tag`, `action_horizon` |
+| **LeRobot** | `LeRobotTool` | Robotics Framework & Policies | HF's end-to-end robot-learning framework, supports ACT/Diffusion Policy/Pi0/SmolVLA | Local (library) | `dataset_repo_id`, `policy_type`, `checkpoint_path` |
+| **RDT-1B** | `RDTTool` | Bimanual Manipulation VLA | 1.2B diffusion-based VLA, specialized for bimanual manipulation (ALOHA-class) | Server (port 20048) | `image_path_left`, `image_path_right`, `instruction`, `proprio_state` |
+| **VACE (Video Editing)** | `VACETool` | All-in-One Video Creation & Editing | R2V + V2V + MV2V (Move/Swap/Reference/Expand/Animate-Anything), ICCV 2025 | Server (port 20049) | `video_path`, `mask_path`(optional), `ref_images`, `prompt`, `task` |
+| **Wan2.2-Animate** | `Wan22AnimateTool` | Character Animation & Replacement | Holistic movement + expression replication, pose-driven, via Wan2.2-Animate-14B | Server (port 20050) | `ref_image`, `pose_video`, `face_video`, `prompt`, `mode`(animate/replace) |
+| **DiffSynth-Studio** | `DiffSynthTool` | Video Editing Framework | V2V, FP8 quant, VRAM opt, LoRA training — comprehensive pipeline for Wan/Qwen/FLUX | Local (library) | `model_id`, `video_path`, `task`, `lora_path`(optional) |
+| **AnimateDiff** | `AnimateDiffTool` | Motion Module Video Gen/Edit | Widely-used motion LoRA add-on for SD-family models, community favorite | Server (port 20051) | `prompt`, `image_path`(optional), `motion_lora`, `num_frames` |
+| **CogVideoX-Fun** | `CogVideoXFunTool` | Controllable Video Editing | PAI's CogVideoX variant with pose/canny/depth control and InP (inpaint) variants | Server (port 20052) | `video_path`, `control_type`, `ref_image`, `prompt` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1063,6 +1083,84 @@ python test/test_tool.py --tool vace \
 **Resources**:
 - [Wan2.1-VACE-1.3B on HuggingFace](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
 - [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
+### 13. Qwen-Image — Image Generation & Editing with Superior Text Rendering
+
+**Function**: Foundation image generation and editing model with state-of-the-art complex text rendering (especially Chinese).
+
+**Features**:
+
+* 20B MMDiT (Multimodal Diffusion Transformer) architecture
+* Best-in-class bilingual text rendering — English + Chinese + Korean + Japanese
+* Unified generation and editing in one model family (T2I + Edit variants)
+* Apache 2.0 license — fully permissive for commercial use
+* Native ComfyUI and Diffusers integration
+* Lightning LoRA variants for 4-step / 8-step distilled inference
+
+**File Structure**:
+
+~~~
+Qwen_Image/
+├── qwen_image_server.py
+├── qwen_image_client.py
+├── mock_qwen_image_service.py
+└── qwen_image/
+    ├── pipeline_qwen_image.py
+    ├── transformer_qwen_image.py
+    ├── modules/
+    └── utils/
+~~~
+
+**Model Specifications**:
+
+| Model | Task | Parameters | File Size (bf16) | File Size (fp8) | Steps (default) | License |
+| --- | --- | --- | --- | --- | --- | --- |
+| Qwen-Image | Text-to-image | 20B | ~40.9 GB | ~20.4 GB | 50 (cfg 4.0) | Apache 2.0 |
+| Qwen-Image-2512 | Text-to-image (Dec 2025 upgrade) | 20B | ~40.9 GB | ~20.4 GB | 50 (cfg 4.0) | Apache 2.0 |
+| Qwen-Image-Edit-2511 | Image editing | 20B | ~40.9 GB | ~20.4 GB | 50 (cfg 4.0) | Apache 2.0 |
+| Qwen-Image-Lightning (LoRA) | Distillation LoRA | LoRA on 20B base | ~472 MB | — | 4 or 8 (cfg 1.0) | Apache 2.0 |
+
+Text encoder: Qwen2.5-VL 7B (shared across all variants) — ~14 GB in bf16. VAE: Qwen-Image VAE — ~254 MB.
+
+**Weight Download**:
+
+~~~bash
+cd checkpoints/
+mkdir -p qwen_image && cd qwen_image
+
+# Qwen-Image (base T2I model, Apache 2.0)
+huggingface-cli download Qwen/Qwen-Image --local-dir ./Qwen-Image
+
+# Qwen-Image-2512 (latest December 2025 text-to-image upgrade — recommended)
+huggingface-cli download Qwen/Qwen-Image-2512 --local-dir ./Qwen-Image-2512
+
+# Qwen-Image-Edit-2511 (latest image editing variant)
+huggingface-cli download Qwen/Qwen-Image-Edit-2511 --local-dir ./Qwen-Image-Edit-2511
+
+# Qwen-Image-Lightning LoRA (4-step / 8-step distillation for fast inference)
+huggingface-cli download lightx2v/Qwen-Image-Lightning --local-dir ./Qwen-Image-Lightning
+~~~
+
+**Minimal Inference (via Diffusers)**:
+
+~~~python
+from diffusers import DiffusionPipeline
+import torch
+
+pipe = DiffusionPipeline.from_pretrained("Qwen/Qwen-Image", torch_dtype=torch.bfloat16).to("cuda")
+image = pipe(prompt="A coffee shop sign reading 'Qwen Coffee $2 per cup', photorealistic",
+             num_inference_steps=50, true_cfg_scale=4.0).images[0]
+~~~
+
+**Resources**:
+
+* [Official Repository](https://github.com/QwenLM/Qwen-Image)
+* [Hugging Face — Qwen/Qwen-Image](https://huggingface.co/Qwen/Qwen-Image)
+* [Technical Report (arXiv:2508.02324)](https://arxiv.org/abs/2508.02324)
+* [Qwen Team Blog](https://qwenlm.github.io/)
+* [Qwen-Image-Lightning (distillation)](https://huggingface.co/lightx2v/Qwen-Image-Lightning)
 
 ---
 
