@@ -18,6 +18,8 @@ from .model import Model
 from .prompts import (
     create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt,
     SPATIAL_3D_CONTINUATION_HINT, GENERAL_VISION_CONTINUATION_HINT,
+    SPATIAL_3D_SYSTEM_PROMPT, GENERAL_VISION_SYSTEM_PROMPT,
+    GENERATION_SYSTEM_PROMPT, GENERATION_CONTINUATION_HINT,
 )
 import json as _json
 from .data_collector import DataCollector
@@ -41,6 +43,7 @@ class SPAgent:
         data_collector: Optional[DataCollector] = None,
         system_prompt: Optional[str] = None,
         continuation_hint: Optional[str] = None,
+        workflow_mode: str = "default",
     ):
         """
         Initialize SPAgent
@@ -64,20 +67,19 @@ class SPAgent:
                 If None, auto-selects: GENERAL_VISION_CONTINUATION_HINT when
                 system_prompt is set, SPATIAL_3D_CONTINUATION_HINT otherwise.
                 Use constants from ``spagent.core.prompts``.
+            workflow_mode: Workflow routing mode.
+                - "default": preserve existing behavior
+                - "auto": automatically choose between spatial_3d, general_vision,
+                  and generation workflows based on tools, images, and task text
         """
         self.model = model
         self.tool_registry = ToolRegistry()
         self.max_workers = max_workers
         self.data_collector = data_collector
         self.system_prompt_template = system_prompt
-        # Explicit hint takes priority; fall back to auto-detection from system_prompt.
-        if continuation_hint is not None:
-            self.continuation_hint = continuation_hint
-        else:
-            self.continuation_hint = (
-                GENERAL_VISION_CONTINUATION_HINT if system_prompt is not None
-                else SPATIAL_3D_CONTINUATION_HINT
-            )
+        self.user_continuation_hint = continuation_hint
+        self.workflow_mode = workflow_mode
+        self.continuation_hint = continuation_hint
         
         # Register provided tools
         if tools:
@@ -180,19 +182,11 @@ class SPAgent:
         
         # Create system prompt with available tools
         tool_schemas = self.tool_registry.get_function_schemas()
-        if self.system_prompt_template is not None:
-            tools_json = _json.dumps(tool_schemas, indent=2)
-            if "{tools_json}" in self.system_prompt_template:
-                system_prompt = self.system_prompt_template.replace("{tools_json}", tools_json)
-            else:
-                # No placeholder — append the tools block automatically
-                tools_block = (
-                    f"\n# Tools\nYou have access to the following tools:\n"
-                    f"<tools>\n{tools_json}\n</tools>\n"
-                )
-                system_prompt = self.system_prompt_template + tools_block
-        else:
-            system_prompt = create_system_prompt(tool_schemas)
+        system_prompt, active_continuation_hint, active_workflow = self._resolve_workflow_prompts(
+            question=question,
+            image_paths=image_paths,
+            tool_schemas=tool_schemas,
+        )
         # system_prompt += '\nThis time, you need to call the function anyway in <tool_call></tool_call> format.' # Debug Only!
         user_prompt = create_user_prompt(question, image_paths, tool_schemas)
         
@@ -231,18 +225,11 @@ class SPAgent:
                 )
                 logger.info(f"Getting continuation response for iteration {iteration}...")
             
-            if len(current_images) == 1:
-                current_response = self.model.single_image_inference(
-                    current_images[0], 
-                    prompt,
-                    **model_kwargs
-                )
-            else:
-                current_response = self.model.multiple_images_inference(
-                    current_images,
-                    prompt,
-                    **model_kwargs
-                )
+            current_response = self._run_model_inference(
+                current_images,
+                prompt,
+                **model_kwargs
+            )
             
             logger.info(f"Response: {current_response}")
             
@@ -345,24 +332,17 @@ class SPAgent:
                 image_paths,
                 all_additional_images,
                 tool_description,
-                continuation_hint=self.continuation_hint,
+                continuation_hint=active_continuation_hint,
             )
             
             valid_additional_images = self._sort_additional_images_by_input_order(image_paths, all_additional_images)
             final_images = valid_additional_images if valid_additional_images else image_paths
             
-            if len(final_images) == 1:
-                final_response = self.model.single_image_inference(
-                    final_images[0],
-                    follow_up_prompt,
-                    **model_kwargs
-                )
-            else:
-                final_response = self.model.multiple_images_inference(
-                    final_images,
-                    follow_up_prompt,
-                    **model_kwargs
-                )
+            final_response = self._run_model_inference(
+                final_images,
+                follow_up_prompt,
+                **model_kwargs
+            )
             
             # Record final synthesis inference if collection is enabled
             if self.data_collector:
@@ -383,18 +363,11 @@ class SPAgent:
             # Generate fallback if no answer tags
             logger.warning("No answer tags found, generating fallback response")
             fallback_prompt = create_fallback_prompt(question, last_response)
-            if len(current_images) == 1:
-                final_response = self.model.single_image_inference(
-                    current_images[0],
-                    fallback_prompt,
-                    **model_kwargs
-                )
-            else:
-                final_response = self.model.multiple_images_inference(
-                    current_images,
-                    fallback_prompt,
-                    **model_kwargs
-                )
+            final_response = self._run_model_inference(
+                current_images,
+                fallback_prompt,
+                **model_kwargs
+            )
             
             # Record fallback inference if collection is enabled
             if self.data_collector:
@@ -476,9 +449,135 @@ class SPAgent:
             "prompts": {
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
-                "follow_up_prompt": None  # This is now handled in continuation prompts
+                "follow_up_prompt": None,  # This is now handled in continuation prompts
+                "workflow": active_workflow,
             }
         }
+
+    def _run_model_inference(
+        self,
+        images: List[str],
+        prompt: str,
+        **model_kwargs
+    ) -> str:
+        """
+        Run model inference for text-only, single-image, or multi-image inputs.
+
+        Args:
+            images: Input image paths. May be empty for text-only tasks.
+            prompt: Prompt sent to the model.
+            **model_kwargs: Additional generation arguments.
+
+        Returns:
+            Model response text.
+        """
+        if not images:
+            logger.info("Running text-only inference")
+            return self.model.text_only_inference(prompt, **model_kwargs)
+        if len(images) == 1:
+            return self.model.single_image_inference(images[0], prompt, **model_kwargs)
+        return self.model.multiple_images_inference(images, prompt, **model_kwargs)
+
+    def _resolve_workflow_prompts(
+        self,
+        question: str,
+        image_paths: List[str],
+        tool_schemas: List[Dict[str, Any]],
+    ) -> tuple[str, str, str]:
+        """
+        Resolve the active system prompt, continuation hint, and workflow label.
+        """
+        if self.system_prompt_template is not None:
+            system_prompt = self._render_system_prompt_template(self.system_prompt_template, tool_schemas)
+            continuation_hint = (
+                self.user_continuation_hint
+                if self.user_continuation_hint is not None
+                else GENERAL_VISION_CONTINUATION_HINT
+            )
+            return system_prompt, continuation_hint, "custom"
+
+        if self.workflow_mode == "auto":
+            workflow = self._select_workflow(question, image_paths)
+            if workflow == "generation":
+                template = GENERATION_SYSTEM_PROMPT
+                hint = GENERATION_CONTINUATION_HINT
+            elif workflow == "general_vision":
+                template = GENERAL_VISION_SYSTEM_PROMPT
+                hint = GENERAL_VISION_CONTINUATION_HINT
+            else:
+                template = SPATIAL_3D_SYSTEM_PROMPT
+                hint = SPATIAL_3D_CONTINUATION_HINT
+            system_prompt = self._render_system_prompt_template(template, tool_schemas)
+            continuation_hint = self.user_continuation_hint if self.user_continuation_hint is not None else hint
+            return system_prompt, continuation_hint, workflow
+
+        system_prompt = create_system_prompt(tool_schemas)
+        continuation_hint = (
+            self.user_continuation_hint
+            if self.user_continuation_hint is not None
+            else SPATIAL_3D_CONTINUATION_HINT
+        )
+        return system_prompt, continuation_hint, "spatial_3d"
+
+    def _render_system_prompt_template(
+        self,
+        template: str,
+        tool_schemas: List[Dict[str, Any]],
+    ) -> str:
+        tools_json = _json.dumps(tool_schemas, indent=2)
+        if "{tools_json}" in template:
+            return template.replace("{tools_json}", tools_json)
+        tools_block = (
+            f"\n# Tools\nYou have access to the following tools:\n"
+            f"<tools>\n{tools_json}\n</tools>\n"
+        )
+        return template + tools_block
+
+    def _select_workflow(self, question: str, image_paths: List[str]) -> str:
+        """
+        Heuristically select the workflow family for the current task.
+        """
+        tool_names = set(self.tool_registry.list_tools())
+        question_lc = (question or "").lower()
+
+        generation_tools = {
+            "image_generation_sana_tool",
+            "video_generation_veo_tool",
+            "video_generation_sora_tool",
+            "video_generation_wan_tool",
+        }
+        spatial_tools = {
+            "pi3_tool",
+            "pi3x_tool",
+            "vggt_tool",
+            "mapanything_tool",
+        }
+
+        generation_keywords = [
+            "generate", "create", "visualize", "imagine", "render", "synthesize",
+            "draw", "make an image", "make a video", "produce an image", "produce a video",
+        ]
+        spatial_keywords = [
+            "3d", "viewpoint", "azimuth", "elevation", "camera", "orientation",
+            "relative position", "spatial relationship", "bird's-eye", "top view",
+            "novel view", "camera view", "depth relationship",
+        ]
+
+        has_generation_tools = bool(tool_names & generation_tools)
+        has_spatial_tools = bool(tool_names & spatial_tools)
+        generation_only = bool(tool_names) and tool_names.issubset(generation_tools)
+
+        if generation_only:
+            return "generation"
+        if not image_paths and has_generation_tools:
+            return "generation"
+        if any(keyword in question_lc for keyword in generation_keywords) and has_generation_tools:
+            return "generation"
+
+        if has_spatial_tools and (len(image_paths) > 1 or any(keyword in question_lc for keyword in spatial_keywords)):
+            return "spatial_3d"
+
+        return "general_vision"
     
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:
         """
@@ -973,18 +1072,11 @@ Question: {question}
 Please provide your answer directly in <answer></answer> tags."""
         
         try:
-            if len(image_paths) == 1:
-                response = self.model.single_image_inference(
-                    image_paths[0],
-                    naive_prompt,
-                    **model_kwargs
-                )
-            else:
-                response = self.model.multiple_images_inference(
-                    image_paths,
-                    naive_prompt,
-                    **model_kwargs
-                )
+            response = self._run_model_inference(
+                image_paths,
+                naive_prompt,
+                **model_kwargs
+            )
             return response
         except Exception as e:
             logger.error(f"Failed to get naive baseline answer: {e}")
@@ -1050,18 +1142,11 @@ Please provide your final synthesized answer in <answer></answer> tags."""
             valid_additional_images = self._sort_additional_images_by_input_order(image_paths, additional_images)
             final_images = valid_additional_images if valid_additional_images else image_paths
             
-            if len(final_images) == 1:
-                response = self.model.single_image_inference(
-                    final_images[0],
-                    synthesis_prompt,
-                    **model_kwargs
-                )
-            else:
-                response = self.model.multiple_images_inference(
-                    final_images,
-                    synthesis_prompt,
-                    **model_kwargs
-                )
+            response = self._run_model_inference(
+                final_images,
+                synthesis_prompt,
+                **model_kwargs
+            )
             
             logger.info(f"Synthesized answer: {response}")
             return response
