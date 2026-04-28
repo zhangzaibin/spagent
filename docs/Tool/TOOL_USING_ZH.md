@@ -1,6 +1,6 @@
 # External Experts Module
 
-External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建、视频生成等功能。工具分为两类：本地 server/client 架构和云端 API 直调（Veo、Sora），均支持独立部署和调用。
+External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建、图像生成、视频生成等功能。工具分为本地 server/client 架构、本地进程内工具和云端 API 直调等形式，均支持独立部署和调用。
 
 ## 📁 模块结构
 
@@ -24,6 +24,7 @@ external_experts/
 ├── mapanything/                   # 基于深度估计的稠密3D重建
 ├── moondream/                     # 视觉语言模型
 ├── OrientAnythingV2/              # 物体朝向与相对旋转估计
+├── Sana/                          # 文生图生成
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
@@ -46,6 +47,7 @@ external_experts/
 | **Supervision** | `SupervisionTool` | 目标检测标注 | YOLO模型和可视化工具，通用目标检测和分割 | 本地 | `image_path`, `task` ("image_det" 或 "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E检测 | 高精度检测，支持自定义类别 | 本地 | `image_path`, `task`, `class_names` |
 | **YOLO26** | `YOLO26Tool` | 目标检测 | 基于 Ultralytics YOLO26 的本地快速目标检测，返回边界框、类别标签和置信度 | 本地（无需服务器） | `image_path`, `conf`(可选), `save_annotated`(可选) |
+| **Sana** | `SanaTool` | 图像生成 | 根据文本 prompt 生成合成图像，用于假设场景、目标状态、计划结果和 world-modeling 可视化 | 本地 SGLang 服务器（30000） | `prompt`, `size`, `num_inference_steps`, `guidance_scale`, `seed` |
 | **Veo** | `VeoTool` | 视频生成 | 通过 Google Veo（Gemini API）实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
@@ -729,7 +731,128 @@ python examples/evaluation/evaluate_sora.py \
 
 ---
 
-### 11. YOLO26 - 本地目标检测
+### 11. Sana - 文生图生成
+
+**功能**：通过兼容 OpenAI Images API 的本地 SGLang 服务，将文本 prompt 生成图像。
+
+**定位**：`SanaTool` 是生成式可视化工具，不是事实性感知工具。适合可视化假设场景、目标状态、计划结果或 imagined world state；不应替代 detection、segmentation、depth、3D reconstruction 等面向真实输入图像的感知工具。
+
+**特点**：
+- 支持纯文本到图像生成
+- 通过 SGLang 提供 `/v1/images/generations` 兼容接口
+- 提供 mock 模式，便于无 GPU / 无服务时测试工具链
+- 默认使用 `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers`，适合 1-4 步快速推理
+- 可配合 `workflow_mode="auto"` 自动进入 generation 工作流
+
+**文件结构**：
+```
+scripts/
+└── run_sana_30000.sh              # SGLang 启动脚本
+spagent/external_experts/Sana/
+├── sana_client.py                 # HTTP 客户端
+├── mock_sana_service.py           # 离线测试用 mock 服务
+└── sana_test.py
+spagent/tools/
+└── sana_tool.py                   # SanaTool 实现
+examples/evaluation/
+└── evaluate_sana.py               # Sana 评测脚本
+test/
+└── test_sana_tool.py              # Sana 工具测试
+```
+
+**默认模型配置**：
+
+| 项目 | 详情 |
+|------|------|
+| 默认模型 | `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` |
+| 默认端口 | `30000` |
+| 默认输出尺寸 | `1024x1024` |
+| 默认采样步数 | `2` |
+| 默认输出目录 | `outputs/sana_client` |
+
+**启动服务**：
+```bash
+# 默认启动 Sana-Sprint 服务，监听 30000 端口
+bash scripts/run_sana_30000.sh
+
+# 指定模型、GPU 和端口
+bash scripts/run_sana_30000.sh \
+    --model-path Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers \
+    --gpu-device 0 \
+    --port 30000
+
+# 显存不足时可开启 CPU offload
+bash scripts/run_sana_30000.sh \
+    --gpu-device 0 \
+    --vae-cpu-offload \
+    --text-encoder-cpu-offload
+```
+
+**Python 调用示例**：
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import SanaTool
+
+model = GPTModel(model_name="gpt-4o")
+tools = [SanaTool(use_mock=False, server_url="http://127.0.0.1:30000")]
+
+agent = SPAgent(model=model, tools=tools, workflow_mode="auto")
+result = agent.solve_problem(
+    [],
+    "Generate an image of a compact household robot organizing books on a wooden shelf in a warm study room."
+)
+
+print(result["answer"])
+print(result["additional_images"])
+```
+
+**工具测试**：
+```bash
+# mock 模式测试，无需启动 Sana 服务
+pytest -q test/test_sana_tool.py
+
+# 可选：连接真实 Sana 服务的 smoke test
+SANA_REAL_TEST=1 \
+SANA_SERVER_URL=http://127.0.0.1:30000 \
+pytest -q test/test_sana_tool.py
+```
+
+**评测**：
+```bash
+# 真实 Sana 服务
+python examples/evaluation/evaluate_sana.py \
+    --config sana_real \
+    --data_path dataset/sana_cases_sample.jsonl \
+    --model gpt-4o \
+    --max_samples 5 \
+    --max_workers 1
+
+# mock 服务
+python examples/evaluation/evaluate_sana.py \
+    --config sana_mock \
+    --data_path dataset/sana_cases_sample.jsonl \
+    --max_samples 5
+```
+
+**常用参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--config` | `sana_mock` | `sana_real` 连接真实 SGLang 服务，`sana_mock` 使用离线 mock |
+| `--data_path` | `dataset/sana_cases_sample.jsonl` | JSONL 评测数据集路径 |
+| `--model` | `gpt-4o` | LLM 编排模型 |
+| `--max_samples` | 全部 | 限制评测样本数 |
+| `--max_workers` | `1` | 并发 worker 数量 |
+| `--max_iterations` | `3` | 每个样本最大工具调用轮次 |
+
+**资源链接**：
+- [Sana-Sprint 0.6B Diffusers 模型](https://huggingface.co/Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers)
+- [SGLang 文档](https://docs.sglang.ai/)
+
+---
+
+### 12. YOLO26 - 本地目标检测
 
 **功能**：基于 Ultralytics YOLO26 的本地目标检测，无需启动任何服务器，模型在进程内直接运行。
 
@@ -832,7 +955,10 @@ python examples/evaluation/evaluate_yolo26.py ...
 **资源链接**：
 - [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
 - [YOLO 文档](https://docs.ultralytics.com/)
-### 11. Orient Anything V2 - 物体朝向与旋转估计
+
+---
+
+### 13. Orient Anything V2 - 物体朝向与旋转估计
 
 **功能**：统一的空间视觉模型，支持三维朝向估计、旋转对称性检测和两视角间相对位姿估计（NeurIPS 2025 Spotlight）
 
@@ -1107,6 +1233,12 @@ python spagent/external_experts/VGGT/vggt_server.py \
 # MapAnything稠密3D重建服务（自动下载 facebook/map-anything）
 python spagent/external_experts/mapanything/mapanything_server.py \
   --port 20033
+
+# Sana 文生图生成服务
+bash scripts/run_sana_30000.sh \
+  --model-path Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers \
+  --gpu-device 0 \
+  --port 30000
 
 # Orient Anything V2 朝向估计服务
 python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \
