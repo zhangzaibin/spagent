@@ -1,0 +1,3 @@
+{"id":"sana_sprint_case_001","prompt":"A compact household robot placing books onto a wooden bookshelf in a warm study room, realistic lighting, tidy environment.","task":"t2i","size":"1024x1024","num_inference_steps":2,"guidance_scale":4.5,"seed":42}
+{"id":"sana_sprint_case_002","prompt":"A service robot navigating a bright modern office corridor with glass walls and indoor plants, realistic photography style.","task":"t2i","size":"1024x1024","num_inference_steps":2,"guidance_scale":4.5,"seed":43}
+{"id":"sana_sprint_case_003","prompt":"A warehouse robot moving a small package toward a loading station, wide-angle industrial scene, clear spatial layout.","task":"t2i","size":"1024x1024","num_inference_steps":2,"guidance_scale":4.5,"seed":44}

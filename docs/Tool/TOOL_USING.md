@@ -2,7 +2,7 @@
 
 > **中文版本**: [中文文档](TOOL_USING_ZH.md) | **English Version**: This document
 
-The External Experts module contains specialized models for spatial intelligence tasks, including depth estimation, object detection, segmentation, 3D reconstruction, video generation, and more. All tools adopt a server/client architecture or direct API call pattern, supporting independent deployment and invocation.
+The External Experts module contains specialized models for spatial intelligence tasks, including depth estimation, object detection, segmentation, 3D reconstruction, image generation, video generation, and more. All tools adopt a server/client architecture or direct API call pattern, supporting independent deployment and invocation.
 
 ## 📁 Module Structure
 
@@ -26,6 +26,7 @@ external_experts/
 ├── mapanything/                   # Dense 3D reconstruction via depth estimation
 ├── moondream/                     # Vision language model
 ├── OrientAnythingV2/              # Object orientation & rotation estimation
+├── Sana/                          # Text-to-image generation
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
@@ -48,6 +49,7 @@ external_experts/
 | **Supervision** | `SupervisionTool` | Object Detection Annotation | YOLO models and visualization tools, general object detection and segmentation | Local | `image_path`, `task` ("image_det" or "image_seg") |
 | **YOLO-E** | `YOLOETool` | YOLO-E Detection | High-precision detection with custom classes | Local | `image_path`, `task`, `class_names` |
 | **YOLO26** | `YOLO26Tool` | Object Detection | Fast local object detection with bounding boxes, class labels, and confidence scores using Ultralytics YOLO26 | Local (no server) | `image_path`, `conf`(optional), `save_annotated`(optional) |
+| **Sana** | `SanaTool` | Image Generation | Generate synthetic visualizations from text prompts for planning, hypothesis visualization, and world-modeling tasks | Server (port 30000) | `prompt`, `size`, `num_inference_steps`, `guidance_scale`, `seed` |
 | **Veo** | `VeoTool` | Video Generation | Text-to-video and image-to-video via Google Veo (Gemini API) | API (no server) | `prompt`, `image_path`(optional), `duration`, `aspect_ratio` |
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
@@ -752,7 +754,128 @@ python examples/evaluation/evaluate_sora.py \
 
 ---
 
-### 11. YOLO26 - Local Object Detection
+### 11. Sana - Text-to-Image Generation
+
+**Function**: Local text-to-image generation through an OpenAI-compatible SGLang server.
+
+**Positioning**: SanaTool is a generation tool, not a factual perception tool. Use it to visualize hypothetical scenes, target states, plan outcomes, or imagined world states. Do not use it as a substitute for detection, segmentation, depth estimation, or 3D reconstruction on real input images.
+
+**Features**:
+- Text-to-image generation from natural language prompts
+- OpenAI-compatible `/v1/images/generations` endpoint through SGLang
+- Mock mode for local tests without starting the real Sana service
+- Default deployment uses `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` for fast 1-4 step inference
+- Automatically integrates with SPAgent generation workflows through `workflow_mode="auto"`
+
+**File Structure**:
+```
+scripts/
+└── run_sana_30000.sh              # SGLang deployment script
+spagent/external_experts/Sana/
+├── sana_client.py                 # HTTP client
+├── mock_sana_service.py           # Mock service for offline testing
+└── sana_test.py
+spagent/tools/
+└── sana_tool.py                   # SanaTool implementation
+examples/evaluation/
+└── evaluate_sana.py               # Sana evaluation script
+test/
+└── test_sana_tool.py              # Sana tool tests
+```
+
+**Default Model**:
+
+| Item | Detail |
+|------|--------|
+| Default model | `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` |
+| Default port | `30000` |
+| Default output size | `1024x1024` |
+| Default inference steps | `2` |
+| Output directory | `outputs/sana_client` |
+
+**Start Server**:
+```bash
+# Start the default Sana-Sprint service on port 30000
+bash scripts/run_sana_30000.sh
+
+# Override model path, GPU, and port
+bash scripts/run_sana_30000.sh \
+    --model-path Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers \
+    --gpu-device 0 \
+    --port 30000
+
+# Use CPU offload options for limited GPU memory
+bash scripts/run_sana_30000.sh \
+    --gpu-device 0 \
+    --vae-cpu-offload \
+    --text-encoder-cpu-offload
+```
+
+**Python Usage**:
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import SanaTool
+
+model = GPTModel(model_name="gpt-4o")
+tools = [SanaTool(use_mock=False, server_url="http://127.0.0.1:30000")]
+
+agent = SPAgent(model=model, tools=tools, workflow_mode="auto")
+result = agent.solve_problem(
+    [],
+    "Generate an image of a compact household robot organizing books on a wooden shelf in a warm study room."
+)
+
+print(result["answer"])
+print(result["additional_images"])
+```
+
+**Tool Test**:
+```bash
+# Mock-mode tests, no Sana server required
+pytest -q test/test_sana_tool.py
+
+# Optional real-service smoke test
+SANA_REAL_TEST=1 \
+SANA_SERVER_URL=http://127.0.0.1:30000 \
+pytest -q test/test_sana_tool.py
+```
+
+**Evaluation**:
+```bash
+# Real Sana service
+python examples/evaluation/evaluate_sana.py \
+    --config sana_real \
+    --data_path dataset/sana_cases_sample.jsonl \
+    --model gpt-4o \
+    --max_samples 5 \
+    --max_workers 1
+
+# Mock service
+python examples/evaluation/evaluate_sana.py \
+    --config sana_mock \
+    --data_path dataset/sana_cases_sample.jsonl \
+    --max_samples 5
+```
+
+**Key CLI Options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--config` | `sana_mock` | `sana_real` for live SGLang service, `sana_mock` for offline tests |
+| `--data_path` | `dataset/sana_cases_sample.jsonl` | Path to JSONL evaluation dataset |
+| `--model` | `gpt-4o` | LLM orchestrator model |
+| `--max_samples` | all | Limit number of samples |
+| `--max_workers` | `1` | Number of parallel workers |
+| `--max_iterations` | `3` | Max tool-call iterations per sample |
+
+**Resources**:
+- [Sana-Sprint 0.6B Diffusers Model](https://huggingface.co/Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers)
+- [SGLang Documentation](https://docs.sglang.ai/)
+
+---
+
+### 12. YOLO26 - Local Object Detection
 
 **Function**: Fast object detection on a single image using Ultralytics YOLO26. No server required — the model runs entirely in-process.
 
@@ -855,7 +978,10 @@ python examples/evaluation/evaluate_yolo26.py ...
 **Resources**:
 - [Ultralytics YOLO](https://github.com/ultralytics/ultralytics)
 - [YOLO Documentation](https://docs.ultralytics.com/)
-### 11. Orient Anything V2 - Object Orientation & Rotation Estimation
+
+---
+
+### 13. Orient Anything V2 - Object Orientation & Rotation Estimation
 
 **Function**: Unified spatial vision model for 3D orientation, rotational symmetry, and relative pose estimation (NeurIPS 2025 Spotlight)
 
@@ -1129,6 +1255,12 @@ python spagent/external_experts/VGGT/vggt_server.py \
 # MapAnything dense 3D reconstruction service (downloads facebook/map-anything automatically)
 python spagent/external_experts/mapanything/mapanything_server.py \
   --port 20033
+
+# Sana text-to-image generation service
+bash scripts/run_sana_30000.sh \
+  --model-path Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers \
+  --gpu-device 0 \
+  --port 30000
 
 # Orient Anything V2 orientation estimation service
 python spagent/external_experts/OrientAnythingV2/oa_v2_server.py \

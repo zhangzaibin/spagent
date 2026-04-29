@@ -64,7 +64,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation \& rotation estimation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
 | **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode and optional live server checks<br>- Molmo2 expert unit tests (`test_molmo2_expert.py`) — mock service and HTTP client coverage<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
@@ -87,6 +87,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Supervision** | 2D | Object Detection Annotation | Local | YOLO models and visualization tools, used for result visualization and post-processing |
 | **Qwen2.5-VL** | 2D | Vision-Language Detection | API / local model | Qwen2.5-VL style detection for grounding and object localization from image-text prompts |
 | **Orient-AnythingV2** | 3D | Object Orientation & Rotation Estimation | Local server (20034) | Estimate absolute azimuth/elevation/rotation and symmetry order; two-image mode for relative pose; NeurIPS 2025 Spotlight |
+| **Sana** | Image | Text-to-Image Generation | Local SGLang server (30000) | Generate synthetic visualizations from text prompts; default deployment uses `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` with fast 1-4 step inference |
 | **Veo** | Video | Text/Image-to-Video Generation | API (no server) | Google Veo via Gemini API; requires `GOOGLE_API_KEY`; supports t2v and i2v |
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
@@ -298,7 +299,65 @@ result = agent.solve_problem(
 print(result['answer'])
 ```
 
-### 7. Image Dataset Evaluation
+### 7. Image Generation with Sana
+
+SanaTool provides local text-to-image generation through an OpenAI-compatible SGLang server. Start the Sana service first:
+
+```bash
+bash scripts/run_sana_30000.sh
+```
+
+By default, the script serves `Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` on port `30000`. You can override the model path or GPU device:
+
+```bash
+bash scripts/run_sana_30000.sh \
+    --model-path Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers \
+    --gpu-device 0 \
+    --port 30000
+```
+
+Then use `SanaTool` with SPAgent:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import SanaTool
+
+model = GPTModel(model_name="gpt-4o")
+tools = [SanaTool(use_mock=False, server_url="http://127.0.0.1:30000")]
+
+agent = SPAgent(model=model, tools=tools, workflow_mode="auto")
+result = agent.solve_problem(
+    [],
+    "Generate an image of a compact household robot organizing books on a wooden shelf in a warm study room."
+)
+
+print(result["answer"])
+print(result["additional_images"])
+```
+
+For a small real-service evaluation:
+
+```bash
+python examples/evaluation/evaluate_sana.py \
+    --config sana_real \
+    --data_path dataset/sana_sprint_cases_sample.jsonl \
+    --max_samples 3 \
+    --max_workers 1 \
+    --max_iterations 1 \
+    --model gpt-4o
+```
+
+For a quick mock-mode check without starting the Sana service:
+
+```bash
+python examples/evaluation/evaluate_sana.py \
+    --config sana_mock \
+    --max_samples 3 \
+    --max_workers 1
+```
+
+### 8. Image Dataset Evaluation
 
 For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
 
