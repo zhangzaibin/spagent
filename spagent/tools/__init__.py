@@ -23,6 +23,7 @@ from .qwenvl_tool import QwenVLTool
 from .wan_tool import WanTool
 from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
+from .sana_tool import SanaTool
 
 
 __all__ = [
@@ -44,4 +45,5 @@ __all__ = [
     'WanTool',
     'VaceTool',
     'OrientAnythingV2Tool',
-] 
+    'SanaTool',
+]
