@@ -26,7 +26,8 @@ from spagent.tools import (
     Pi3Tool,
     VGGTTool,
     MapAnythingTool,
-    VaceTool
+    VaceTool,
+    Pi3XTool
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -36,6 +37,7 @@ from spagent.utils.utils import (
     validate_sample_paths,
     save_result_to_csv
 )
+from spagent.core.prompts import SPATIAL_3D_CONTINUATION_HINT
 from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
 from datetime import datetime  # NEW: For timestamp
 from collections import Counter  # NEW: For angle distribution statistics
@@ -45,11 +47,12 @@ TOOL_SERVERS = {
     "depth": "http://0.0.0.0:20019",  # depth-anything-v2
     "segmentation": "http://0.0.0.0:20020",  # sam
     "detection": "http://10.7.8.94:20022",  # dino
-    "pi3": "http://10.7.33.15:20030",  # pi3
+    "pi3": "http://10.7.14.78:20021",  # pi3
     "moondream": "http://192.168.3.2:20024",  # moondream
     "vggt": "http://0.0.0.0:20022",  # vggt
     "mapanything": "http://0.0.0.0:20022",  # mapanything
     "vace": "http://127.0.0.1:20034",  # vace
+    "pi3x": "http://10.7.8.94:20031",  # pi3x
 }
 
 TOOL_CONFIGS = {
@@ -57,7 +60,8 @@ TOOL_CONFIGS = {
         # Pi3Tool(use_mock=False, server_url=TOOL_SERVERS["pi3"], mode='inference'),
         # VGGTTool(use_mock=False, server_url=TOOL_SERVERS["vggt"], mode='inference'),
         # MapAnythingTool(use_mock=False, server_url=TOOL_SERVERS["mapanything"], mode='inference'),
-        VaceTool(use_mock=False, server_url=TOOL_SERVERS["vace"], mode='inference'),
+        # VaceTool(use_mock=False, server_url=TOOL_SERVERS["vace"], mode='inference'),
+        Pi3XTool(use_mock=False, server_url=TOOL_SERVERS["pi3x"], mode='inference'),
     ]
 }
 

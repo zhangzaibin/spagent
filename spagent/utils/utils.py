@@ -29,7 +29,7 @@ def validate_sample_paths(
     
     Args:
         sample: 数据样本
-        base_path: 基础路径
+        base_path: 基础路径（相对或绝对均可；返回的 path 会规范为绝对路径）
         required_field: 需要验证的字段名称（"image" 或 "video"）
         
     Returns:
@@ -49,7 +49,7 @@ def validate_sample_paths(
     missing_paths = []
     
     for path in paths:
-        full_path = os.path.join(base_path, path)
+        full_path = os.path.abspath(os.path.join(base_path, path))
         full_paths.append(full_path)
         
         if not os.path.exists(full_path):

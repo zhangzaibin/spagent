@@ -26,6 +26,8 @@ from spagent.tools import (
     Pi3Tool,
     Pi3XTool,
 )
+from spagent.core.prompts import SPATIAL_3D_CONTINUATION_HINT
+
 from spagent.utils.utils import (
     load_json_data, 
     extract_question_and_answer, 
@@ -182,6 +184,7 @@ def main():
             temperature=args.temperature,
             seed=args.seed,
             top_p=args.top_p,
+            continuation_hint=SPATIAL_3D_CONTINUATION_HINT,
         )
         all_results[config_name] = results
         

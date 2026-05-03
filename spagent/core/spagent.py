@@ -640,7 +640,7 @@ class SPAgent:
             other_calls = {}
             
             for tool_name, calls in tool_groups.items():
-                if tool_name in ['pi3_tool', 'pi3_multiimg_tool']:
+                if tool_name in ['pi3_tool', 'pi3_multiimg_tool', 'pi3x_tool']:
                     pi3_calls.extend(calls)
                 elif tool_name == 'video_generation_vace_tool':
                     vace_calls.extend(calls)
