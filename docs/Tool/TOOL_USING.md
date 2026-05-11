@@ -20,6 +20,7 @@ external_experts/
 │   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # Open-vocabulary object detection
 ├── SAM2/                          # Image and video segmentation
+├── SAM3/                          # Text-prompt image and video segmentation
 ├── Depth_AnythingV2/              # Depth estimation
 ├── Pi3/                           # 3D reconstruction (Pi3 & Pi3X)
 ├── VGGT/                          # Multi-view 3D reconstruction & camera pose estimation
@@ -39,6 +40,7 @@ external_experts/
 |---------|------------|----------|--------------|------------|----------------|
 | **Depth AnythingV2** | `DepthEstimationTool` | Depth Estimation | Monocular depth estimation, analyze 3D depth relationships in images | Server (port 20019) | `image_path` |
 | **SAM2** | `SegmentationTool` | Image/Video Segmentation | High-precision segmentation tasks, precisely segment objects in images | Server (port 20020) | `image_path`, `point_coords`(optional), `point_labels`(optional), `box`(optional) |
+| **SAM3** | `SAM3Tool` | Text-Prompt Image/Video Segmentation | Segment objects in images or videos from natural-language concepts | Server (port 20035) | `image_path`, `text_prompt`, `task`, `frame_index`, `score_threshold`, `max_instances` |
 | **GroundingDINO** | `ObjectDetectionTool` | Open-vocabulary Object Detection | Detect arbitrary objects based on text descriptions | Server (port 20022) | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
 | **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | Server (port 20024) | `image_path`, `task`, `object_name` |
 | **Molmo2** | `Molmo2Tool` | Multimodal Reasoning & Point Grounding | Run Molmo2 through a local service for image QA, captioning, and point grounding with optional annotated outputs | Server (port 20025) | `image_path`, `task`, `prompt`(optional), `save_annotated`(optional), `max_new_tokens`(optional) |
@@ -156,6 +158,55 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small
 **Resources**:
 - [Official Repository](https://github.com/facebookresearch/sam2)
 - [Paper](https://ai.meta.com/research/publications/sam-2-segment-anything-in-images-and-videos/)
+
+---
+
+### 2b. SAM3 - Text-Prompt Image and Video Segmentation
+
+**Function**: Segment objects in images or videos from natural-language text prompts.
+
+**Features**:
+- Text-prompt concept segmentation for images and videos
+- Returns masks, bounding boxes, scores, and optional overlay visualizations
+
+**File Structure**:
+```
+SAM3/
+├── sam3_server.py
+├── sam3_client.py
+├── mock_sam3_service.py
+└── __init__.py
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/sam3
+huggingface-cli download facebook/sam3 sam3.pt \
+  --local-dir checkpoints/sam3
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/SAM3/sam3_server.py \
+  --checkpoint_path checkpoints/sam3/sam3.pt \
+  --port 20035
+```
+
+**Python Usage**:
+```python
+from spagent.tools import SAM3Tool
+
+tool = SAM3Tool(use_mock=False, server_url="http://127.0.0.1:20035")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    text_prompt="dog",
+    task="image",
+)
+print(result["boxes"], result["scores"], result["output_path"])
+```
+
+**Resources**:
+- [Official Repository](https://github.com/facebookresearch/sam3)
 
 ---
 
@@ -1207,7 +1258,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 Create checkpoints directory:
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,sam3}
 ```
 
 ### 2. Download Model Weights
@@ -1228,6 +1279,11 @@ python spagent/external_experts/Depth_AnythingV2/depth_server.py \
 python spagent/external_experts/SAM2/sam2_server.py \
   --checkpoint_path checkpoints/sam2/sam2.1_b.pt \
   --port 20020
+
+# Deploy SAM3 text-prompt segmentation service
+python spagent/external_experts/SAM3/sam3_server.py \
+  --checkpoint_path checkpoints/sam3/sam3.pt \
+  --port 20035
 
 # Deploy Grounding DINO
 # Sometimes the network cannot connect to HuggingFace, we can reset the HuggingFace source

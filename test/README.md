@@ -8,7 +8,7 @@ Unit tests and integration smoke tests for SPAgent.
 
 | File | Purpose |
 |---|---|
-| `test_tool.py` | Directly invoke external expert tools (Pi3, Pi3X, SAM2, GroundingDINO, etc.) without going through the LLM agent |
+| `test_tool.py` | Directly invoke external expert tools (Pi3, Pi3X, SAM2, SAM3, GroundingDINO, etc.) without going through the LLM agent |
 | `test_pi3_llm.py` | End-to-end agent test: video → frame extraction → Pi3 tool → LLM answer |
 | `test_prompt.py` | Verify system prompt construction for all configurations (3D spatial / general vision / custom) |
 
@@ -39,6 +39,9 @@ python test/test_tool.py --tool grounding_dino --image assets/dog.jpeg --text_pr
 
 # Test SAM2 tool directly
 python test/test_tool.py --tool sam --image assets/dog.jpeg
+
+# Test SAM3 mock-mode unit tests
+pytest -q test/test_sam3_tool.py
 ```
 
 ---
@@ -73,6 +76,7 @@ and output format before running full evaluations.
 | `pi3` | `Pi3Tool` | `http://localhost:20030` |
 | `pi3x` | `Pi3XTool` | `http://localhost:20031` |
 | `sam` | `SegmentationTool` | `http://localhost:20020` |
+| `sam3` | `SAM3Tool` | `http://localhost:20035` |
 | `grounding_dino` | `ObjectDetectionTool` | `http://localhost:20022` |
 
 ### Key Options
@@ -162,5 +166,16 @@ SPAgent(model=model, tools=tools, system_prompt=MY_PROMPT)
 - Switched tool config from Pi3X (port 20031) to SAM2 + GroundingDINO:
   - `SegmentationTool` → `http://localhost:20020`
   - `ObjectDetectionTool` → `http://localhost:20022`
+
+### SAM3 Tool (`test/test_sam3_tool.py`)
+
+- Mock tests require no SAM3 server and verify image/video tool output shape.
+- Optional live service test:
+
+```bash
+SAM3_REAL_TEST=1 \
+SAM3_SERVER_URL=http://127.0.0.1:20035 \
+pytest -q test/test_sam3_tool.py
+```
 - Now passes `GENERAL_VISION_SYSTEM_PROMPT` to `evaluate_tool_config`
 - Removed Pi3-specific statistics printing and imports
