@@ -18,6 +18,7 @@ external_experts/
 │   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # 开放词汇目标检测
 ├── SAM2/                          # 图像和视频分割
+├── SAM3/                          # 文本提示图像和视频分割
 ├── Depth_AnythingV2/              # 深度估计
 ├── Pi3/                           # 3D重建 (Pi3 & Pi3X)
 ├── VGGT/                          # 多视角3D重建与相机位姿估计
@@ -37,6 +38,7 @@ external_experts/
 |---------|------------|------|----------|----------|----------|
 | **Depth AnythingV2** | `DepthEstimationTool` | 深度估计 | 单目深度估计，分析图像中的3D深度关系 | 本地服务器（20019） | `image_path` |
 | **SAM2** | `SegmentationTool` | 图像/视频分割 | 高精度分割任务，精确分割图像中的对象 | 本地服务器（20020） | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
+| **SAM3** | `SAM3Tool` | 文本提示图像/视频分割 | 根据自然语言概念分割图像或视频中的对象 | 本地服务器（20035） | `image_path`, `text_prompt`, `task`, `frame_index`, `score_threshold`, `max_instances` |
 | **GroundingDINO** | `ObjectDetectionTool` | 开放词汇目标检测 | 基于文本描述检测任意物体 | 本地服务器（20022） | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
 | **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 本地服务器（20024） | `image_path`, `task`, `object_name` |
 | **Molmo2** | `Molmo2Tool` | 多模态推理与点选定位 | 通过本地 Molmo2 服务执行图像问答、描述和 point grounding，可选保存标注图 | 本地服务器（20025） | `image_path`, `task`, `prompt`(可选), `save_annotated`(可选), `max_new_tokens`(可选) |
@@ -154,6 +156,55 @@ wget https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small
 **资源链接**:
 - [官方仓库](https://github.com/facebookresearch/sam2)
 - [论文](https://ai.meta.com/research/publications/sam-2-segment-anything-in-images-and-videos/)
+
+---
+
+### 2b. SAM3 - 文本提示图像和视频分割
+
+**功能**: 根据自然语言文本提示分割图像或视频中的对象。
+
+**特点**:
+- 支持图像和视频的文本提示概念分割
+- 返回 masks、bounding boxes、scores 和可选 overlay 可视化
+
+**文件结构**:
+```
+SAM3/
+├── sam3_server.py
+├── sam3_client.py
+├── mock_sam3_service.py
+└── __init__.py
+```
+
+**权重下载**:
+```bash
+mkdir -p checkpoints/sam3
+huggingface-cli download facebook/sam3 sam3.pt \
+  --local-dir checkpoints/sam3
+```
+
+**启动服务**:
+```bash
+python spagent/external_experts/SAM3/sam3_server.py \
+  --checkpoint_path checkpoints/sam3/sam3.pt \
+  --port 20035
+```
+
+**Python 用法**:
+```python
+from spagent.tools import SAM3Tool
+
+tool = SAM3Tool(use_mock=False, server_url="http://127.0.0.1:20035")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    text_prompt="dog",
+    task="image",
+)
+print(result["boxes"], result["scores"], result["output_path"])
+```
+
+**资源链接**:
+- [官方仓库](https://github.com/facebookresearch/sam3)
 
 ---
 
@@ -1187,7 +1238,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 创建checkpoints目录：
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,sam3}
 ```
 ### 2. 下载模型权重
 
@@ -1206,6 +1257,11 @@ python spagent/external_experts/Depth_AnythingV2/depth_server.py \
 python spagent/external_experts/SAM2/sam2_server.py \
   --checkpoint_path checkpoints/sam2/sam2.1_b.pt \
   --port 20020
+
+# 部署 SAM3 文本提示分割服务
+python spagent/external_experts/SAM3/sam3_server.py \
+  --checkpoint_path checkpoints/sam3/sam3.pt \
+  --port 20035
 
 # 部署grounding dino
 # sometimes the network cannot connect the huggingface, we can reset the huggingfacesource
