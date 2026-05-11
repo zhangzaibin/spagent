@@ -16,9 +16,11 @@ external_experts/
 │   └──pi3
 │   └──pi3x
 │   └──sam2
+│   └──wilddet3d
 │   └──vggt
 │   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # Open-vocabulary object detection
+├── WildDet3D/                      # Promptable monocular 3D object detection
 ├── SAM2/                          # Image and video segmentation
 ├── Depth_AnythingV2/              # Depth estimation
 ├── Pi3/                           # 3D reconstruction (Pi3 & Pi3X)
@@ -40,6 +42,7 @@ external_experts/
 | **Depth AnythingV2** | `DepthEstimationTool` | Depth Estimation | Monocular depth estimation, analyze 3D depth relationships in images | Server (port 20019) | `image_path` |
 | **SAM2** | `SegmentationTool` | Image/Video Segmentation | High-precision segmentation tasks, precisely segment objects in images | Server (port 20020) | `image_path`, `point_coords`(optional), `point_labels`(optional), `box`(optional) |
 | **GroundingDINO** | `ObjectDetectionTool` | Open-vocabulary Object Detection | Detect arbitrary objects based on text descriptions | Server (port 20022) | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 3D from text, box, or point prompts | Server (port 20036) | `image_path`, `text_prompt`(optional), `boxes`(optional), `points`(optional), `score_threshold` |
 | **Moondream** | `MoondreamTool` | Vision Language Model | Image understanding and Q&A, answer natural language questions based on image content | Server (port 20024) | `image_path`, `task`, `object_name` |
 | **Molmo2** | `Molmo2Tool` | Multimodal Reasoning & Point Grounding | Run Molmo2 through a local service for image QA, captioning, and point grounding with optional annotated outputs | Server (port 20025) | `image_path`, `task`, `prompt`(optional), `save_annotated`(optional), `max_new_tokens`(optional) |
 | **Pi3** | `Pi3Tool` | 3D Reconstruction | Generate 3D point clouds and multi-view rendered images from images | Server (port 20030) | `image_path`, `azimuth_angle`, `elevation_angle` |
@@ -212,6 +215,57 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 > unset ALL_PROXY HTTPS_PROXY HTTP_PROXY all_proxy https_proxy http_proxy
 > ```
 > Or install SOCKS support: `pip install httpx[socks]`
+
+---
+
+### 3b. WildDet3D - Promptable 3D Object Detection
+
+**Function**: Detect and localize objects in 3D from a single image using text, box, or point prompts.
+
+**Features**:
+- Open-vocabulary text-prompt 3D detection
+- Supports 2D box prompts and point prompts
+- Returns 2D boxes, 3D boxes, scores, class names, depth output, and visualization output
+
+**File Structure**:
+```
+WildDet3D/
+├── wilddet3d_server.py
+├── wilddet3d_client.py
+├── mock_wilddet3d_service.py
+└── __init__.py
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/wilddet3d
+hf download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt \
+  --local-dir checkpoints/wilddet3d
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20036
+```
+
+**Python Usage**:
+```python
+from spagent.tools import WildDet3DTool
+
+tool = WildDet3DTool(use_mock=False, server_url="http://127.0.0.1:20036")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    text_prompt="dog",
+    score_threshold=0.3,
+)
+print(result["boxes_3d"], result["scores"], result["output_path"])
+```
+
+**Resources**:
+- [Official Repository](https://github.com/allenai/WildDet3D)
+- [Model Weights](https://huggingface.co/allenai/WildDet3D)
 
 ---
 
@@ -1207,7 +1261,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 Create checkpoints directory:
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,wilddet3d}
 ```
 
 ### 2. Download Model Weights
@@ -1236,6 +1290,11 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# WildDet3D promptable 3D object detection service
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20036
 
 # 3D reconstruction service (Pi3)
 python spagent/external_experts/Pi3/pi3_server.py \

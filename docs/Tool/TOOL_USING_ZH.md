@@ -14,9 +14,11 @@ external_experts/
 │   └──pi3
 │   └──pi3x
 │   └──sam2
+│   └──wilddet3d
 │   └──vggt
 │   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # 开放词汇目标检测
+├── WildDet3D/                      # 可提示单目3D目标检测
 ├── SAM2/                          # 图像和视频分割
 ├── Depth_AnythingV2/              # 深度估计
 ├── Pi3/                           # 3D重建 (Pi3 & Pi3X)
@@ -38,6 +40,7 @@ external_experts/
 | **Depth AnythingV2** | `DepthEstimationTool` | 深度估计 | 单目深度估计，分析图像中的3D深度关系 | 本地服务器（20019） | `image_path` |
 | **SAM2** | `SegmentationTool` | 图像/视频分割 | 高精度分割任务，精确分割图像中的对象 | 本地服务器（20020） | `image_path`, `point_coords`(可选), `point_labels`(可选), `box`(可选) |
 | **GroundingDINO** | `ObjectDetectionTool` | 开放词汇目标检测 | 基于文本描述检测任意物体 | 本地服务器（20022） | `image_path`, `text_prompt`, `box_threshold`, `text_threshold` |
+| **WildDet3D** | `WildDet3DTool` | 可提示3D目标检测 | 根据文本、框或点提示，从单张图像中检测并定位3D物体 | 本地服务器（20036） | `image_path`, `text_prompt`(可选), `boxes`(可选), `points`(可选), `score_threshold` |
 | **Moondream** | `MoondreamTool` | 视觉语言模型 | 图像理解和问答，基于图像内容回答自然语言问题 | 本地服务器（20024） | `image_path`, `task`, `object_name` |
 | **Molmo2** | `Molmo2Tool` | 多模态推理与点选定位 | 通过本地 Molmo2 服务执行图像问答、描述和 point grounding，可选保存标注图 | 本地服务器（20025） | `image_path`, `task`, `prompt`(可选), `save_annotated`(可选), `max_new_tokens`(可选) |
 | **Pi3** | `Pi3Tool` | 3D重建 | 从图像生成3D点云和多视角渲染图 | 本地服务器（20030） | `image_path`, `azimuth_angle`, `elevation_angle` |
@@ -189,6 +192,57 @@ wget https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alp
 **资源链接**:
 - [官方仓库](https://github.com/IDEA-Research/GroundingDINO)
 - [论文](https://arxiv.org/abs/2303.05499)
+
+---
+
+### 3b. WildDet3D - 可提示3D目标检测
+
+**功能**: 使用文本、框或点提示，从单张图像中检测并定位3D物体。
+
+**特点**:
+- 支持开放词汇文本提示3D检测
+- 支持2D框提示和点提示
+- 返回2D框、3D框、scores、类别名、深度输出和可视化输出
+
+**文件结构**:
+```
+WildDet3D/
+├── wilddet3d_server.py
+├── wilddet3d_client.py
+├── mock_wilddet3d_service.py
+└── __init__.py
+```
+
+**权重下载**:
+```bash
+mkdir -p checkpoints/wilddet3d
+hf download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt \
+  --local-dir checkpoints/wilddet3d
+```
+
+**启动服务**:
+```bash
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20036
+```
+
+**Python 用法**:
+```python
+from spagent.tools import WildDet3DTool
+
+tool = WildDet3DTool(use_mock=False, server_url="http://127.0.0.1:20036")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    text_prompt="dog",
+    score_threshold=0.3,
+)
+print(result["boxes_3d"], result["scores"], result["output_path"])
+```
+
+**资源链接**:
+- [官方仓库](https://github.com/allenai/WildDet3D)
+- [模型权重](https://huggingface.co/allenai/WildDet3D)
 
 ---
 
@@ -1187,7 +1241,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 创建checkpoints目录：
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,wilddet3d}
 ```
 ### 2. 下载模型权重
 
@@ -1214,6 +1268,11 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# WildDet3D 可提示3D目标检测服务
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20036
 
 # 3D重建服务（Pi3）
 python spagent/external_experts/Pi3/pi3_server.py \
