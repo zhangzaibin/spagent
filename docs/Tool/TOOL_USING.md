@@ -54,6 +54,7 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **Crop** | `CropTool` | Image Cropping | Extract regions of interest from images using boxes, masks, or polygons | Local | `image_path`, `box`/`boxes`/`mask_path`/`polygon`, `padding`, `relative_coords` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1189,6 +1190,39 @@ python test/test_tool.py --tool vace \
 **Resources**:
 - [Wan2.1-VACE-1.3B on HuggingFace](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
 - [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
+### 14. Crop - Image Region Cropping
+
+**Function**: Extract regions of interest from images using boxes, masks, or polygons.
+
+**Features**:
+- Supports single box crop and multi-box batch crop
+- Supports mask crop and polygon crop with transparent PNG output
+- Supports pixel coordinates and relative coordinates
+
+**Python Usage**:
+```python
+from spagent.tools import CropTool
+
+tool = CropTool()
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    box=[40, 30, 260, 220],
+    padding=8,
+)
+print(result["output_path"], result["crop_size"])
+```
+
+**Multi-box Usage**:
+```python
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    boxes=[[40, 30, 160, 180], [170, 40, 280, 210]],
+)
+print(result["output_paths"])
+```
 
 ---
 
