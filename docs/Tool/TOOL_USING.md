@@ -18,6 +18,7 @@ external_experts/
 │   └──sam2
 │   └──vggt
 │   └──Wan2.1-VACE-1.3B
+│   └──lingbot_map
 ├── GroundingDINO/                  # Open-vocabulary object detection
 ├── SAM2/                          # Image and video segmentation
 ├── Depth_AnythingV2/              # Depth estimation
@@ -30,7 +31,8 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
-└── supervision/                   # YOLO object detection and annotation tools
+├── supervision/                   # YOLO object detection and annotation tools
+└── LingBotMap/                    # Long-sequence 3D scene mapping
 ```
 
 ## 🛠️ Tool Overview
@@ -54,6 +56,7 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **LingBot-Map** | `LingBotMapTool` | Long-sequence 3D Scene Mapping | Build an interactive 3D map from an ordered image folder or image list | Server (port 20038) | `image_folder` or `image_paths`, `mask_sky`, `keyframe_interval`, `max_frames` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1192,6 +1195,59 @@ python test/test_tool.py --tool vace \
 
 ---
 
+### 13. LingBot-Map - Long-sequence 3D Scene Mapping
+
+**Function**: Build an interactive 3D scene map from an ordered image sequence using LingBot-Map.
+
+**Features**:
+- Supports image folders and explicit image path lists
+- Starts the LingBot-Map viewer workflow through a local server
+- Returns viewer URL, logs, and collected output files when available
+- Supports sky masking and keyframe sampling
+
+**File Structure**:
+```
+LingBotMap/
+├── lingbot_map_server.py          # Flask server (port 20038)
+├── lingbot_map_client.py          # HTTP client
+└── mock_lingbot_map_service.py    # Mock service
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/lingbot_map
+huggingface-cli download robbyant/lingbot-map lingbot-map-long.pt \
+  --local-dir checkpoints/lingbot_map
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/LingBotMap/lingbot_map_server.py \
+  --repo_path third_party/lingbot-map \
+  --model_path checkpoints/lingbot_map/lingbot-map-long.pt \
+  --port 20038
+```
+
+**Python Usage**:
+```python
+from spagent.tools import LingBotMapTool
+
+tool = LingBotMapTool(use_mock=False, server_url="http://127.0.0.1:20038")
+result = tool.call(
+    image_folder="example/courthouse",
+    mask_sky=True,
+    keyframe_interval=1,
+    max_frames=128,
+)
+print(result["viewer_url"])
+```
+
+**Resources**:
+- [Official Repository](https://github.com/Robbyant/lingbot-map)
+- [HuggingFace Checkpoints](https://huggingface.co/robbyant/lingbot-map)
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
@@ -1281,4 +1337,10 @@ python spagent/external_experts/Molmo2/molmo2_server.py \
 python spagent/external_experts/vace/vace_server.py \
   --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
   --port 20034
+
+# LingBot-Map long-sequence 3D scene mapping service
+python spagent/external_experts/LingBotMap/lingbot_map_server.py \
+  --repo_path third_party/lingbot-map \
+  --model_path checkpoints/lingbot_map/lingbot-map-long.pt \
+  --port 20038
 ```

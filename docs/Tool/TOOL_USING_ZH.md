@@ -16,6 +16,7 @@ external_experts/
 │   └──sam2
 │   └──vggt
 │   └──Wan2.1-VACE-1.3B
+│   └──lingbot_map
 ├── GroundingDINO/                  # 开放词汇目标检测
 ├── SAM2/                          # 图像和视频分割
 ├── Depth_AnythingV2/              # 深度估计
@@ -28,7 +29,8 @@ external_experts/
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
-└── supervision/                   # YOLO目标检测和标注工具
+├── supervision/                   # YOLO目标检测和标注工具
+└── LingBotMap/                    # 长序列3D场景建图
 ```
 
 ## 🛠️ 工具概览
@@ -52,6 +54,7 @@ external_experts/
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
+| **LingBot-Map** | `LingBotMapTool` | 长序列3D场景建图 | 从有序图片文件夹或图片列表构建交互式3D场景地图 | 本地服务器（20038） | `image_folder` 或 `image_paths`, `mask_sky`, `keyframe_interval`, `max_frames` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1172,6 +1175,59 @@ python test/test_tool.py --tool vace \
 
 ---
 
+### 13. LingBot-Map - 长序列3D场景建图
+
+**功能**：使用 LingBot-Map 从有序图片序列构建交互式3D场景地图。
+
+**特点**：
+- 支持图片文件夹和显式图片路径列表
+- 通过本地服务启动 LingBot-Map viewer 工作流
+- 返回 viewer URL、日志路径以及可收集到的输出文件
+- 支持 sky masking 和 keyframe 采样
+
+**文件结构**：
+```
+LingBotMap/
+├── lingbot_map_server.py          # Flask 服务器（端口 20038）
+├── lingbot_map_client.py          # HTTP 客户端
+└── mock_lingbot_map_service.py    # Mock 服务
+```
+
+**权重下载**：
+```bash
+mkdir -p checkpoints/lingbot_map
+huggingface-cli download robbyant/lingbot-map lingbot-map-long.pt \
+  --local-dir checkpoints/lingbot_map
+```
+
+**启动服务**：
+```bash
+python spagent/external_experts/LingBotMap/lingbot_map_server.py \
+  --repo_path third_party/lingbot-map \
+  --model_path checkpoints/lingbot_map/lingbot-map-long.pt \
+  --port 20038
+```
+
+**Python 调用示例**：
+```python
+from spagent.tools import LingBotMapTool
+
+tool = LingBotMapTool(use_mock=False, server_url="http://127.0.0.1:20038")
+result = tool.call(
+    image_folder="example/courthouse",
+    mask_sky=True,
+    keyframe_interval=1,
+    max_frames=128,
+)
+print(result["viewer_url"])
+```
+
+**资源链接**：
+- [官方仓库](https://github.com/Robbyant/lingbot-map)
+- [HuggingFace 权重](https://huggingface.co/robbyant/lingbot-map)
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
@@ -1259,4 +1315,10 @@ python spagent/external_experts/Molmo2/molmo2_server.py \
 python spagent/external_experts/vace/vace_server.py \
   --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
   --port 20034
+
+# LingBot-Map 长序列3D场景建图服务
+python spagent/external_experts/LingBotMap/lingbot_map_server.py \
+  --repo_path third_party/lingbot-map \
+  --model_path checkpoints/lingbot_map/lingbot-map-long.pt \
+  --port 20038
 ```
