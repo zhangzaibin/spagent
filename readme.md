@@ -92,6 +92,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
 | **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
+| **Crop** | 2D | Image Region Cropping | Local | Extract regions of interest using boxes, masks, or polygons |
 
 
 ## 🛠️ Installation & Setup
