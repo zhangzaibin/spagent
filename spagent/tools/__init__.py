@@ -6,6 +6,7 @@ for the SPAgent system.
 """
 
 from .depth_tool import DepthEstimationTool
+from .infinidepth_tool import InfiniDepthTool
 from .segmentation_tool import SegmentationTool
 from .detection_tool import ObjectDetectionTool
 from .supervision_tool import SupervisionTool
@@ -28,6 +29,7 @@ from .sana_tool import SanaTool
 
 __all__ = [
     'DepthEstimationTool',
+    'InfiniDepthTool',
     'SegmentationTool',
     'ObjectDetectionTool',
     'SupervisionTool',
