@@ -91,13 +91,16 @@ class InfiniDepthTool(Tool):
                 return {"success": False, "error": f"Image file not found: {image_path}"}
             if task != "depth":
                 return {"success": False, "error": "InfiniDepthTool v1 only supports task='depth'."}
-            if float(upsample_ratio) <= 0:
+            upsample_ratio = float(upsample_ratio)
+            if upsample_ratio <= 0:
                 return {"success": False, "error": "upsample_ratio must be positive."}
+            if upsample_ratio.is_integer():
+                upsample_ratio = int(upsample_ratio)
 
             result = self._client.infer(
                 image_path=str(path),
                 save_pcd=bool(save_pcd),
-                upsample_ratio=float(upsample_ratio),
+                upsample_ratio=upsample_ratio,
                 output_dir=output_dir,
             )
 

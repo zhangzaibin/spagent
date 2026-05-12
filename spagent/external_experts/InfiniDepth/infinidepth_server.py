@@ -42,6 +42,7 @@ config: Dict[str, Any] = {}
 def configure(
     repo_path: str,
     depth_model_path: str,
+    moge2_model_path: Optional[str] = None,
     output_resolution_mode: str = "upsample",
     python_bin: Optional[str] = None,
 ) -> None:
@@ -49,6 +50,7 @@ def configure(
     config = {
         "repo_path": str(Path(repo_path).resolve()),
         "depth_model_path": str(Path(depth_model_path).resolve()),
+        "moge2_model_path": str(Path(moge2_model_path).resolve()) if moge2_model_path else None,
         "output_resolution_mode": output_resolution_mode,
         "python_bin": python_bin or os.environ.get("INFINIDEPTH_PYTHON", "python"),
     }
@@ -59,6 +61,7 @@ def health_check():
     repo = Path(config.get("repo_path", ""))
     script = repo / "inference_depth.py"
     model_path = Path(config.get("depth_model_path", ""))
+    moge2_model_path = Path(config["moge2_model_path"]) if config.get("moge2_model_path") else None
     return jsonify(
         {
             "status": "healthy" if script.exists() and model_path.exists() else "unhealthy",
@@ -66,6 +69,8 @@ def health_check():
             "script_exists": script.exists(),
             "depth_model_path": str(model_path),
             "depth_model_exists": model_path.exists(),
+            "moge2_model_path": str(moge2_model_path) if moge2_model_path else None,
+            "moge2_model_exists": moge2_model_path.exists() if moge2_model_path else None,
         }
     )
 
@@ -83,6 +88,8 @@ def infer():
         upsample_ratio = float(data.get("upsample_ratio", 2))
         if upsample_ratio <= 0:
             return jsonify({"success": False, "error": "upsample_ratio must be positive"}), 400
+        if upsample_ratio.is_integer():
+            upsample_ratio = int(upsample_ratio)
 
         with tempfile.TemporaryDirectory(prefix="infinidepth_") as tmp:
             tmp_dir = Path(tmp)
@@ -120,9 +127,12 @@ def _run_infinidepth(input_path: Path, run_dir: Path, save_pcd: bool, upsample_r
         f"--depth_model_path={model_path}",
         f"--output_resolution_mode={config.get('output_resolution_mode', 'upsample')}",
         f"--upsample_ratio={upsample_ratio}",
+        f"--depth_output_dir={run_dir / 'pred_depth'}",
+        f"--pcd_output_dir={run_dir / 'pred_pcd'}",
+        "--save-pcd" if save_pcd else "--no-save-pcd",
     ]
-    if save_pcd:
-        command.append("--save_pcd=True")
+    if config.get("moge2_model_path"):
+        command.append(f"--moge2_pretrained={config['moge2_model_path']}")
 
     logger.info("Running InfiniDepth command: %s", " ".join(command))
     completed = subprocess.run(
@@ -205,11 +215,13 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=20037, help="Port to run the server on")
     parser.add_argument("--python_bin", type=str, default=None, help="Python executable for the InfiniDepth environment")
     parser.add_argument("--output_resolution_mode", type=str, default="upsample")
+    parser.add_argument("--moge2_model_path", type=str, default=None, help="Path to MoGe-2 model.pt")
     args = parser.parse_args()
 
     configure(
         repo_path=args.repo_path,
         depth_model_path=args.depth_model_path,
+        moge2_model_path=args.moge2_model_path,
         output_resolution_mode=args.output_resolution_mode,
         python_bin=args.python_bin,
     )

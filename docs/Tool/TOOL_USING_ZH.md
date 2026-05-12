@@ -1195,7 +1195,11 @@ InfiniDepth/
 **权重下载**:
 ```bash
 mkdir -p checkpoints/infinidepth
-# 将官方 infinidepth.ckpt 放到 checkpoints/infinidepth/
+hf download ritianyu/InfiniDepth infinidepth.ckpt \
+  --local-dir checkpoints/infinidepth
+mkdir -p checkpoints/infinidepth/moge-2-vitl-normal
+hf download Ruicheng/moge-2-vitl-normal model.pt \
+  --local-dir checkpoints/infinidepth/moge-2-vitl-normal
 ```
 
 **启动服务**:
@@ -1203,6 +1207,7 @@ mkdir -p checkpoints/infinidepth
 python spagent/external_experts/InfiniDepth/infinidepth_server.py \
   --repo_path third_party/InfiniDepth \
   --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
   --port 20037
 ```
 
@@ -1271,6 +1276,7 @@ python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
 python spagent/external_experts/InfiniDepth/infinidepth_server.py \
   --repo_path third_party/InfiniDepth \
   --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
   --port 20037
 
 # 3D重建服务（Pi3）
