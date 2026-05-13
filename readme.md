@@ -77,7 +77,6 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Depth-AnythingV2** | 2D | Monocular Depth Estimation | Local server (20019) | Convert 2D images to pixel-level depth maps |
 | **SAM2** | 2D | Image Segmentation | Local server (20020) | Segment Anything Model 2nd generation, interactive or automatic segmentation |
 | **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions |
-| **WildDet3D** | 3D | Promptable 3D Object Detection | Local server (20036) | Detect and localize objects in 3D from text, box, or point prompts |
 | **Moondream** | 2D | Vision Language Model | Local server (20024) | Small and efficient visual Q&A model, supports image description and Q&A |
 | **Molmo2** | 2D | Multimodal Reasoning & Point Grounding | Local server (20025) | Molmo2 service for `qa`, `caption`, and `point` tasks, with mock mode and optional annotated point outputs |
 | **Pi3** | 3D | 3D Point Cloud Reconstruction | Local server (20030) | Generate 3D point clouds and multi-view rendered images from images |
@@ -93,6 +92,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
 | **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
+| **WildDet3D** | 3D | Promptable 3D Object Detection | Local server (20036) | Detect and localize objects in 3D from text, box, or point prompts |
 
 
 ## 🛠️ Installation & Setup
