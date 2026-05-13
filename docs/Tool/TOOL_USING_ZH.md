@@ -215,6 +215,7 @@ WildDet3D/
 
 **权重下载**:
 ```bash
+pip install flask
 mkdir -p checkpoints/wilddet3d
 hf download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt \
   --local-dir checkpoints/wilddet3d
