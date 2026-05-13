@@ -1335,6 +1335,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
         # Try to register each tool individually with error handling
         tool_classes = [
             ('DepthEstimationTool', 'depth_estimation_tool'),
+            ('InfiniDepthTool', 'infinidepth_tool'),
             ('SegmentationTool', 'segmentation_tool'),
             ('ObjectDetectionTool', 'object_detection_tool'),
             ('Pi3Tool', 'pi3_tool'),

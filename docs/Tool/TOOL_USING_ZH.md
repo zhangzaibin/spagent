@@ -28,7 +28,8 @@ external_experts/
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
-└── supervision/                   # YOLO目标检测和标注工具
+├── supervision/                   # YOLO目标检测和标注工具
+└── InfiniDepth/                   # 高分辨率深度估计
 ```
 
 ## 🛠️ 工具概览
@@ -52,6 +53,7 @@ external_experts/
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
+| **InfiniDepth** | `InfiniDepthTool` | 高分辨率深度估计 | 从单张 RGB 图像估计相对深度，可选导出点云 | 本地服务器（20037） | `image_path`, `task`, `save_pcd`, `upsample_ratio` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1172,6 +1174,61 @@ python test/test_tool.py --tool vace \
 
 ---
 
+### 14. InfiniDepth - 高分辨率深度估计
+
+**功能**: 使用 InfiniDepth 从单张 RGB 图像估计相对深度。
+
+**特点**:
+- 支持单图相对深度估计
+- 可选导出点云
+- 通过本地服务调用官方 InfiniDepth 推理脚本
+
+**文件结构**:
+```
+InfiniDepth/
+├── infinidepth_server.py
+├── infinidepth_client.py
+├── mock_infinidepth_service.py
+└── __init__.py
+```
+
+**权重下载**:
+```bash
+mkdir -p checkpoints/infinidepth
+hf download ritianyu/InfiniDepth infinidepth.ckpt \
+  --local-dir checkpoints/infinidepth
+mkdir -p checkpoints/infinidepth/moge-2-vitl-normal
+hf download Ruicheng/moge-2-vitl-normal model.pt \
+  --local-dir checkpoints/infinidepth/moge-2-vitl-normal
+```
+
+**启动服务**:
+```bash
+python spagent/external_experts/InfiniDepth/infinidepth_server.py \
+  --repo_path third_party/InfiniDepth \
+  --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
+  --port 20037
+```
+
+**Python 用法**:
+```python
+from spagent.tools import InfiniDepthTool
+
+tool = InfiniDepthTool(use_mock=False, server_url="http://127.0.0.1:20037")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    save_pcd=False,
+    upsample_ratio=2,
+)
+print(result["depth_path"], result["colored_depth_path"])
+```
+
+**资源链接**:
+- [官方仓库](https://github.com/zju3dv/InfiniDepth)
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
@@ -1187,7 +1244,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 创建checkpoints目录：
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,infinidepth}
 ```
 ### 2. 下载模型权重
 
@@ -1214,6 +1271,13 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# InfiniDepth 服务
+python spagent/external_experts/InfiniDepth/infinidepth_server.py \
+  --repo_path third_party/InfiniDepth \
+  --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
+  --port 20037
 
 # 3D重建服务（Pi3）
 python spagent/external_experts/Pi3/pi3_server.py \

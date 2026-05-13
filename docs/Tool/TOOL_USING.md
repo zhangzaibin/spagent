@@ -30,7 +30,8 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
-└── supervision/                   # YOLO object detection and annotation tools
+├── supervision/                   # YOLO object detection and annotation tools
+└── InfiniDepth/                   # High-resolution depth estimation
 ```
 
 ## 🛠️ Tool Overview
@@ -54,6 +55,7 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **InfiniDepth** | `InfiniDepthTool` | High-resolution Depth Estimation | Estimate relative depth from a single RGB image with optional point cloud export | Server (port 20037) | `image_path`, `task`, `save_pcd`, `upsample_ratio` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1192,6 +1194,61 @@ python test/test_tool.py --tool vace \
 
 ---
 
+### 14. InfiniDepth - High-resolution Depth Estimation
+
+**Function**: Estimate relative depth from a single RGB image using InfiniDepth.
+
+**Features**:
+- Single-image relative depth estimation
+- Optional point cloud export
+- Uses the official InfiniDepth inference script through a local server
+
+**File Structure**:
+```
+InfiniDepth/
+├── infinidepth_server.py
+├── infinidepth_client.py
+├── mock_infinidepth_service.py
+└── __init__.py
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/infinidepth
+hf download ritianyu/InfiniDepth infinidepth.ckpt \
+  --local-dir checkpoints/infinidepth
+mkdir -p checkpoints/infinidepth/moge-2-vitl-normal
+hf download Ruicheng/moge-2-vitl-normal model.pt \
+  --local-dir checkpoints/infinidepth/moge-2-vitl-normal
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/InfiniDepth/infinidepth_server.py \
+  --repo_path third_party/InfiniDepth \
+  --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
+  --port 20037
+```
+
+**Python Usage**:
+```python
+from spagent.tools import InfiniDepthTool
+
+tool = InfiniDepthTool(use_mock=False, server_url="http://127.0.0.1:20037")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    save_pcd=False,
+    upsample_ratio=2,
+)
+print(result["depth_path"], result["colored_depth_path"])
+```
+
+**Resources**:
+- [Official Repository](https://github.com/zju3dv/InfiniDepth)
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
@@ -1207,7 +1264,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 Create checkpoints directory:
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,infinidepth}
 ```
 
 ### 2. Download Model Weights
@@ -1236,6 +1293,13 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# InfiniDepth service
+python spagent/external_experts/InfiniDepth/infinidepth_server.py \
+  --repo_path third_party/InfiniDepth \
+  --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
+  --port 20037
 
 # 3D reconstruction service (Pi3)
 python spagent/external_experts/Pi3/pi3_server.py \
