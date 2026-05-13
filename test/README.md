@@ -11,6 +11,7 @@ Unit tests and integration smoke tests for SPAgent.
 | `test_tool.py` | Directly invoke external expert tools (Pi3, Pi3X, SAM2, GroundingDINO, etc.) without going through the LLM agent |
 | `test_pi3_llm.py` | End-to-end agent test: video → frame extraction → Pi3 tool → LLM answer |
 | `test_prompt.py` | Verify system prompt construction for all configurations (3D spatial / general vision / custom) |
+| `test_wilddet3d_tool.py` | WildDet3D tool mock tests and optional live server smoke test |
 
 ---
 
@@ -39,6 +40,9 @@ python test/test_tool.py --tool grounding_dino --image assets/dog.jpeg --text_pr
 
 # Test SAM2 tool directly
 python test/test_tool.py --tool sam --image assets/dog.jpeg
+
+# Test WildDet3D mock tests
+python -m pytest -q test/test_wilddet3d_tool.py
 ```
 
 ---
