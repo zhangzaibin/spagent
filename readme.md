@@ -29,6 +29,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 - [External Experts](#-external-experts)
 - [Installation & Setup](#️-installation--setup)
 - [Quick Start](#-quick-start)
+- [step() API and AgentMemory](#8-step-api-and-agentmemory)
 - [Testing & Development](#-testing--development)
 - [Reinforcement Learning Training](#-reinforcement-learning-training)
 - [Important Notes](#️-important-notes)
@@ -53,6 +54,8 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 - ✅ **Customizable System Prompt** - Per-agent prompt templates; built-in 3D spatial and general vision presets
 - ✅ **Flexible Configuration** - Easy to customize and extend
 - ✅ **Reinforcement Learning** - Support reinforcement learning
+- ✅ **Multimodal Agent Memory** - `AgentMemory` records every turn: text, images, tool calls, and tool results with output images
+- ✅ **Multi-turn Stateful Conversations** - Pass an `AgentMemory` across `step()` calls to maintain context; save/load sessions to disk
 
 ## 📂 Project Structure
 
@@ -357,7 +360,73 @@ python examples/evaluation/evaluate_sana.py \
     --max_workers 1
 ```
 
-### 8. Image Dataset Evaluation
+### 8. `step()` API and AgentMemory
+
+`step()` is the general-purpose entry point that replaces `solve_problem`. It accepts any text content and optional images, runs the tool loop, and returns a typed `StepResult`. The existing `solve_problem` is preserved as a backward-compatible wrapper.
+
+#### One-shot use (stateless)
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import DepthEstimationTool
+
+agent = SPAgent(model=GPTModel(model_name="gpt-4o"), tools=[DepthEstimationTool(use_mock=True)])
+
+result = agent.step("Analyze the depth relationships in this scene.", images="photo.jpg")
+print(result.answer)          # final answer text
+print(result.used_tools)      # e.g. ["depth_estimation_tool_iter1"]
+print(result.additional_images)  # depth maps / vis images produced by tools
+```
+
+#### Multi-turn stateful conversation
+
+Pass a shared `AgentMemory` across calls — the agent accumulates context automatically.
+
+```python
+from spagent.core.memory import AgentMemory
+
+memory = AgentMemory()
+
+r1 = agent.step("Describe the scene.", images="photo.jpg", memory=memory)
+print(r1.answer)
+
+# Follow-up: memory carries the full history, no need to re-supply the image
+r2 = agent.step("Now estimate the depth of the main object.", memory=memory)
+print(r2.answer)
+
+# Inspect memory
+print(f"Total entries recorded: {len(memory)}")
+print(f"All images produced by tools: {memory.get_all_images()}")
+print(f"Tool calls made: {[e.metadata['tool_name'] for e in memory.get_tool_calls()]}")
+```
+
+#### Persist and restore a session
+
+```python
+# Save session to disk (images stored as file paths, not raw bytes)
+memory.save("session.json")
+
+# Restore in a later run
+memory = AgentMemory.load("session.json")
+r3 = agent.step("What objects did we identify earlier?", memory=memory)
+print(r3.answer)
+```
+
+#### `StepResult` fields
+
+| Field | Type | Description |
+|---|---|---|
+| `answer` | `str` | Final answer text (may contain `<answer>` tags) |
+| `memory` | `AgentMemory` | Updated memory after this step |
+| `tool_calls` | `List[Dict]` | All tool-call dicts made this step |
+| `tool_results` | `Dict[str, Any]` | Mapping of `tool_name_iterN → result` |
+| `used_tools` | `List[str]` | Names of tools that succeeded |
+| `additional_images` | `List[str]` | All image paths produced by tools |
+| `iterations` | `int` | Number of tool-call iterations performed |
+| `prompts` | `Dict[str, str]` | Key prompts used (system, user, workflow label) |
+
+### 9. Image Dataset Evaluation
 
 For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
 
