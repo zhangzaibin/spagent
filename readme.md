@@ -59,7 +59,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation) |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation)<br>- **WildDet3DTool** (promptable 3D object detection, local, no server) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation \& rotation estimation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
@@ -92,6 +92,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
 | **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
+| **WildDet3D** | 3D | Promptable 3D Object Detection | Local (no server) | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars |
 
 
 ## 🛠️ Installation & Setup
@@ -135,6 +136,34 @@ python spagent/vllm_models/qwen.py
 ### 3. Deploy External Expert Services
 
 For detailed external expert tools usage guide, please refer to: **[External Experts Tool Usage Guide](docs/Tool/TOOL_USING.md)**
+
+#### WildDet3D (local, no server)
+
+WildDet3D runs entirely in-process — no server needed. Clone the repo (with submodules), install its dependencies, then point two env vars at the clone and the checkpoint:
+
+```bash
+# 1. Clone with submodules (sam3 and lingbot_depth are bundled as submodules)
+git clone --recurse-submodules https://github.com/allenai/WildDet3D.git /your/path/WildDet3D
+
+# 2. Install WildDet3D dependencies
+pip install vis4d==1.0.0
+pip install git+https://github.com/SysCV/vis4d_cuda_ops.git --no-build-isolation --no-cache-dir
+pip install -r /your/path/WildDet3D/requirements.txt
+
+# 3. Download the checkpoint
+huggingface-cli download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt --local-dir /your/path/ckpt
+
+# 4. Set environment variables (add to ~/.bashrc or ~/.zshrc to persist)
+export WILDDET3D_ROOT=/your/path/WildDet3D
+export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
+```
+
+Then use `WildDet3DTool` in SPAgent (no `server_url` needed):
+
+```python
+from spagent.tools import WildDet3DTool
+tool = WildDet3DTool(device="cuda")  # loads model lazily on first call
+```
 
 
 ## 🚀 Quick Start
@@ -488,7 +517,7 @@ print(f"Rendered image saved to: {output_path}")
 
 | Test Script | Description |
 |-------------|-------------|
-| `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection, Veo, Sora) |
+| `test/test_tool.py` | Direct tool testing without LLM Agent (Pi3, Depth, Segmentation, Detection, Veo, Sora, WildDet3D) |
 | `test/test_orient_anything_v2_tool.py` | Orient Anything V2 tool testing — mock & real server modes |
 | `test/test_pi3_llm.py` | Pi3 integration testing through Agent + LLM |
 | `test/test_prompt.py` | Verify system prompt construction — no server or API key needed |
