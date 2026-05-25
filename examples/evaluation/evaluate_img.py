@@ -26,7 +26,8 @@ from spagent.tools import (
     Pi3Tool,
     VGGTTool,
     MapAnythingTool,
-    VaceTool
+    VaceTool,
+    WildDet3DTool,
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -58,7 +59,10 @@ TOOL_CONFIGS = {
         # VGGTTool(use_mock=False, server_url=TOOL_SERVERS["vggt"], mode='inference'),
         # MapAnythingTool(use_mock=False, server_url=TOOL_SERVERS["mapanything"], mode='inference'),
         VaceTool(use_mock=False, server_url=TOOL_SERVERS["vace"], mode='inference'),
-    ]
+    ],
+    "wilddet3d": [
+        WildDet3DTool(device="cuda"),
+    ],
 }
 
 def print_pi3_statistics(results: Dict[str, Any]):
