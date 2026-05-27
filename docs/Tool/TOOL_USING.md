@@ -30,6 +30,8 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
+├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+├── CountGD/                       # Text-prompted object counting (local or server port 20026)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -54,6 +56,8 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **CountGD** | `CountGDTool` | Text-Prompted Object Counting | Count objects matching a text description; returns count, bounding boxes, and annotated image; requires `COUNTGD_CHECKPOINT` env var; BERT auto-downloaded | Local / Server (port 20026) | `image_path`, `text` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1189,6 +1193,174 @@ python test/test_tool.py --tool vace \
 **Resources**:
 - [Wan2.1-VACE-1.3B on HuggingFace](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
 - [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
+### 14. WildDet3D - Promptable 3D Object Detection
+
+**Function**: Detect and localize objects in 2D and 3D from a single RGB image.
+
+**Features**:
+- Text, bounding box, and point prompts supported
+- Returns 2D boxes, 3D boxes, confidence scores, and an annotated image
+- Runs locally — no server process needed
+- Lazy model loading (loaded on first call, reused across agent turns)
+
+**Setup**:
+
+```bash
+# 1. Clone with submodules (sam3 and lingbot_depth are required submodules)
+git clone --recurse-submodules https://github.com/allenai/WildDet3D.git /your/path/WildDet3D
+
+# 2. Install WildDet3D dependencies (Python 3.11 required)
+pip install vis4d==1.0.0
+pip install git+https://github.com/SysCV/vis4d_cuda_ops.git --no-build-isolation --no-cache-dir
+pip install -r /your/path/WildDet3D/requirements.txt
+
+# 3. Download the model checkpoint (~4.7 GB)
+huggingface-cli download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt --local-dir /your/path/ckpt
+
+# 4. Set environment variables
+export WILDDET3D_ROOT=/your/path/WildDet3D
+export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
+```
+
+**Usage**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import WildDet3DTool
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT
+
+model = GPTModel(model_name="gpt-4o")
+tools = [WildDet3DTool(device="cuda")]  # model loaded lazily on first call
+
+agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+result = agent.solve_problem("image.jpg", "What objects are in this scene and where are they?")
+print(result["answer"])
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input RGB image |
+| `prompt_text` | `str` | `"object"` | Text prompt (e.g. `"chair"`, `"car"`). Ignored when `input_boxes` or `input_points` are provided |
+| `input_boxes` | `list[float]` | `None` | 2D box prompt `[x1, y1, x2, y2]` in pixel coords. Takes priority over `prompt_text` |
+| `input_points` | `list[list]` | `None` | Point prompts `[[x, y, label], ...]` where `label=1` (foreground) or `0` (background) |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "boxes2d": [[x1, y1, x2, y2], ...],
+  "boxes3d": [...],
+  "scores": [0.95, ...],
+  "num_detections": 1,
+  "output_path": "outputs/wilddet3d_image.png",
+  "description": "WildDet3D detected 1 object(s) matching 'chair'."
+}
+```
+
+**Note**: Use `GENERAL_VISION_SYSTEM_PROMPT` (not `SPATIAL_3D_SYSTEM_PROMPT`) with WildDet3D to avoid the LLM confusing its parameters with Pi3-style angle arguments.
+
+**Resources**:
+- [WildDet3D GitHub](https://github.com/allenai/WildDet3D)
+- [Model checkpoint on HuggingFace](https://huggingface.co/allenai/WildDet3D)
+
+---
+
+### 15. CountGD - Text-Prompted Object Counting
+
+**Function**: Count objects in an image described by a text prompt; returns count, bounding boxes, and an annotated visualization.
+
+**Features**:
+- Single text prompt (e.g. `"car"`, `"person"`, `"apple"`) → object count + boxes
+- Supports **local mode** (model runs in-process) and **server mode** (model runs as a shared HTTP service)
+- BERT weights auto-downloaded on first run
+- Lazy model loading (loaded on first call, reused across agent turns)
+
+**Setup**:
+
+```bash
+# 1. Install dependencies (CountGD source is already vendored in the repo)
+pip install addict yapf timm scipy pycocotools flask
+
+# 2. Download the CountGD checkpoint (~1.2 GB)
+pip install gdown
+gdown 1RbRcNLsOfeEbx6u39pBehqsgQiexHHrI -O checkpoints/countgd/checkpoint_fsc147_best.pth
+
+export COUNTGD_CHECKPOINT=/your/path/to/checkpoints/countgd/checkpoint_fsc147_best.pth
+```
+
+BERT weights are auto-downloaded on first run.
+
+**Usage (local mode)**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import CountGDTool
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT
+
+model = GPTModel(model_name="gpt-4o")
+tools = [CountGDTool(device="cuda")]  # model loaded lazily on first call
+
+agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+result = agent.solve_problem("parking_lot.jpg", "How many cars are in the parking lot?")
+print(result["answer"])
+```
+
+**Usage (server mode)**:
+
+```bash
+# Start the server once (keeps model in GPU memory, shared across agents)
+python spagent/external_experts/CountGD/countgd_server.py \
+    --checkpoint $COUNTGD_CHECKPOINT --port 20026
+```
+
+```python
+# Agents connect via HTTP — no GPU needed in the agent process
+tools = [CountGDTool(server_url="http://localhost:20026")]
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input image |
+| `text` | `str` | required | Text description of the object to count (e.g. `"car"`, `"person"`) |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "count": 5,
+  "boxes": [[x1, y1, x2, y2], ...],
+  "output_path": "outputs/countgd_image.png",
+  "description": "CountGD counted 5 'car' object(s) in the image."
+}
+```
+
+**Test**:
+
+```bash
+# Mock mode (no GPU or checkpoint needed)
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" --use_mock
+
+# Local mode
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog"
+
+# Server mode
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" \
+    --server_url http://localhost:20026
+```
+
+**Resources**:
+- [CountGD GitHub](https://github.com/niki-amini-naieni/CountGD)
 
 ---
 

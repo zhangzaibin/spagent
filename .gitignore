@@ -1,3 +1,4 @@
+.DS_Store
 tmp
 checkpoints/
 dataset/*
@@ -26,3 +27,4 @@ spagent/external_experts/vace/models/Wan2.1-VACE-1.3B/
 # Local eval outputs / caches
 qwen_eval/
 third_party/*
+*.zip
