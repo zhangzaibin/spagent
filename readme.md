@@ -163,24 +163,32 @@ from spagent.tools import WildDet3DTool
 tool = WildDet3DTool(device="cuda")  # loads model lazily on first call
 ```
 
-#### CountGD (local, no server)
+#### CountGD (local or server)
 
 CountGD source is **vendored directly into this repo** — no cloning needed. Just install a few dependencies, download the checkpoint, and go:
 
 ```bash
 # 1. Install dependencies
-pip install addict yapf timm scipy pycocotools
+pip install addict yapf timm scipy pycocotools flask
 
 # 2. Download the CountGD checkpoint (~1.2 GB)
-#    Get the link from: https://github.com/niki-amini-naieni/CountGD (Google Drive)
-export COUNTGD_CHECKPOINT=/your/path/checkpoint_fsc147_best.pth
+pip install gdown
+gdown 1RbRcNLsOfeEbx6u39pBehqsgQiexHHrI -O checkpoints/countgd/checkpoint_fsc147_best.pth
+
+export COUNTGD_CHECKPOINT=/your/path/to/checkpoints/countgd/checkpoint_fsc147_best.pth
 ```
 
 BERT weights are **auto-downloaded** on first run. Then use `CountGDTool` in SPAgent:
 
 ```python
 from spagent.tools import CountGDTool
+
+# Local mode
 tool = CountGDTool(device="cuda")  # loads model lazily on first call
+
+# Server mode (start server first: python spagent/external_experts/CountGD/countgd_server.py --checkpoint $COUNTGD_CHECKPOINT --port 20026)
+tool = CountGDTool(server_url="http://localhost:20026")
+
 result = tool.call(image_path="image.jpg", text="car")
 print(result["count"])  # e.g. 5
 ```

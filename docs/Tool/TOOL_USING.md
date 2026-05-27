@@ -1289,8 +1289,10 @@ print(result["answer"])
 pip install addict yapf timm scipy pycocotools flask
 
 # 2. Download the CountGD checkpoint (~1.2 GB)
-#    Get the download link from: https://github.com/niki-amini-naieni/CountGD (Google Drive)
-export COUNTGD_CHECKPOINT=/your/path/checkpoint_fsc147_best.pth
+pip install gdown
+gdown 1RbRcNLsOfeEbx6u39pBehqsgQiexHHrI -O checkpoints/countgd/checkpoint_fsc147_best.pth
+
+export COUNTGD_CHECKPOINT=/your/path/to/checkpoints/countgd/checkpoint_fsc147_best.pth
 ```
 
 BERT weights are auto-downloaded on first run.
