@@ -31,6 +31,7 @@ external_experts/
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
 ├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+├── CountGD/                       # Text-prompted object counting (local or server port 20026)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -56,6 +57,7 @@ external_experts/
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
 | **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **CountGD** | `CountGDTool` | Text-Prompted Object Counting | Count objects matching a text description; returns count, bounding boxes, and annotated image; requires `COUNTGD_CHECKPOINT` env var; BERT auto-downloaded | Local / Server (port 20026) | `image_path`, `text` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1267,6 +1269,96 @@ print(result["answer"])
 **Resources**:
 - [WildDet3D GitHub](https://github.com/allenai/WildDet3D)
 - [Model checkpoint on HuggingFace](https://huggingface.co/allenai/WildDet3D)
+
+---
+
+### 15. CountGD - Text-Prompted Object Counting
+
+**Function**: Count objects in an image described by a text prompt; returns count, bounding boxes, and an annotated visualization.
+
+**Features**:
+- Single text prompt (e.g. `"car"`, `"person"`, `"apple"`) → object count + boxes
+- Supports **local mode** (model runs in-process) and **server mode** (model runs as a shared HTTP service)
+- BERT weights auto-downloaded on first run
+- Lazy model loading (loaded on first call, reused across agent turns)
+
+**Setup**:
+
+```bash
+# 1. Install dependencies (CountGD source is already vendored in the repo)
+pip install addict yapf timm scipy pycocotools flask
+
+# 2. Download the CountGD checkpoint (~1.2 GB)
+#    Get the download link from: https://github.com/niki-amini-naieni/CountGD (Google Drive)
+export COUNTGD_CHECKPOINT=/your/path/checkpoint_fsc147_best.pth
+```
+
+BERT weights are auto-downloaded on first run.
+
+**Usage (local mode)**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import CountGDTool
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT
+
+model = GPTModel(model_name="gpt-4o")
+tools = [CountGDTool(device="cuda")]  # model loaded lazily on first call
+
+agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+result = agent.solve_problem("parking_lot.jpg", "How many cars are in the parking lot?")
+print(result["answer"])
+```
+
+**Usage (server mode)**:
+
+```bash
+# Start the server once (keeps model in GPU memory, shared across agents)
+python spagent/external_experts/CountGD/countgd_server.py \
+    --checkpoint $COUNTGD_CHECKPOINT --port 20026
+```
+
+```python
+# Agents connect via HTTP — no GPU needed in the agent process
+tools = [CountGDTool(server_url="http://localhost:20026")]
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input image |
+| `text` | `str` | required | Text description of the object to count (e.g. `"car"`, `"person"`) |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "count": 5,
+  "boxes": [[x1, y1, x2, y2], ...],
+  "output_path": "outputs/countgd_image.png",
+  "description": "CountGD counted 5 'car' object(s) in the image."
+}
+```
+
+**Test**:
+
+```bash
+# Mock mode (no GPU or checkpoint needed)
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" --use_mock
+
+# Local mode
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog"
+
+# Server mode
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" \
+    --server_url http://localhost:20026
+```
+
+**Resources**:
+- [CountGD GitHub](https://github.com/niki-amini-naieni/CountGD)
 
 ---
 

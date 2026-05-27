@@ -644,6 +644,74 @@ def test_wilddet3d(
 
 
 # ============================================================
+# CountGD Tool Test
+# ============================================================
+
+def test_countgd(
+    image_paths: List[str],
+    text: str = "object",
+    device: str = "cuda",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+    server_url: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Directly test CountGD text-prompted object counting tool.
+
+    Args:
+        image_paths: List of input image paths (only the first is used).
+        text: Text description of object to count, e.g. 'car', 'person'.
+        device: Torch device ('cuda' or 'cpu').
+        use_mock: If True, skip model loading and return a fixed mock result.
+        output_dir: Directory to copy the annotated output image.
+
+    Returns:
+        Path to the saved annotated image, or None on failure.
+    """
+    from spagent.tools import CountGDTool
+
+    image_path = image_paths[0]
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("CountGD Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Image            : {image_path}")
+    logger.info(f"  Text             : {text}")
+    logger.info(f"  Device           : {device}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Server URL       : {server_url or 'local'}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = CountGDTool(device=device, use_mock=use_mock, server_url=server_url)
+    result = tool.call(image_path=image_path, text=text)
+
+    if not result.get("success"):
+        logger.error(f"CountGD tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("CountGD counting succeeded!")
+    logger.info(f"  Count            : {result.get('count', 0)}")
+    logger.info(f"  Description      : {result.get('description', '')}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        ext = Path(src_path).suffix
+        dst_path = os.path.join(output_dir, f"CountGD_test{ext}")
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved     : {dst_path}")
+        return dst_path
+
+    logger.warning("No output image path in result.")
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -656,7 +724,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "countgd"],
         help="Which tool to test.",
     )
     parser.add_argument(
@@ -769,7 +837,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "countgd"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -874,6 +942,17 @@ def main():
             device=args.device,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
+        )
+
+    elif args.tool == "countgd":
+        server = args.server_url or None
+        result_path = test_countgd(
+            image_paths=args.image,
+            text=args.prompt,
+            device=args.device,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+            server_url=server,
         )
 
     # --- summary ---
