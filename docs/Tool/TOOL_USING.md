@@ -30,7 +30,7 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
-├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+├── WildDet3D/                     # Promptable 3D object detection (local or server port 20027)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -55,7 +55,7 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
-| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local / Server (port 20027) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1201,7 +1201,7 @@ python test/test_tool.py --tool vace \
 **Features**:
 - Text, bounding box, and point prompts supported
 - Returns 2D boxes, 3D boxes, confidence scores, and an annotated image
-- Runs locally — no server process needed
+- Supports **local mode** (model runs in-process) and **server mode** (model runs as a shared HTTP service on port 20027)
 - Lazy model loading (loaded on first call, reused across agent turns)
 
 **Setup**:
@@ -1223,7 +1223,7 @@ export WILDDET3D_ROOT=/your/path/WildDet3D
 export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
 ```
 
-**Usage**:
+**Usage (local mode)**:
 
 ```python
 from spagent import SPAgent
@@ -1237,6 +1237,33 @@ tools = [WildDet3DTool(device="cuda")]  # model loaded lazily on first call
 agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
 result = agent.solve_problem("image.jpg", "What objects are in this scene and where are they?")
 print(result["answer"])
+```
+
+**Usage (server mode)**:
+
+```bash
+# Start the server once (keeps model in GPU memory, shared across agents)
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+    --checkpoint $WILDDET3D_CHECKPOINT --port 20027
+```
+
+```python
+# Agents connect via HTTP — no GPU needed in the agent process
+tools = [WildDet3DTool(server_url="http://localhost:20027")]
+```
+
+**Test**:
+
+```bash
+# Mock mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" --use_mock
+
+# Local mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog"
+
+# Server mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" \
+    --server_url http://localhost:20027
 ```
 
 **Parameters**:

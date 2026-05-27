@@ -23,6 +23,7 @@ class WildDet3DTool(Tool):
         score_threshold: float = 0.3,
         score_3d_threshold: float = 0.1,
         device: str = "cuda",
+        server_url: Optional[str] = None,
         use_mock: bool = False,
     ):
         super().__init__(
@@ -36,6 +37,7 @@ class WildDet3DTool(Tool):
             ),
         )
         self.use_mock = use_mock
+        self._server_url = server_url
         self._client = None
         self._client_kwargs = dict(
             checkpoint=checkpoint,
@@ -49,6 +51,9 @@ class WildDet3DTool(Tool):
             return
         if self.use_mock:
             self._client = _MockWildDet3DClient()
+        elif self._server_url:
+            from external_experts.WildDet3D.wilddet3d_client import WildDet3DClient
+            self._client = WildDet3DClient(self._server_url)
         else:
             from external_experts.WildDet3D.wilddet3d_local import WildDet3DLocalClient
             self._client = WildDet3DLocalClient(**self._client_kwargs)

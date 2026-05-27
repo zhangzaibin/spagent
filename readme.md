@@ -59,9 +59,9 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **OrientAnythingV2Tool** (orientation & rotation estimation)<br>- **SanaTool** (text-to-image generation, local SGLang server)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation)<br>- **WildDet3DTool** (promptable 3D object detection, local, no server) |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **OrientAnythingV2Tool** (orientation & rotation estimation)<br>- **SanaTool** (text-to-image generation, local SGLang server)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation)<br>- **WildDet3DTool** (promptable 3D object detection, local or server) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Promptable 3D Object Detection (**WildDet3D**, local, no server)<br>- Each includes client/server implementations and can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Promptable 3D Object Detection (**WildDet3D**, local or server port 20027)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
 | **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode and optional live server checks<br>- Molmo2 expert unit tests (`test_molmo2_expert.py`) — mock service and HTTP client coverage<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
@@ -89,7 +89,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **Sora** | Video | Text/Image-to-Video Generation | API (no server) | OpenAI Sora; requires `OPENAI_API_KEY`; supports t2v, i2v, and 1:1 aspect ratio |
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
 | **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
-| **WildDet3D** | 3D | Promptable 3D Object Detection | Local (no server) | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars |
+| **WildDet3D** | 3D | Promptable 3D Object Detection | Local / Server (port 20027) | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars |
 
 
 ## 🛠️ Installation & Setup
@@ -134,9 +134,9 @@ python spagent/vllm_models/qwen.py
 
 For detailed external expert tools usage guide, please refer to: **[External Experts Tool Usage Guide](docs/Tool/TOOL_USING.md)**
 
-#### WildDet3D (local, no server)
+#### WildDet3D (local or server)
 
-WildDet3D runs entirely in-process — no server needed. Clone the repo (with submodules), install its dependencies, then point two env vars at the clone and the checkpoint:
+WildDet3D supports both local (in-process) and server/client modes. Clone the repo (with submodules), install its dependencies, then point two env vars at the clone and the checkpoint:
 
 ```bash
 # 1. Clone with submodules (sam3 and lingbot_depth are bundled as submodules)
@@ -155,11 +155,15 @@ export WILDDET3D_ROOT=/your/path/WildDet3D
 export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
 ```
 
-Then use `WildDet3DTool` in SPAgent (no `server_url` needed):
-
 ```python
 from spagent.tools import WildDet3DTool
-tool = WildDet3DTool(device="cuda")  # loads model lazily on first call
+
+# Local mode — model runs in-process
+tool = WildDet3DTool(device="cuda")
+
+# Server mode — start server first, then connect via HTTP
+# python spagent/external_experts/WildDet3D/wilddet3d_server.py --checkpoint $WILDDET3D_CHECKPOINT --port 20027
+tool = WildDet3DTool(server_url="http://localhost:20027")
 ```
 
 

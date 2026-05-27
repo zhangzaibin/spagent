@@ -588,6 +588,7 @@ def test_wilddet3d(
     device: str = "cuda",
     use_mock: bool = False,
     output_dir: str = "outputs/tool_test",
+    server_url: Optional[str] = None,
 ) -> Optional[str]:
     """
     Directly test WildDet3D promptable 3D object detection tool.
@@ -616,10 +617,11 @@ def test_wilddet3d(
     logger.info(f"  Prompt           : {prompt_text}")
     logger.info(f"  Device           : {device}")
     logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Server URL       : {server_url or 'local'}")
     logger.info(f"  Output dir       : {output_dir}")
     logger.info("-" * 60)
 
-    tool = WildDet3DTool(device=device, use_mock=use_mock)
+    tool = WildDet3DTool(device=device, use_mock=use_mock, server_url=server_url)
     result = tool.call(image_path=image_path, prompt_text=prompt_text)
 
     if not result.get("success"):
@@ -868,12 +870,14 @@ def main():
         )
 
     elif args.tool == "wilddet3d":
+        server = args.server_url or None
         result_path = test_wilddet3d(
             image_paths=args.image,
             prompt_text=args.prompt,
             device=args.device,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
+            server_url=server,
         )
 
     # --- summary ---
