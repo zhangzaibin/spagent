@@ -107,12 +107,20 @@ class WildDet3DTool(Tool):
 
         try:
             self._ensure_client()
-            return self._client.detect(
+            raw = self._client.detect(
                 image_path=image_path,
                 prompt_text=prompt_text,
                 input_boxes=input_boxes,
                 input_points=input_points,
             )
+            if raw.get("success"):
+                raw["result"] = {
+                    "boxes2d": raw.get("boxes2d", []),
+                    "boxes3d": raw.get("boxes3d", []),
+                    "scores": raw.get("scores", []),
+                    "num_detections": raw.get("num_detections", 0),
+                }
+            return raw
         except Exception as e:
             logger.exception("WildDet3DTool error")
             return {"success": False, "error": str(e)}
@@ -122,11 +130,19 @@ class _MockWildDet3DClient:
     def detect(self, image_path: str, prompt_text: str = "object",
                input_boxes=None, input_points=None, **kwargs) -> Dict[str, Any]:
         mode = "box" if input_boxes else "point" if input_points else f"text:'{prompt_text}'"
+        boxes2d = [[100, 100, 300, 300]]
+        scores = [0.95]
         return {
             "success": True,
-            "boxes2d": [[100, 100, 300, 300]],
+            "result": {
+                "boxes2d": boxes2d,
+                "boxes3d": [],
+                "scores": scores,
+                "num_detections": 1,
+            },
+            "boxes2d": boxes2d,
             "boxes3d": [],
-            "scores": [0.95],
+            "scores": scores,
             "num_detections": 1,
             "output_path": image_path,
             "description": f"[mock] WildDet3D detected 1 object via {mode}.",
