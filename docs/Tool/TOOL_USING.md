@@ -30,6 +30,8 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
+├── WildDet3D/                     # Promptable 3D object detection (local or server port 20027)
+├── OneFormer/                     # Universal image segmentation (local or server port 20035)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -54,6 +56,8 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local / Server (port 20027) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **OneFormer** | `OneFormerTool` | Universal Image Segmentation | Semantic, instance, and panoptic segmentation from a single model; loaded via HuggingFace Transformers (auto-download, no manual checkpoint needed) | Local / Server (port 20035) | `image_path`, `task`(semantic/instance/panoptic, default: panoptic) |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1192,6 +1196,215 @@ python test/test_tool.py --tool vace \
 
 ---
 
+### 14. WildDet3D - Promptable 3D Object Detection
+
+**Function**: Detect and localize objects in 2D and 3D from a single RGB image.
+
+**Features**:
+- Text, bounding box, and point prompts supported
+- Returns 2D boxes, 3D boxes, confidence scores, and an annotated image
+- Supports **local mode** (model runs in-process) and **server mode** (model runs as a shared HTTP service on port 20027)
+- Lazy model loading (loaded on first call, reused across agent turns)
+
+**Setup**:
+
+```bash
+# 1. Clone with submodules (sam3 and lingbot_depth are required submodules)
+git clone --recurse-submodules https://github.com/allenai/WildDet3D.git /your/path/WildDet3D
+
+# 2. Install WildDet3D dependencies (Python 3.11 required)
+pip install vis4d==1.0.0
+pip install git+https://github.com/SysCV/vis4d_cuda_ops.git --no-build-isolation --no-cache-dir
+pip install -r /your/path/WildDet3D/requirements.txt
+
+# 3. Download the model checkpoint (~4.7 GB)
+huggingface-cli download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt --local-dir /your/path/ckpt
+
+# 4. Set environment variables
+export WILDDET3D_ROOT=/your/path/WildDet3D
+export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
+```
+
+**Usage (local mode)**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import WildDet3DTool
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT
+
+model = GPTModel(model_name="gpt-4o")
+tools = [WildDet3DTool(device="cuda")]  # model loaded lazily on first call
+
+agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+result = agent.solve_problem("image.jpg", "What objects are in this scene and where are they?")
+print(result["answer"])
+```
+
+**Usage (server mode)**:
+
+```bash
+# Start the server once (keeps model in GPU memory, shared across agents)
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+    --checkpoint $WILDDET3D_CHECKPOINT --port 20027
+```
+
+```python
+# Agents connect via HTTP — no GPU needed in the agent process
+tools = [WildDet3DTool(server_url="http://localhost:20027")]
+```
+
+**Test**:
+
+```bash
+# Mock mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" --use_mock
+
+# Local mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog"
+
+# Server mode
+python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" \
+    --server_url http://localhost:20027
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input RGB image |
+| `prompt_text` | `str` | `"object"` | Text prompt (e.g. `"chair"`, `"car"`). Ignored when `input_boxes` or `input_points` are provided |
+| `input_boxes` | `list[float]` | `None` | 2D box prompt `[x1, y1, x2, y2]` in pixel coords. Takes priority over `prompt_text` |
+| `input_points` | `list[list]` | `None` | Point prompts `[[x, y, label], ...]` where `label=1` (foreground) or `0` (background) |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "boxes2d": [[x1, y1, x2, y2], ...],
+  "boxes3d": [...],
+  "scores": [0.95, ...],
+  "num_detections": 1,
+  "output_path": "outputs/wilddet3d_image.png",
+  "description": "WildDet3D detected 1 object(s) matching 'chair'."
+}
+```
+
+**Note**: Use `GENERAL_VISION_SYSTEM_PROMPT` (not `SPATIAL_3D_SYSTEM_PROMPT`) with WildDet3D to avoid the LLM confusing its parameters with Pi3-style angle arguments.
+
+**Resources**:
+- [WildDet3D GitHub](https://github.com/allenai/WildDet3D)
+- [Model checkpoint on HuggingFace](https://huggingface.co/allenai/WildDet3D)
+
+---
+
+### 16. OneFormer - Universal Image Segmentation
+
+**Function**: Semantic, instance, and panoptic segmentation from a single model
+
+**Features**:
+- Three segmentation tasks from one unified model
+- No manual checkpoint download — model auto-downloaded from HuggingFace Hub
+- Default model: `shi-labs/oneformer_ade20k_swin_large` (150 ADE20k classes)
+- Returns colorized segmentation map + per-segment label/score list
+- Supports local mode and server/client mode
+
+**File Structure**:
+```
+OneFormer/
+├── __init__.py
+├── oneformer_local.py      # HuggingFace Transformers inference
+├── oneformer_server.py     # Flask server (port 20035)
+└── oneformer_client.py     # HTTP client
+```
+
+**Setup**:
+```bash
+pip install transformers Pillow
+# Model weights (~1.5GB) are auto-downloaded on first run from HuggingFace Hub
+# To use a mirror:
+export HF_ENDPOINT=https://hf-mirror.com
+```
+
+**Local Usage**:
+```python
+from spagent.tools import OneFormerTool
+
+tool = OneFormerTool(device="cuda")
+
+# Panoptic segmentation (default)
+result = tool.call(image_path="image.jpg")
+
+# Semantic segmentation
+result = tool.call(image_path="image.jpg", task="semantic")
+
+# Instance segmentation
+result = tool.call(image_path="image.jpg", task="instance")
+```
+
+**Server Mode**:
+```bash
+# Start server (model loads once, shared across all agents)
+python spagent/external_experts/OneFormer/oneformer_server.py --port 20035 --device cuda
+
+# With a specific model:
+python spagent/external_experts/OneFormer/oneformer_server.py \
+    --model_id shi-labs/oneformer_ade20k_swin_large --port 20035
+```
+
+```python
+# Agents connect via HTTP — no GPU needed in the agent process
+tools = [OneFormerTool(server_url="http://localhost:20035")]
+result = tool.call(image_path="image.jpg", task="panoptic")
+```
+
+**Test**:
+```bash
+# Mock mode (no GPU or download needed)
+python test/test_tool.py --tool oneformer --image assets/dog.jpeg --use_mock
+
+# Local panoptic (default)
+python test/test_tool.py --tool oneformer --image assets/dog.jpeg
+
+# Local semantic
+python test/test_tool.py --tool oneformer --image assets/dog.jpeg --task semantic
+
+# Server mode
+python test/test_tool.py --tool oneformer --image assets/dog.jpeg \
+    --server_url http://localhost:20035
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input RGB image |
+| `task` | `str` | `"panoptic"` | Segmentation task: `"semantic"`, `"instance"`, or `"panoptic"` |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "task": "panoptic",
+  "segments": [
+    {"id": 1, "label": "wall", "score": 0.92},
+    {"id": 2, "label": "floor", "score": 0.88}
+  ],
+  "num_segments": 12,
+  "output_path": "outputs/oneformer_panoptic_image.png",
+  "description": "OneFormer panoptic segmentation: 12 segment(s). Labels: wall, floor, chair, ..."
+}
+```
+
+**Resources**:
+- [OneFormer GitHub](https://github.com/SHI-Labs/OneFormer)
+- [HuggingFace Models](https://huggingface.co/shi-labs)
+- [Paper](https://arxiv.org/abs/2211.06220)
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup
@@ -1281,4 +1494,9 @@ python spagent/external_experts/Molmo2/molmo2_server.py \
 python spagent/external_experts/vace/vace_server.py \
   --checkpoint_path checkpoints/Wan2.1-VACE-1.3B \
   --port 20034
+
+# OneFormer universal segmentation service (model auto-downloaded from HuggingFace)
+python spagent/external_experts/OneFormer/oneformer_server.py \
+  --model_id shi-labs/oneformer_ade20k_swin_large \
+  --port 20035
 ```
