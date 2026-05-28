@@ -50,6 +50,18 @@ Usage:
 
     # Test WildDet3D (mock mode, no GPU or env vars needed)
     python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" --use_mock
+
+    # Test OneFormer (panoptic, local)
+    python test/test_tool.py --tool oneformer --image assets/dog.jpeg
+
+    # Test OneFormer (semantic segmentation)
+    python test/test_tool.py --tool oneformer --image assets/dog.jpeg --task semantic
+
+    # Test OneFormer (server mode)
+    python test/test_tool.py --tool oneformer --image assets/dog.jpeg --server_url http://localhost:20035
+
+    # Test OneFormer (mock mode, no GPU needed)
+    python test/test_tool.py --tool oneformer --image assets/dog.jpeg --use_mock
 """
 
 import sys
@@ -646,6 +658,77 @@ def test_wilddet3d(
 
 
 # ============================================================
+# OneFormer Tool Test
+# ============================================================
+
+def test_oneformer(
+    image_paths: List[str],
+    task: str = "panoptic",
+    device: str = "cuda",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+    server_url: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Directly test OneFormer universal segmentation tool.
+
+    Args:
+        image_paths: List of input image paths (only the first is used).
+        task: Segmentation task — 'semantic', 'instance', or 'panoptic'.
+        device: Torch device ('cuda' or 'cpu').
+        use_mock: If True, skip model loading and return a fixed mock result.
+        output_dir: Directory to copy the annotated output image.
+        server_url: Server URL for client mode (uses local mode if None).
+
+    Returns:
+        Path to the saved annotated image, or None on failure.
+    """
+    from spagent.tools import OneFormerTool
+
+    image_path = image_paths[0]
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("OneFormer Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Image            : {image_path}")
+    logger.info(f"  Task             : {task}")
+    logger.info(f"  Device           : {device}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Server URL       : {server_url or 'local'}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = OneFormerTool(device=device, use_mock=use_mock, server_url=server_url)
+    result = tool.call(image_path=image_path, task=task)
+
+    if not result.get("success"):
+        logger.error(f"OneFormer tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("OneFormer segmentation succeeded!")
+    logger.info(f"  Task             : {result.get('task', task)}")
+    logger.info(f"  Segments         : {result.get('num_segments', 0)}")
+    logger.info(f"  Description      : {result.get('description', '')}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        stem = Path(image_path).stem
+        suffix = Path(src_path).suffix or ".png"
+        dst_path = os.path.join(output_dir, f"oneformer_{task}_{stem}{suffix}")
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved     : {dst_path}")
+        return dst_path
+
+    logger.warning("No output image path in result.")
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -658,7 +741,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "oneformer"],
         help="Which tool to test.",
     )
     parser.add_argument(
@@ -728,9 +811,11 @@ def parse_args():
     molmo2_group.add_argument(
         "--task",
         type=str,
-        default="qa",
-        choices=["qa", "caption", "point"],
-        help="Molmo2 task mode (default: qa).",
+        default="panoptic",
+        help=(
+            "Task selector. Molmo2: 'qa', 'caption', 'point'. "
+            "OneFormer: 'semantic', 'instance', 'panoptic' (default: panoptic)."
+        ),
     )
     molmo2_group.add_argument(
         "--save_annotated",
@@ -771,7 +856,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "oneformer"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -874,6 +959,17 @@ def main():
         result_path = test_wilddet3d(
             image_paths=args.image,
             prompt_text=args.prompt,
+            device=args.device,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+            server_url=server,
+        )
+
+    elif args.tool == "oneformer":
+        server = args.server_url or None
+        result_path = test_oneformer(
+            image_paths=args.image,
+            task=args.task,
             device=args.device,
             use_mock=args.use_mock,
             output_dir=args.output_dir,

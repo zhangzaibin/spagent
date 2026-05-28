@@ -25,6 +25,7 @@ from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
 from .sana_tool import SanaTool
 from .wilddet3d_tool import WildDet3DTool
+from .oneformer_tool import OneFormerTool
 
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     'OrientAnythingV2Tool',
     'SanaTool',
     'WildDet3DTool',
+    'OneFormerTool',
 ]

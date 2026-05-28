@@ -28,6 +28,7 @@ from spagent.tools import (
     MapAnythingTool,
     VaceTool,
     WildDet3DTool,
+    OneFormerTool,
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -62,6 +63,9 @@ TOOL_CONFIGS = {
     ],
     "wilddet3d": [
         WildDet3DTool(device="cuda"),
+    ],
+    "oneformer": [
+        OneFormerTool(device="cuda"),
     ],
 }
 
