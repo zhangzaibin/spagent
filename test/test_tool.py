@@ -50,6 +50,15 @@ Usage:
 
     # Test WildDet3D (mock mode, no GPU or env vars needed)
     python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" --use_mock
+
+    # Test FlowSeek optical flow (real, local inference — requires FLOWSEEK_ROOT)
+    python test/test_tool.py --tool flowseek --image assets/frame1.jpg assets/frame2.jpg
+
+    # Test FlowSeek (server mode)
+    python test/test_tool.py --tool flowseek --image assets/frame1.jpg assets/frame2.jpg --server_url http://localhost:20036
+
+    # Test FlowSeek (mock mode, no GPU or env vars needed)
+    python test/test_tool.py --tool flowseek --image assets/frame1.jpg assets/frame2.jpg --use_mock
 """
 
 import sys
@@ -644,6 +653,80 @@ def test_wilddet3d(
 
 
 # ============================================================
+# FlowSeek Tool Test
+# ============================================================
+
+def test_flowseek(
+    image1_path: str,
+    image2_path: str,
+    variant: str = "M",
+    device: str = "cuda",
+    server_url: Optional[str] = None,
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test FlowSeek optical flow estimation tool.
+
+    Args:
+        image1_path: Path to the first (source) image.
+        image2_path: Path to the second (target) image.
+        variant: Model variant 'M' (ResNet-34+ViT-B) or 'T' (ResNet-18+ViT-S).
+        device: Torch device ('cuda' or 'cpu').
+        server_url: If set, use the FlowSeek HTTP server instead of local inference.
+        use_mock: If True, skip model loading and return a fixed mock result.
+        output_dir: Directory to copy the colorized flow output image.
+
+    Returns:
+        Path to the saved colorized flow image, or None on failure.
+    """
+    from spagent.tools import FlowSeekTool
+
+    for p in [image1_path, image2_path]:
+        if not os.path.exists(p):
+            logger.error(f"Image not found: {p}")
+            return None
+
+    logger.info("=" * 60)
+    logger.info("FlowSeek Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Image 1          : {image1_path}")
+    logger.info(f"  Image 2          : {image2_path}")
+    logger.info(f"  Variant          : {variant}")
+    logger.info(f"  Device           : {device}")
+    logger.info(f"  Server URL       : {server_url or '(local)'}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info(f"  Output dir       : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = FlowSeekTool(variant=variant, device=device, server_url=server_url, use_mock=use_mock)
+    result = tool.call(image1_path=image1_path, image2_path=image2_path)
+
+    if not result.get("success"):
+        logger.error(f"FlowSeek tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("FlowSeek optical flow estimation succeeded!")
+    logger.info(f"  Flow magnitude   : {result.get('flow_magnitude_mean', 'N/A')}")
+    logger.info(f"  Description      : {result.get('description', '')}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        stem1 = Path(image1_path).stem
+        stem2 = Path(image2_path).stem
+        suffix = Path(src_path).suffix or ".png"
+        dst_path = os.path.join(output_dir, f"flowseek_{stem1}_{stem2}{suffix}")
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved     : {dst_path}")
+        return dst_path
+
+    logger.warning("No output image path in result.")
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -656,7 +739,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek"],
         help="Which tool to test.",
     )
     parser.add_argument(
@@ -769,7 +852,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "flowseek"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -872,6 +955,19 @@ def main():
             image_paths=args.image,
             prompt_text=args.prompt,
             device=args.device,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "flowseek":
+        if len(args.image) < 2:
+            print("Error: --tool flowseek requires two images: --image <img1> <img2>")
+            sys.exit(1)
+        result_path = test_flowseek(
+            image1_path=args.image[0],
+            image2_path=args.image[1],
+            device=args.device,
+            server_url=args.server_url,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
         )

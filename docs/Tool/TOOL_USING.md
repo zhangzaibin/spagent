@@ -31,6 +31,7 @@ external_experts/
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
 ├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+├── FlowSeek/                      # Optical flow estimation between image pairs (local or server port 20036)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -56,6 +57,7 @@ external_experts/
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
 | **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **FlowSeek** | `FlowSeekTool` | Optical Flow Estimation | Estimate dense per-pixel motion between two images (consecutive frames or before/after pairs); returns colorized flow visualization; M variant (ViT-B) or T variant (ViT-S); source vendored in repo, requires `FLOWSEEK_CHECKPOINT` and `FLOWSEEK_DAV2_CHECKPOINT` env vars | Local / Server (port 20036) | `image1_path`, `image2_path`, `output_path`(optional) |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1267,6 +1269,139 @@ print(result["answer"])
 **Resources**:
 - [WildDet3D GitHub](https://github.com/allenai/WildDet3D)
 - [Model checkpoint on HuggingFace](https://huggingface.co/allenai/WildDet3D)
+
+---
+
+### 15. FlowSeek - Optical Flow Estimation
+
+**Function**: Estimate dense per-pixel motion between two images.
+
+**Features**:
+- Takes any arbitrary image pair (consecutive frames, before/after, stereo)
+- Two variants: M (ResNet-34 + ViT-B, higher accuracy) and T (ResNet-18 + ViT-S, faster)
+- Returns a colorized optical flow visualization using the standard color wheel
+- Local inference or server/client mode
+- Mock mode for development without GPU
+
+**File Structure**:
+```
+FlowSeek/
+├── __init__.py
+├── flowseek_local.py   # local inference
+├── flowseek_server.py  # Flask server (port 20036)
+├── flowseek_client.py  # HTTP client
+└── src/                # vendored FlowSeek core (no cloning needed)
+```
+
+**Setup**:
+
+FlowSeek source is vendored into the repo — no cloning needed. Only model weights are required.
+
+```bash
+# 1. Install pip dependencies
+pip install huggingface_hub timm
+
+# 2. Download Depth Anything V2 weights (M variant needs vitb, T variant needs vits)
+wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth \
+    -O /your/path/depth_anything_v2_vitb.pth
+
+# 3. Download FlowSeek checkpoint
+#    M variant (recommended):
+gdown 1gbZ-6NE3muAnGqvypiS2s_BADHrI4ySf -O /your/path/flowseek_M_TartanCT_TSKH.pth
+#    T variant (faster):
+gdown 1IQoyY5PpKSadtiGuhWwVCqvgD3y8CyFd -O /your/path/flowseek_T_TartanCT_TSKH.pth
+
+# 4. Set environment variables
+export FLOWSEEK_CHECKPOINT=/your/path/flowseek_M_TartanCT_TSKH.pth
+export FLOWSEEK_DAV2_CHECKPOINT=/your/path/depth_anything_v2_vitb.pth
+```
+
+**Local Usage**:
+
+```python
+from spagent.tools import FlowSeekTool
+
+tool = FlowSeekTool(device="cuda")  # loads model lazily on first call
+result = tool.call(image1_path="frame1.jpg", image2_path="frame2.jpg")
+print(result["output_path"])            # colorized flow image
+print(result["result"]["flow_magnitude_mean"])  # mean flow in pixels
+```
+
+**Mock Mode**:
+
+```python
+tool = FlowSeekTool(use_mock=True)
+result = tool.call(image1_path="frame1.jpg", image2_path="frame2.jpg")
+```
+
+**Start Server**:
+
+```bash
+export FLOWSEEK_CHECKPOINT=/your/path/flowseek_M_TartanCT_TSKH.pth
+export FLOWSEEK_DAV2_CHECKPOINT=/your/path/depth_anything_v2_vitb.pth
+python spagent/external_experts/FlowSeek/flowseek_server.py \
+    --checkpoint /your/path/flowseek_M_TartanCT_TSKH.pth \
+    --port 20036 \
+    --device cuda \
+    --variant M
+```
+
+Health check:
+```bash
+curl -s http://localhost:20036/health
+```
+
+**Server Usage**:
+
+```python
+tool = FlowSeekTool(server_url="http://localhost:20036")
+result = tool.call(image1_path="frame1.jpg", image2_path="frame2.jpg")
+```
+
+**Tool Test**:
+
+```bash
+# Local (requires FLOWSEEK_CHECKPOINT and FLOWSEEK_DAV2_CHECKPOINT)
+python test/test_tool.py --tool flowseek \
+    --image assets/frame1.jpg assets/frame2.jpg
+
+# Server mode
+python test/test_tool.py --tool flowseek \
+    --image assets/frame1.jpg assets/frame2.jpg \
+    --server_url http://localhost:20036
+
+# Mock mode (no GPU or env vars needed)
+python test/test_tool.py --tool flowseek \
+    --image assets/frame1.jpg assets/frame2.jpg \
+    --use_mock
+```
+
+**Parameters**:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `image1_path` | string | ✅ | — | Path to the first (source) image |
+| `image2_path` | string | ✅ | — | Path to the second (target) image |
+| `output_path` | string | ❌ | auto-generated | Path to save the colorized flow image |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "output_path": "outputs/flowseek_frame1_frame2.png",
+  "flow_magnitude_mean": 8.34,
+  "description": "FlowSeek-M estimated optical flow from frame1.jpg to frame2.jpg. Mean flow magnitude: 8.34 px.",
+  "result": {
+    "flow_magnitude_mean": 8.34,
+    "output_path": "outputs/flowseek_frame1_frame2.png"
+  }
+}
+```
+
+**Resources**:
+- [FlowSeek GitHub](https://github.com/mattpoggi/flowseek)
+- [Depth Anything V2 (vitb)](https://huggingface.co/depth-anything/Depth-Anything-V2-Base)
 
 ---
 
