@@ -50,6 +50,15 @@ Usage:
 
     # Test WildDet3D (mock mode, no GPU or env vars needed)
     python test/test_tool.py --tool wilddet3d --image assets/dog.jpeg --prompt "dog" --use_mock
+
+    # Test PaddleOCR-VL-1.5 (mock mode)
+    python test/test_tool.py --tool paddleocr_vl --image assets/dog.jpeg --use_mock
+
+    # Test PaddleOCR-VL-1.5 (local, table mode)
+    python test/test_tool.py --tool paddleocr_vl --image assets/doc.png --ocr_task table
+
+    # Test PaddleOCR-VL-1.5 (server mode)
+    python test/test_tool.py --tool paddleocr_vl --image assets/doc.png --server_url http://0.0.0.0:20037
 """
 
 import sys
@@ -644,6 +653,60 @@ def test_wilddet3d(
 
 
 # ============================================================
+# PaddleOCR-VL-1.5 Tool Test
+# ============================================================
+
+def test_paddleocr_vl(
+    image_paths: List[str],
+    task: str = "ocr",
+    server_url: Optional[str] = None,
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test PaddleOCR-VL-1.5 document recognition tool.
+
+    Args:
+        image_paths: List of input image paths (only the first is used).
+        task: Recognition mode — 'ocr', 'table', 'chart', 'formula', 'spotting', 'seal'.
+        server_url: If provided, forward requests to this Flask server URL.
+        use_mock: If True, skip model loading and return a fixed mock result.
+        output_dir: (unused for text-output tools; kept for interface consistency)
+
+    Returns:
+        Recognized text string on success, or None on failure.
+    """
+    from spagent.tools import PaddleOCRVLTool
+
+    image_path = image_paths[0]
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("PaddleOCR-VL-1.5 Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Image            : {image_path}")
+    logger.info(f"  Task             : {task}")
+    logger.info(f"  Server URL       : {server_url or '(local)'}")
+    logger.info(f"  Use mock         : {use_mock}")
+    logger.info("-" * 60)
+
+    tool = PaddleOCRVLTool(server_url=server_url, use_mock=use_mock)
+    result = tool.call(image_path=image_path, task=task)
+
+    if not result.get("success"):
+        logger.error(f"PaddleOCR-VL tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    text = result.get("text", "")
+    logger.info("PaddleOCR-VL recognition succeeded!")
+    logger.info(f"  Task             : {task}")
+    logger.info(f"  Result text      : {text[:300]}")
+    return text or "OK"
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -656,7 +719,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "paddleocr_vl"],
         help="Which tool to test.",
     )
     parser.add_argument(
@@ -722,6 +785,15 @@ def parse_args():
         help="Torch device for WildDet3D ('cuda' or 'cpu', default: 'cuda').",
     )
 
+    paddleocr_group = parser.add_argument_group("PaddleOCR-VL options")
+    paddleocr_group.add_argument(
+        "--ocr_task",
+        type=str,
+        default="ocr",
+        choices=["ocr", "table", "chart", "formula", "spotting", "seal"],
+        help="PaddleOCR-VL task mode (default: ocr).",
+    )
+
     molmo2_group = parser.add_argument_group("Molmo2 options")
     molmo2_group.add_argument(
         "--task",
@@ -769,7 +841,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -872,6 +944,15 @@ def main():
             image_paths=args.image,
             prompt_text=args.prompt,
             device=args.device,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "paddleocr_vl":
+        result_path = test_paddleocr_vl(
+            image_paths=args.image,
+            task=args.ocr_task,
+            server_url=args.server_url,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
         )
