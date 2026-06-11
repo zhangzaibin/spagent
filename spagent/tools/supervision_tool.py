@@ -31,7 +31,14 @@ class SupervisionTool(Tool):
         """
         super().__init__(
             name="supervision_tool",
-            description="Perform object detection or segmentation on the input image to identify and analyze objects in the scene. Use 'image_det' for object detection with bounding boxes, or 'image_seg' for instance segmentation with masks."
+            description=(
+                "Run YOLO-based object detection or instance segmentation with Supervision visualization.\n\n"
+                "When to use: standard detection/segmentation with annotated output images; task='image_det' "
+                "for boxes, task='image_seg' for masks.\n"
+                "When NOT to use: open-vocabulary text queries (prefer detect_objects_tool) or custom class "
+                "lists via YOLO-E (prefer yoloe_detection_tool).\n"
+                "Example: task='image_det' on image_path='room.jpg' to list detected objects with boxes."
+            )
         )
         
         self.use_mock = use_mock

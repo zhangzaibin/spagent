@@ -39,3 +39,5 @@ diffusers>=0.31.0
 accelerate>=1.1.1
 ftfy
 einops
+# VLMEvalKit - install from GitHub: pip install git+https://github.com/open-compass/VLMEvalKit.git
+vlmeval

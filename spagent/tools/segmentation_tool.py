@@ -31,7 +31,14 @@ class SegmentationTool(Tool):
         """
         super().__init__(
             name="segment_image_tool",
-            description="Segment objects in the image based on user's request. Can use points, boxes to guide segmentation."
+            description=(
+                "Segment objects or regions in an image using SAM2. Supports point, box, or automatic "
+                "segmentation guided by the user's request.\n\n"
+                "When to use: you need precise pixel-level masks, object boundaries, or region isolation.\n"
+                "When NOT to use: only bounding boxes are needed (prefer detect_objects_tool or yolo26_tool), "
+                "or the task is purely depth/viewpoint reasoning.\n"
+                "Example: segment the red cup after detecting its approximate location with a box prompt."
+            )
         )
         
         self.use_mock = use_mock

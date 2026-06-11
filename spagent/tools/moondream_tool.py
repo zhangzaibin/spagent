@@ -31,7 +31,15 @@ class MoondreamTool(Tool):
         """
         super().__init__(
             name="moondream_tool",
-            description="Perform vision-language tasks including image captioning, visual question answering, object detection, and object pointing using Moondream."
+            description=(
+                "Lightweight vision-language tasks on one image: captioning, visual Q&A, object detection, "
+                "and pointing via Moondream.\n\n"
+                "When to use: quick language-driven understanding, short answers about image content, "
+                "or simple grounding without heavy 3D reconstruction.\n"
+                "When NOT to use: precise metric 3D pose (prefer orient_anything_v2_tool), dense depth maps, "
+                "or multi-view reconstruction.\n"
+                "Example: task='vqa' with a question like 'What color is the car on the left?'."
+            )
         )
         
         self.use_mock = use_mock

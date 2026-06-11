@@ -31,7 +31,13 @@ class YOLOETool(Tool):
         """
         super().__init__(
             name="yoloe_detection_tool",
-            description="Perform advanced object detection using YOLO-E model. This tool can detect objects with custom class names specified by the user. It supports both image and video processing with high accuracy object localization and bounding box detection. Note: This tool only performs detection (bounding boxes), not segmentation."
+            description=(
+                "Detect objects with YOLO-E using user-specified custom class names. Returns bounding boxes "
+                "(detection only, not segmentation).\n\n"
+                "When to use: you have a predefined class list and need accurate localization for those classes.\n"
+                "When NOT to use: free-form text queries (prefer detect_objects_tool), masks, or video generation.\n"
+                "Example: class_names=['helmet', 'vest'] on a construction-site image."
+            )
         )
         
         self.use_mock = use_mock

@@ -19,6 +19,32 @@ Dataset format (JSONL):
   Vision tasks  → standard CVBench / VQA format with "conversations" field
   Video tasks   → {"id": ..., "prompt": ..., "task": "t2v"|"i2v", ...}
   Image tasks   → {"id": ..., "prompt": ..., "task": "t2i", ...}
+
+Built-in dataset shortcuts (--dataset):
+  mindcube   — multi-image spatial reasoning (image MCQ)
+               default JSONL: dataset/MindCube_data.jsonl
+               prepare with: python spagent/utils/download_mindcube.py
+  vsibench   — video spatial reasoning (video MCQ + number)
+               default JSONL: dataset/VSI_Bench.jsonl
+               prepare with: python spagent/utils/download_vsibench.py
+
+Examples:
+  # MindCube with Pi3X
+  python examples/evaluation/evaluate_all_tools.py \\
+      --dataset mindcube --config pi3x --model gpt-4.1-mini
+
+  # MindCube full: dinosam + pi3x
+  python examples/evaluation/evaluate_all_tools.py \\
+      --dataset mindcube --config all_vision --model gpt-4.1-mini --max_samples 200
+
+  # VSIBench with Pi3X (video: 7 sampled frames)
+  python examples/evaluation/evaluate_all_tools.py \\
+      --dataset vsibench --config pi3x --model gpt-4.1-mini --num_frames 7
+
+  # Custom JSONL (same schema as MindCube)
+  python examples/evaluation/evaluate_all_tools.py \\
+      --data_path /path/to/custom.jsonl --image_base_path dataset \\
+      --config dinosam --model gpt-4.1-mini
 """
 
 import json
@@ -63,7 +89,7 @@ from spagent.utils.utils import (
     validate_sample_paths,
     save_result_to_csv,
 )
-from spagent_evaluation import evaluate_tool_config, evaluate_single_sample
+from spagent_evaluation import evaluate_tool_config, evaluate_single_sample, evaluate_single_video
 
 # ---------------------------------------------------------------------------
 # Server URLs — edit these to match your deployment
@@ -133,6 +159,27 @@ CONFIG_GROUPS = {
     "all_generation": sorted(VIDEO_GEN_CONFIGS | IMAGE_GEN_CONFIGS),
     "all":        sorted(ALL_CONFIGS),
 }
+
+# ---------------------------------------------------------------------------
+# Built-in dataset shortcuts
+# ---------------------------------------------------------------------------
+
+# name → (default_jsonl_path_relative_to_project_root, image_base_path, input_type)
+BUILTIN_DATASETS: Dict[str, Dict[str, str]] = {
+    "mindcube": {
+        "jsonl":       "dataset/MindCube_data.jsonl",
+        "image_base":  "dataset",
+        "input_type":  "image",
+        "description": "MindCube multi-image spatial reasoning (MCQ)",
+    },
+    "vsibench": {
+        "jsonl":       "dataset/VSI_Bench.jsonl",
+        "image_base":  "dataset",
+        "input_type":  "video",
+        "description": "VSI-Bench video spatial reasoning (MCQ + number)",
+    },
+}
+
 
 # ---------------------------------------------------------------------------
 # Video generation evaluation helpers (adapted from evaluate_veo / evaluate_sora)
@@ -734,10 +781,20 @@ def main():
     )
 
     # --- required / data ---
-    parser.add_argument("--data_path", type=str, default="dataset/cvbench_data.jsonl",
-                        help="Path to the evaluation JSONL dataset.")
-    parser.add_argument("--image_base_path", type=str, default="dataset",
-                        help="Base directory for resolving relative image paths.")
+    parser.add_argument(
+        "--dataset", type=str, default=None,
+        choices=list(BUILTIN_DATASETS.keys()),
+        help=(
+            "Built-in dataset shortcut. Sets --data_path and --image_base_path automatically.\n"
+            + "\n".join(f"  {k}: {v['description']}" for k, v in BUILTIN_DATASETS.items())
+        ),
+    )
+    parser.add_argument("--data_path", type=str, default=None,
+                        help="Path to the evaluation JSONL dataset. "
+                             "Overrides --dataset. Default: dataset/cvbench_data.jsonl")
+    parser.add_argument("--image_base_path", type=str, default=None,
+                        help="Base directory for resolving relative image/video paths. "
+                             "Overrides --dataset default.")
 
     # --- tool selection ---
     parser.add_argument(
@@ -776,6 +833,8 @@ def main():
     # --- video-specific ---
     parser.add_argument("--video_num_frames", type=int, default=4,
                         help="Frames sampled from generated video to feed back to model (default: 4).")
+    parser.add_argument("--num_frames", type=int, default=7,
+                        help="Frames uniformly sampled from source video for VSIBench / video QA (default: 7).")
 
     # --- data collection ---
     parser.add_argument("--enable_data_collection", action="store_true",
@@ -785,9 +844,32 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate paths
+    # ── Resolve data_path / image_base_path from --dataset shortcut ───────────
+    if args.dataset:
+        ds_meta = BUILTIN_DATASETS[args.dataset]
+        # --data_path and --image_base_path explicitly set take priority
+        if args.data_path is None:
+            args.data_path = str(project_root / ds_meta["jsonl"])
+        if args.image_base_path is None:
+            args.image_base_path = str(project_root / ds_meta["image_base"])
+        print(f"Dataset : {args.dataset}  ({ds_meta['description']})")
+    else:
+        if args.data_path is None:
+            args.data_path = "dataset/cvbench_data.jsonl"
+        if args.image_base_path is None:
+            args.image_base_path = "dataset"
+
+    # ── Validate paths ────────────────────────────────────────────────────────
     if not os.path.exists(args.data_path):
         print(f"Error: Dataset not found at {args.data_path}")
+        if args.dataset in BUILTIN_DATASETS:
+            ds_meta = BUILTIN_DATASETS[args.dataset]
+            hint_script = {
+                "mindcube": "python spagent/utils/download_mindcube.py",
+                "vsibench":  "python spagent/utils/download_vsibench.py",
+            }.get(args.dataset, "")
+            if hint_script:
+                print(f"Hint: prepare the dataset first with:\n  {hint_script}")
         return
     if not os.path.exists(args.image_base_path):
         print(f"Error: Image base path not found at {args.image_base_path}")
@@ -880,6 +962,7 @@ def main():
                 temperature=args.temperature,
                 seed=args.seed,
                 top_p=args.top_p,
+                num_frames=args.num_frames,
                 **extra_kwargs,
             )
             all_results[config_name] = results

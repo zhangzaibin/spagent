@@ -27,11 +27,29 @@ from spagent.core.prompts import (
     GENERAL_VISION_WORKFLOW,
     SPATIAL_3D_SYSTEM_PROMPT,
     GENERAL_VISION_SYSTEM_PROMPT,
+    TOOL_SELECTION_GUIDE,
     create_system_prompt,
+    create_all_tools_system_prompt,
 )
 from spagent.tools import SegmentationTool, ObjectDetectionTool
+from spagent.tools.catalog import build_all_tools, build_tools, resolve_tool_keys
 
 DIVIDER = "=" * 80
+
+
+class _MockModel:
+    """Minimal model stub for prompt/workflow tests (no OpenAI dependency)."""
+
+    model_name = "mock-model"
+
+    def text_only_inference(self, prompt, **kwargs):
+        return "<answer>A</answer>"
+
+    def single_image_inference(self, image_path, prompt, **kwargs):
+        return "<answer>A</answer>"
+
+    def multiple_images_inference(self, image_paths, prompt, **kwargs):
+        return "<answer>A</answer>"
 
 
 def get_mock_tool_schemas():
@@ -83,7 +101,6 @@ def test_general_vision_prompt():
 def test_spagent_system_prompt_none():
     """SPAgent with system_prompt=None → falls back to 3D prompt."""
     from spagent import SPAgent
-    from spagent.models import GPTModel
 
     schemas = get_mock_tool_schemas()
     tools_json = json.dumps(schemas, indent=2)
@@ -147,9 +164,129 @@ def test_workflow_constants():
     print("✓  Workflow constant assertions passed.")
 
 
+def test_all_tools_prompt():
+    """create_all_tools_system_prompt() includes schemas and selection guide."""
+    tools, skipped = build_all_tools(use_mock=True, skip_unavailable=True)
+    schemas = [t.to_function_schema() for t in tools]
+    prompt = create_all_tools_system_prompt(schemas)
+
+    print_section("CASE: All-Tools Prompt  (create_all_tools_system_prompt)", prompt[:4000] + "\n...[truncated]...")
+
+    assert TOOL_SELECTION_GUIDE.strip() in prompt, "Expected tool selection guide"
+    assert "Tool Selection Guide" in prompt
+    assert "depth_estimation_tool" in prompt
+    assert "pi3x_tool" in prompt
+    assert "image_generation_sana_tool" in prompt
+    assert "azimuth=0, elevation=0" in prompt
+    if skipped:
+        print(f"  (skipped during catalog build: {skipped})")
+    print("✓  All-tools prompt assertions passed.")
+
+
+def test_all_tools_agent_resolve_prompt():
+    """SPAgent workflow_mode='all_tools' resolves the all-tools system prompt."""
+    from spagent import SPAgent
+
+    tools, _ = build_all_tools(use_mock=True, skip_unavailable=True)
+    agent = SPAgent(model=_MockModel(), tools=tools, workflow_mode="all_tools")
+
+    system_prompt, continuation_hint, workflow = agent._resolve_workflow_prompts(
+        question="Which object is closer?",
+        image_paths=["dummy.jpg"],
+        tool_schemas=agent.tool_registry.get_function_schemas(),
+    )
+
+    print_section("CASE: SPAgent workflow_mode=all_tools", system_prompt[:4000] + "\n...[truncated]...")
+
+    assert workflow == "all_tools"
+    assert "Tool Selection Guide" in system_prompt
+    assert "Continue investigating" in continuation_hint
+    print("✓  SPAgent all_tools workflow assertions passed.")
+
+
+def test_image_budget_helper():
+    """_apply_image_budget keeps originals and trims old tool images."""
+    from spagent import SPAgent
+
+    agent = SPAgent(model=_MockModel())
+    originals = ["a.jpg", "b.jpg"]
+    additional = [f"tool_{i}.jpg" for i in range(6)]
+    trimmed = agent._apply_image_budget(originals, additional, max_images_in_context=4)
+
+    assert trimmed == ["a.jpg", "b.jpg", "tool_4.jpg", "tool_5.jpg"]
+    print("✓  Image budget helper assertions passed.")
+
+
+def test_compact_function_schemas():
+    """ToolRegistry.get_function_schemas(compact=True) truncates descriptions."""
+    from spagent.core.tool import ToolRegistry
+
+    tools, _ = build_all_tools(use_mock=True, skip_unavailable=True)
+    registry = ToolRegistry()
+    for tool in tools[:3]:
+        registry.register(tool)
+
+    full = registry.get_function_schemas(compact=False)
+    compact = registry.get_function_schemas(compact=True)
+
+    assert len(full) == len(compact) == 3
+    assert len(compact[0]["function"]["description"]) <= len(full[0]["function"]["description"])
+    print("✓  Compact schema assertions passed.")
+
+
+def test_build_tools_subset():
+    """build_tools(tool_keys=[...]) loads only the requested tools."""
+    tools, skipped = build_tools(
+        tool_keys=["detection", "segment_image_tool", "pi3x"],
+        use_mock=True,
+        skip_unavailable=True,
+    )
+    names = {tool.name for tool in tools}
+    assert names == {"detect_objects_tool", "segment_image_tool", "pi3x_tool"}
+    resolved, unknown = resolve_tool_keys(["depth", "unknown_tool"])
+    assert resolved == ["depth"]
+    assert unknown == ["unknown_tool"]
+    print("✓  build_tools subset assertions passed.")
+
+
+def test_all_tools_step_smoke():
+    """build_all_tools(use_mock=True) + one step returns an answer (model mocked)."""
+    from spagent import SPAgent
+
+    tools, skipped = build_all_tools(use_mock=True, skip_unavailable=True)
+    agent = SPAgent(model=_MockModel(), tools=tools, workflow_mode="all_tools")
+
+    def _fake_inference(images, prompt, **kwargs):
+        return (
+            "<think>Mock inference for smoke test.</think>\n"
+            "<answer>A</answer>"
+        )
+
+    agent._run_model_inference = _fake_inference  # type: ignore[method-assign]
+
+    result = agent.step(
+        content="Which option is correct?",
+        images=None,
+        max_tool_iterations=1,
+        max_images_in_context=4,
+    )
+
+    assert result.answer
+    assert result.prompts.get("workflow") == "all_tools"
+    if skipped:
+        print(f"  (skipped during catalog build: {skipped})")
+    print("✓  All-tools step smoke test passed.")
+
+
 CASES = {
     "3d": test_default_3d_prompt,
     "general": test_general_vision_prompt,
+    "all_tools": test_all_tools_prompt,
+    "spagent_all_tools": test_all_tools_agent_resolve_prompt,
+    "image_budget": test_image_budget_helper,
+    "compact_schemas": test_compact_function_schemas,
+    "build_tools_subset": test_build_tools_subset,
+    "all_tools_step": test_all_tools_step_smoke,
     "spagent_none": test_spagent_system_prompt_none,
     "spagent_general": test_spagent_general_vision_system_prompt,
     "custom": test_custom_prompt_no_placeholder,

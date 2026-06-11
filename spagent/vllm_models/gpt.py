@@ -4,13 +4,21 @@ from pathlib import Path
 from typing import List, Optional, Union
 import os
 
-# client = OpenAI()
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL"),
-    timeout=60.0,  # 设置5分钟超时，避免无限等待
-    max_retries=2,  # 失败后重试2次
-)
+# ── Lazy client initialization ─────────────────────────────────────────────────
+# The client is created on first use so that importing this module does NOT
+# require OPENAI_API_KEY to be set at import time.
+_client: Optional[OpenAI] = None
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL") or None,
+            timeout=300.0,
+            max_retries=2,
+        )
+    return _client
 
 def encode_image(image_path: str) -> str:
     """将图像文件编码为base64字符串
@@ -96,7 +104,7 @@ def gpt_single_image_inference(
         if top_p is not None:
             kwargs["top_p"] = top_p
 
-        response = client.chat.completions.create(**kwargs)
+        response = _get_client().chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")
@@ -175,7 +183,7 @@ def gpt_multiple_images_inference(
         if top_p is not None:
             kwargs["top_p"] = top_p
 
-        response = client.chat.completions.create(**kwargs)
+        response = _get_client().chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")
@@ -222,7 +230,7 @@ def gpt_text_only_inference(
         if top_p is not None:
             kwargs["top_p"] = top_p
 
-        response = client.chat.completions.create(**kwargs)
+        response = _get_client().chat.completions.create(**kwargs)
         
         result = response.choices[0].message.content
         print(f"[推理成功] 返回长度: {len(result)}")

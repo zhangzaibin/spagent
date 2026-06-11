@@ -24,6 +24,15 @@ from .wan_tool import WanTool
 from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
 from .sana_tool import SanaTool
+from .catalog import (
+    TOOL_CATALOG,
+    build_all_tools,
+    build_tools,
+    get_catalog_by_group,
+    list_catalog_keys,
+    list_catalog_tool_names,
+    resolve_tool_keys,
+)
 
 
 __all__ = [
@@ -46,4 +55,11 @@ __all__ = [
     'VaceTool',
     'OrientAnythingV2Tool',
     'SanaTool',
+    'TOOL_CATALOG',
+    'build_all_tools',
+    'build_tools',
+    'get_catalog_by_group',
+    'list_catalog_keys',
+    'list_catalog_tool_names',
+    'resolve_tool_keys',
 ]

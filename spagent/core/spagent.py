@@ -20,6 +20,10 @@ from .prompts import (
     SPATIAL_3D_CONTINUATION_HINT, GENERAL_VISION_CONTINUATION_HINT,
     SPATIAL_3D_SYSTEM_PROMPT, GENERAL_VISION_SYSTEM_PROMPT,
     GENERATION_SYSTEM_PROMPT, GENERATION_CONTINUATION_HINT,
+    TOOL_CALLING_BLOCK, build_system_prompt, create_all_tools_system_prompt,
+    SPATIAL_3D_ROLE, GENERAL_VISION_ROLE, GENERATION_ROLE,
+    SPATIAL_3D_WORKFLOW, GENERAL_VISION_WORKFLOW, GENERATION_WORKFLOW,
+    ALL_TOOLS_CONTINUATION_HINT,
 )
 import json as _json
 from .data_collector import DataCollector
@@ -53,15 +57,18 @@ class SPAgent:
             tools: List of external expert tools (optional)
             max_workers: Maximum number of parallel tool executions
             data_collector: Optional DataCollector for training data collection
-            system_prompt: Optional system prompt template string.
-                If provided it overrides the default 3D-spatial prompt built by
-                ``create_system_prompt``.  The string may contain a
-                ``{tools_json}`` placeholder which will be replaced with the
-                JSON-serialised tool schemas at inference time.  If no
-                placeholder is present the tools block is appended automatically.
-                Use the ``SPATIAL_3D_SYSTEM_PROMPT`` or
-                ``GENERAL_VISION_SYSTEM_PROMPT`` constants from
-                ``spagent.core.prompts`` as starting points.
+            system_prompt: Optional *role* prompt that describes what the agent
+                is and what it should do.  The tool-calling block (tool list +
+                ``<tool_call>`` wire format) is **always appended automatically**,
+                so you do not need to include it here.  Example::
+
+                    agent = SPAgent(model=..., system_prompt="You are a robot navigation assistant.")
+
+                For full control over all three layers (role + tools + workflow),
+                call ``build_system_prompt()`` from ``spagent.core.prompts`` and
+                pass the result here.  Legacy strings that already contain a
+                ``{tools_json}`` placeholder are treated as full templates and
+                substituted directly (backward-compatible).
             continuation_hint: Optional next-step instructions injected into
                 every multi-step continuation prompt (iteration 2+).
                 If None, auto-selects: GENERAL_VISION_CONTINUATION_HINT when
@@ -71,6 +78,7 @@ class SPAgent:
                 - "default": preserve existing behavior
                 - "auto": automatically choose between spatial_3d, general_vision,
                   and generation workflows based on tools, images, and task text
+                - "all_tools": use the all-tools role, selection guide, and workflow
         """
         self.model = model
         self.tool_registry = ToolRegistry()
@@ -132,7 +140,9 @@ class SPAgent:
         content: str,
         images: Optional[Union[str, List[str]]] = None,
         memory: Optional[AgentMemory] = None,
+        system_prompt: Optional[str] = None,
         max_tool_iterations: int = 3,
+        max_images_in_context: int = 6,
         video_path: Optional[str] = None,
         pi3_num_frames: int = 7,
         video_num_frames: int = 4,
@@ -153,8 +163,19 @@ class SPAgent:
             memory:                An existing :class:`AgentMemory` to append to.
                                    When ``None`` a fresh memory is created, giving
                                    stateless (one-shot) behavior.
+            system_prompt:         Optional *role* prompt that overrides the
+                                   agent-level default for this step only.
+                                   Provide just the role / task description —
+                                   the tool-calling block and workflow are appended
+                                   automatically.  Use ``build_system_prompt()``
+                                   from ``spagent.core.prompts`` when you need
+                                   full control over all three layers.
             max_tool_iterations:   Maximum number of tool-call iterations within
                                    this single step (default: 3).
+            max_images_in_context: Maximum number of images sent to the model per
+                                   inference call. Original input images are always
+                                   kept; only the most recent tool outputs fill the
+                                   remaining budget (default: 6).
             video_path:            Optional path to original video (used to
                                    re-sample frames for the pi3 tool).
             pi3_num_frames:        Number of frames to uniformly sample for the
@@ -200,12 +221,21 @@ class SPAgent:
 
         # Resolve system prompt, continuation hint, and workflow label
         tool_schemas = self.tool_registry.get_function_schemas()
-        system_prompt, active_continuation_hint, active_workflow = self._resolve_workflow_prompts(
+        system_prompt_str, active_continuation_hint, active_workflow = self._resolve_workflow_prompts(
             question=content,
             image_paths=image_paths,
             tool_schemas=tool_schemas,
+            role_prompt_override=system_prompt,
         )
+        system_prompt = system_prompt_str  # rebind to local for rest of step
         user_prompt = create_user_prompt(content, image_paths, tool_schemas)
+        logger.info(
+            "System prompt size: %d chars (~%d tokens), tools=%d, workflow=%s",
+            len(system_prompt),
+            len(system_prompt) // 4,
+            len(tool_schemas),
+            active_workflow,
+        )
 
         # Record system and user turns in memory
         memory.add_system(system_prompt)
@@ -310,6 +340,11 @@ class SPAgent:
                     if result.get("vis_path") is not None and Path(result["vis_path"]).exists():
                         iteration_additional_images.append(result["vis_path"])
                         output_images.append(result["vis_path"])
+                    if result.get("crop_paths"):
+                        for crop_path in result["crop_paths"]:
+                            if Path(crop_path).exists():
+                                iteration_additional_images.append(crop_path)
+                                output_images.append(crop_path)
 
                 # Record each tool call + result pair in memory
                 for tc in tool_calls:
@@ -334,13 +369,17 @@ class SPAgent:
             )
             all_additional_images.extend(iteration_additional_images)
 
-            # Update current_images for next iteration
+            # Update current_images for next iteration (respect image budget)
             if iteration_additional_images:
                 valid_all_images = self._sort_additional_images_by_input_order(
                     image_paths, all_additional_images
                 )
                 if valid_all_images:
-                    current_images = image_paths + valid_all_images
+                    current_images = self._apply_image_budget(
+                        image_paths,
+                        valid_all_images,
+                        max_images_in_context,
+                    )
 
             if has_answer and iteration < max_tool_iterations:
                 logger.info(
@@ -556,6 +595,7 @@ class SPAgent:
             "iterations": result.iterations,
             "baseline_answer": baseline_answer,
             "prompts": result.prompts,
+            "memory_entries": [e.to_dict() for e in result.memory.entries],
         }
 
     def _run_model_inference(
@@ -587,12 +627,32 @@ class SPAgent:
         question: str,
         image_paths: List[str],
         tool_schemas: List[Dict[str, Any]],
+        role_prompt_override: Optional[str] = None,
     ) -> tuple[str, str, str]:
         """
         Resolve the active system prompt, continuation hint, and workflow label.
+
+        Priority order for the role prompt:
+          1. ``role_prompt_override``  — per-step argument to ``step()``
+          2. ``self.system_prompt_template``  — agent-level default
+          3. Built-in preset chosen by ``workflow_mode``
         """
-        if self.system_prompt_template is not None:
-            system_prompt = self._render_system_prompt_template(self.system_prompt_template, tool_schemas)
+        tools_json = _json.dumps(tool_schemas, indent=2)
+
+        # ── all_tools workflow ────────────────────────────────────────────────
+        if self.workflow_mode == "all_tools":
+            system_prompt = create_all_tools_system_prompt(tool_schemas)
+            continuation_hint = (
+                self.user_continuation_hint
+                if self.user_continuation_hint is not None
+                else ALL_TOOLS_CONTINUATION_HINT
+            )
+            return system_prompt, continuation_hint, "all_tools"
+
+        # ── per-step or agent-level custom role prompt ───────────────────────
+        role_prompt = role_prompt_override or self.system_prompt_template
+        if role_prompt is not None:
+            system_prompt = self._render_role_prompt(role_prompt, tools_json)
             continuation_hint = (
                 self.user_continuation_hint
                 if self.user_continuation_hint is not None
@@ -600,21 +660,20 @@ class SPAgent:
             )
             return system_prompt, continuation_hint, "custom"
 
+        # ── auto workflow selection ───────────────────────────────────────────
         if self.workflow_mode == "auto":
             workflow = self._select_workflow(question, image_paths)
             if workflow == "generation":
-                template = GENERATION_SYSTEM_PROMPT
-                hint = GENERATION_CONTINUATION_HINT
+                role, wf_block, hint = GENERATION_ROLE, GENERATION_WORKFLOW, GENERATION_CONTINUATION_HINT
             elif workflow == "general_vision":
-                template = GENERAL_VISION_SYSTEM_PROMPT
-                hint = GENERAL_VISION_CONTINUATION_HINT
+                role, wf_block, hint = GENERAL_VISION_ROLE, GENERAL_VISION_WORKFLOW, GENERAL_VISION_CONTINUATION_HINT
             else:
-                template = SPATIAL_3D_SYSTEM_PROMPT
-                hint = SPATIAL_3D_CONTINUATION_HINT
-            system_prompt = self._render_system_prompt_template(template, tool_schemas)
+                role, wf_block, hint = SPATIAL_3D_ROLE, SPATIAL_3D_WORKFLOW, SPATIAL_3D_CONTINUATION_HINT
+            system_prompt = build_system_prompt(role, tools_json, workflow=wf_block)
             continuation_hint = self.user_continuation_hint if self.user_continuation_hint is not None else hint
             return system_prompt, continuation_hint, workflow
 
+        # ── default: spatial_3d ───────────────────────────────────────────────
         system_prompt = create_system_prompt(tool_schemas)
         continuation_hint = (
             self.user_continuation_hint
@@ -623,19 +682,26 @@ class SPAgent:
         )
         return system_prompt, continuation_hint, "spatial_3d"
 
-    def _render_system_prompt_template(
+    def _render_role_prompt(
         self,
-        template: str,
-        tool_schemas: List[Dict[str, Any]],
+        role_prompt: str,
+        tools_json: str,
     ) -> str:
-        tools_json = _json.dumps(tool_schemas, indent=2)
-        if "{tools_json}" in template:
-            return template.replace("{tools_json}", tools_json)
-        tools_block = (
-            f"\n# Tools\nYou have access to the following tools:\n"
-            f"<tools>\n{tools_json}\n</tools>\n"
-        )
-        return template + tools_block
+        """
+        Render a user-supplied role prompt into a complete system prompt.
+
+        Two cases:
+        * The prompt already contains ``{tools_json}`` — it is a legacy
+          full-template; substitute the placeholder and return as-is.
+        * The prompt is a plain role description — automatically append the
+          full tool-calling block (tool list + ``<tool_call>`` wire format)
+          so the model always knows how to invoke tools.
+        """
+        if "{tools_json}" in role_prompt:
+            # Legacy full-template: trust the user's structure
+            return role_prompt.replace("{tools_json}", tools_json)
+        # Pure role description: append tool-calling instructions
+        return build_system_prompt(role_prompt, tools_json, workflow=None)
 
     def _select_workflow(self, question: str, image_paths: List[str]) -> str:
         """
@@ -682,6 +748,39 @@ class SPAgent:
             return "spatial_3d"
 
         return "general_vision"
+
+    def _apply_image_budget(
+        self,
+        image_paths: List[str],
+        additional_images: List[str],
+        max_images_in_context: int,
+    ) -> List[str]:
+        """
+        Keep all original input images and only the most recent tool outputs
+        that fit within the image budget.
+        """
+        if max_images_in_context <= 0:
+            return image_paths
+
+        remaining = max(0, max_images_in_context - len(image_paths))
+        if remaining <= 0:
+            logger.info(
+                "Image budget reached by input images alone (%d); dropping tool images",
+                len(image_paths),
+            )
+            return image_paths
+
+        if len(additional_images) <= remaining:
+            return image_paths + additional_images
+
+        trimmed = additional_images[-remaining:]
+        logger.info(
+            "Image budget applied: kept %d/%d tool images (max=%d total)",
+            len(trimmed),
+            len(additional_images),
+            max_images_in_context,
+        )
+        return image_paths + trimmed
     
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:
         """

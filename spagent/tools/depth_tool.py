@@ -31,7 +31,15 @@ class DepthEstimationTool(Tool):
         """
         super().__init__(
             name="depth_estimation_tool",
-            description="Generate a depth map for the input image to analyze the 3D spatial relationships and depth distribution of objects in the scene."
+            description=(
+                "Generate a monocular depth map for one input image to analyze relative depth, "
+                "near/far ordering, and 3D layout cues.\n\n"
+                "When to use: spatial relationship questions (closer/farther), occlusion reasoning, "
+                "scene layout, or when depth ordering helps answer the question.\n"
+                "When NOT to use: object naming/counting (prefer detection), pixel masks (prefer segmentation), "
+                "or novel camera viewpoints (prefer pi3/pi3x).\n"
+                "Example: call with image_path='scene.jpg' to compare which object is nearer to the camera."
+            )
         )
         
         self.use_mock = use_mock

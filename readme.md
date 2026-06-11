@@ -30,6 +30,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 - [Installation & Setup](#️-installation--setup)
 - [Quick Start](#-quick-start)
 - [step() API and AgentMemory](#8-step-api-and-agentmemory)
+- [Evaluation](#-evaluation)
 - [Testing & Development](#-testing--development)
 - [Reinforcement Learning Training](#-reinforcement-learning-training)
 - [Important Notes](#️-important-notes)
@@ -428,9 +429,9 @@ print(r3.answer)
 
 ### 9. Image Dataset Evaluation
 
-For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
+For detailed evaluation usage guide, please refer to: **[Evaluation Guide](docs/Evaluation/EVALUATION.md)**
 
-**Basic Evaluation Commands:**
+**Basic Evaluation Commands (legacy per-dataset scripts):**
 
 ```bash
 # Normal evaluation
@@ -474,6 +475,189 @@ python examples/evaluation/evaluate_sora.py \
 
 
 For more advanced usage patterns, specialized agents, tool mixing strategies, video analysis, and reinforcement learning training, please refer to: **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)**
+
+## 📊 Evaluation
+
+SPAgent provides two complementary evaluation approaches:
+
+| Approach | Script | Best for |
+|----------|--------|----------|
+| **quick_eval.py** | `scripts/quick_eval.py` | Multi-benchmark sweeps; MindCube / VSIBench; automated resuming |
+| **evaluate_all_tools.py** | `examples/evaluation/evaluate_all_tools.py` | Custom JSONL datasets; per-sample detailed traces |
+
+---
+
+### quick_eval.py — Multi-Benchmark Evaluation
+
+`scripts/quick_eval.py` is the unified evaluation entry point. It supports VLMEvalKit-registered benchmarks, and local datasets (MindCube, VSIBench) with automatic routing — no configuration change needed.
+
+**Supported datasets:**
+
+| Type | Names |
+|------|-------|
+| Local (spatial) | `MindCube`, `VSIBench` |
+| VLMEvalKit | `MMStar` `VStarBench` `BLINK` `MMMU_DEV_VAL` `MathVista_MINI` `MMBench_dev_en` `RealWorldQA` `ScienceQA_VAL` `HRBench4K` `HRBench8K` `MathVerse_MINI` `WeMath` `LogicVista` `MMMU_Pro_10c` `DynaMath` |
+
+**Quick commands:**
+
+```bash
+# No-tools baseline (MindCube + 3 standard benchmarks, 50 samples each)
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini \
+    --datasets MindCube MMStar VStarBench BLINK \
+    --limit 50
+
+# With tools (Pi3X + GroundingDINO + SAM2 + Depth + Moondream)
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini \
+    --tools pi3x detection segmentation depth moondream \
+    --datasets MindCube MMStar BLINK \
+    --limit 50 \
+    --pi3x-url      http://127.0.0.1:20031 \
+    --detection-url http://127.0.0.1:20022 \
+    --segmentation-url http://127.0.0.1:20020 \
+    --depth-url     http://127.0.0.1:20019 \
+    --moondream-url http://127.0.0.1:20024
+
+# MindCube only — full set, no sample limit
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini \
+    --datasets MindCube
+
+# MindCube tinybench (fast smoke test)
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini \
+    --datasets MindCube \
+    --mindcube-path dataset/mindcube/data/raw/MindCube_tinybench.jsonl \
+    --limit 50
+
+# Use Qwen model (auto-detected from name)
+python scripts/quick_eval.py \
+    --model Qwen2.5-VL-7B-Instruct \
+    --datasets MindCube MMStar \
+    --limit 50
+```
+
+**All available `--tools` values:**
+
+| `--tools` key | Tool | Default port |
+|--------------|------|-------------|
+| `pi3x` | Pi3X 3D reconstruction | 20031 |
+| `pi3` | Pi3 3D reconstruction | 20030 |
+| `orient` | Orient Anything V2 | 20034 |
+| `detection` | GroundingDINO | 20022 |
+| `segmentation` | SAM2 | 20020 |
+| `depth` | Depth Anything V2 | 20019 |
+| `moondream` | Moondream | 20024 |
+| `molmo2` | Molmo2 | 20025 |
+| `sana` | Sana (image gen) | 30000 |
+| `veo` | Veo (video gen) | — (Gemini API) |
+| `vggt` | VGGT | 20032 |
+| `mapanything` | MapAnything | 20033 |
+
+**Outputs** (written to `outputs/vlmeval_runs/<model_tag>/<dataset>/`):
+
+- `*.xlsx` — predictions spreadsheet (auto-resumed on re-run)
+- `*_predictions.json` — prediction cache for local datasets
+- `*_results.json` — full per-sample results with accuracy breakdown
+- `*_quick_summary.json` — all-dataset score summary
+
+---
+
+### Shell Script Shortcuts
+
+Two ready-to-run shell scripts are provided for common use cases:
+
+**With full tool stack** (`pi3x` + `orient` + `detection` + `segmentation` + `depth` + `moondream` + `sana` + `veo`):
+
+```bash
+bash scripts/eval_all_tools.sh
+
+# Override any setting via env vars:
+MODEL=gpt-4.1 \
+DATASETS="MindCube MMStar VStarBench BLINK MMMU_DEV_VAL" \
+LIMIT=100 \
+bash scripts/eval_all_tools.sh
+```
+
+**No-tools baseline:**
+
+```bash
+bash scripts/eval_no_tools.sh
+
+# Override:
+MODEL=gpt-4.1 DATASETS="MindCube MMStar" LIMIT="" bash scripts/eval_no_tools.sh
+```
+
+Environment variables accepted by both scripts:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MODEL` | `gpt-4.1-mini` | Model name |
+| `MODEL_BACKEND` | `auto` | `auto` / `gpt` / `qwen` / `qwen-vllm` |
+| `DATASETS` | `MindCube MMStar VStarBench BLINK` | Space-separated dataset list |
+| `LIMIT` | `50` | Samples per dataset (empty = no limit) |
+| `MAX_ITER` | `3` / `1` | Max tool-call iterations |
+| `MINDCUBE_PATH` | `dataset/MindCube_data.jsonl` | MindCube JSONL path |
+| `PI3X_URL` | `http://127.0.0.1:20031` | Pi3X server URL |
+| `DETECTION_URL` | `http://127.0.0.1:20022` | GroundingDINO URL |
+| `SEGMENTATION_URL` | `http://127.0.0.1:20020` | SAM2 URL |
+| `DEPTH_URL` | `http://127.0.0.1:20019` | Depth Anything URL |
+| `MOONDREAM_URL` | `http://127.0.0.1:20024` | Moondream URL |
+
+---
+
+### evaluate_all_tools.py — Dataset Shortcuts
+
+`examples/evaluation/evaluate_all_tools.py` supports direct `--dataset` shortcuts for MindCube and VSIBench:
+
+```bash
+# MindCube with Pi3X tools
+python examples/evaluation/evaluate_all_tools.py \
+    --dataset mindcube \
+    --config pi3x \
+    --model gpt-4.1-mini \
+    --max_samples 200
+
+# VSIBench (video spatial reasoning), 7 sampled frames
+python examples/evaluation/evaluate_all_tools.py \
+    --dataset vsibench \
+    --config pi3x \
+    --model gpt-4.1-mini \
+    --num_frames 7
+
+# No-tools baseline on MindCube
+python examples/evaluation/evaluate_all_tools.py \
+    --dataset mindcube \
+    --config dinosam \
+    --model gpt-4.1-mini
+
+# Custom JSONL with same schema
+python examples/evaluation/evaluate_all_tools.py \
+    --data_path /path/to/custom.jsonl \
+    --image_base_path dataset \
+    --config dinosam \
+    --model gpt-4.1-mini
+```
+
+---
+
+### Preparing Local Datasets
+
+**MindCube:**
+```bash
+python spagent/utils/download_mindcube.py          # full set → dataset/MindCube_data.jsonl
+# Or use the bundled raw files directly:
+# dataset/mindcube/data/raw/MindCube_tinybench.jsonl  (small, fast)
+# dataset/mindcube/data/raw/MindCube.jsonl             (full)
+```
+
+**VSIBench** (video spatial reasoning, requires local video files):
+```bash
+python spagent/utils/download_vsibench.py          # → dataset/VSI_Bench.jsonl + dataset/VSI_videos/
+```
+
+---
 
 ## 🧪 Testing & Development
 
