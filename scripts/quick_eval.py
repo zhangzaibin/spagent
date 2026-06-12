@@ -233,7 +233,10 @@ def make_tools(tool_names: List[str], args) -> List[Any]:
         try:
             if url_attr is not None:
                 server_url = getattr(args, url_attr.replace("-", "_"), None)
-                tools.append(cls(use_mock=False, server_url=server_url))
+                kwargs = dict(use_mock=False, server_url=server_url)
+                if name == "vace":
+                    kwargs["timeout_seconds"] = getattr(args, "vace_timeout", 480)
+                tools.append(cls(**kwargs))
             else:
                 tools.append(cls(use_mock=False))
         except Exception as e:
@@ -927,6 +930,8 @@ def main():
     parser.add_argument("--molmo2-url",       default="http://localhost:20025")
     parser.add_argument("--orient-url",       default="http://localhost:20034")
     parser.add_argument("--vace-url",         default="http://localhost:20034")
+    parser.add_argument("--vace-timeout",     type=int, default=480,
+                        help="VACE inference timeout in seconds (default: 480)")
     parser.add_argument("--sana-url",         default="http://127.0.0.1:30000")
     args = parser.parse_args()
 

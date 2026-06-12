@@ -1,8 +1,10 @@
 import argparse
+import base64
 import logging
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -352,6 +354,19 @@ def health_check():
     )
 
 
+@app.route("/download", methods=["GET"])
+def download_file():
+    """Download a generated output file by its server-side path."""
+    from flask import send_file
+    file_path = request.args.get("path")
+    if not file_path:
+        return jsonify({"error": "Missing 'path' query parameter"}), 400
+    p = Path(file_path)
+    if not p.exists() or not p.is_file():
+        return jsonify({"error": f"File not found: {file_path}"}), 404
+    return send_file(str(p), mimetype="video/mp4", as_attachment=True, download_name=p.name)
+
+
 @app.route("/progress", methods=["GET"])
 def inference_progress():
     """Poll denoise step while a job is running (see run_firstframe streaming + wan_vace progress lines)."""
@@ -371,9 +386,34 @@ def test_infer():
     payload = request.get_json(silent=True) or {}
     image_path = payload.get("image")
     prompt = payload.get("prompt", "A cinematic shot.")
+
+    tmp_image_path: Optional[str] = None
+    image_base64 = payload.get("image_base64")
+    if image_base64:
+        ext = payload.get("image_ext", ".jpg")
+        if not ext.startswith("."):
+            ext = "." + ext
+        try:
+            img_bytes = base64.b64decode(image_base64)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(img_bytes)
+                tmp_image_path = tmp.name
+            image_path = tmp_image_path
+        except Exception as exc:
+            return jsonify({"success": False, "error": f"Failed to decode image_base64: {exc}"}), 400
+
     if not image_path:
-        return jsonify({"success": False, "error": "Missing required field: image"}), 400
-    result = infer_internal(image_path=image_path, prompt=prompt)
+        return jsonify({"success": False, "error": "Missing required field: image or image_base64"}), 400
+
+    try:
+        result = infer_internal(image_path=image_path, prompt=prompt)
+    finally:
+        if tmp_image_path and os.path.exists(tmp_image_path):
+            try:
+                os.unlink(tmp_image_path)
+            except OSError:
+                pass
+
     return jsonify(result), (200 if result.get("success") else 500)
 
 
@@ -383,20 +423,46 @@ def infer():
     image_path = payload.get("image") or payload.get("image_path")
     prompt = payload.get("prompt")
 
-    if not image_path:
-        return jsonify({"success": False, "error": "Missing required field: image/image_path"}), 400
     if not prompt:
         return jsonify({"success": False, "error": "Missing required field: prompt"}), 400
 
-    result = infer_internal(
-        image_path=image_path,
-        prompt=prompt,
-        base=payload.get("base", "wan"),
-        task=payload.get("task", "frameref"),
-        mode=payload.get("mode", "firstframe"),
-        timeout_seconds=int(payload.get("timeout_seconds", 1800)),
-        extra_args=payload.get("extra_args"),
-    )
+    # Support base64-encoded image upload (client may be on a different machine).
+    tmp_image_path: Optional[str] = None
+    image_base64 = payload.get("image_base64")
+    if image_base64:
+        ext = payload.get("image_ext", ".jpg")
+        if not ext.startswith("."):
+            ext = "." + ext
+        try:
+            img_bytes = base64.b64decode(image_base64)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                tmp.write(img_bytes)
+                tmp_image_path = tmp.name
+            image_path = tmp_image_path
+            logger.info("Decoded base64 image to temp file: %s (%d bytes)", tmp_image_path, len(img_bytes))
+        except Exception as exc:
+            return jsonify({"success": False, "error": f"Failed to decode image_base64: {exc}"}), 400
+
+    if not image_path:
+        return jsonify({"success": False, "error": "Missing required field: image/image_path or image_base64"}), 400
+
+    try:
+        result = infer_internal(
+            image_path=image_path,
+            prompt=prompt,
+            base=payload.get("base", "wan"),
+            task=payload.get("task", "frameref"),
+            mode=payload.get("mode", "firstframe"),
+            timeout_seconds=int(payload.get("timeout_seconds", 1800)),
+            extra_args=payload.get("extra_args"),
+        )
+    finally:
+        if tmp_image_path and os.path.exists(tmp_image_path):
+            try:
+                os.unlink(tmp_image_path)
+            except OSError:
+                pass
+
     return jsonify(result), (200 if result.get("success") else 500)
 
 

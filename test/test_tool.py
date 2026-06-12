@@ -249,7 +249,7 @@ def test_pi3x(
 
 
 # ============================================================
-# Depth Tool Test  (placeholder for future)
+# Depth Tool Test
 # ============================================================
 
 def test_depth(
@@ -258,14 +258,44 @@ def test_depth(
     output_dir: str = "outputs/tool_test",
 ) -> Optional[str]:
     """
-    Directly test Depth Estimation tool.  (TODO: implement)
+    Directly test Depth Estimation tool.
     """
-    logger.info("Depth tool test is not implemented yet.")
-    return None
+    from spagent.tools import DepthEstimationTool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Depth Estimation Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input image  : {image_path}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Output dir   : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = DepthEstimationTool(use_mock=False, server_url=server_url)
+    result = tool.call(image_path=image_path)
+
+    if not result.get("success"):
+        logger.error(f"Depth tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("Depth estimation succeeded!")
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    logger.warning("No output image path in result.")
+    return "OK"
 
 
 # ============================================================
-# Segmentation Tool Test  (placeholder for future)
+# Segmentation Tool Test
 # ============================================================
 
 def test_segmentation(
@@ -274,26 +304,97 @@ def test_segmentation(
     output_dir: str = "outputs/tool_test",
 ) -> Optional[str]:
     """
-    Directly test Segmentation tool.  (TODO: implement)
+    Directly test Segmentation (SAM2) tool.
     """
-    logger.info("Segmentation tool test is not implemented yet.")
-    return None
+    from spagent.tools import SegmentationTool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Segmentation (SAM2) Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input image  : {image_path}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Output dir   : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = SegmentationTool(use_mock=False, server_url=server_url)
+    result = tool.call(image_path=image_path)
+
+    if not result.get("success"):
+        logger.error(f"Segmentation tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("Segmentation succeeded!")
+    # prefer output_path (combined), fall back to overlay_path
+    src_path = result.get("output_path") or result.get("overlay_path") or result.get("vis_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    logger.warning("No output image path in result.")
+    return "OK"
 
 
 # ============================================================
-# Detection Tool Test  (placeholder for future)
+# Detection Tool Test
 # ============================================================
 
 def test_detection(
     image_path: str,
-    prompt: str = "object",
+    prompt: str = "dog . cat . person . object",
     server_url: str = "http://localhost:20022",
     output_dir: str = "outputs/tool_test",
 ) -> Optional[str]:
     """
-    Directly test Object Detection tool.  (TODO: implement)
+    Directly test Object Detection (GroundingDINO) tool.
     """
-    logger.info("Detection tool test is not implemented yet.")
+    from spagent.tools import ObjectDetectionTool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Object Detection (GroundingDINO) Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input image  : {image_path}")
+    logger.info(f"  Prompt       : {prompt}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Output dir   : {output_dir}")
+    logger.info("-" * 60)
+
+    tool = ObjectDetectionTool(use_mock=False, server_url=server_url, crop=True)
+    result = tool.call(image_path=image_path, text_prompt=prompt)
+
+    if not result.get("success"):
+        logger.error(f"Detection tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    labels = result.get("labels", [])
+    boxes  = result.get("boxes",  [])
+    logger.info(f"Detection succeeded!  {len(boxes)} object(s) found: {labels}")
+
+    # Copy vis / annotated image if present
+    src_path = result.get("vis_path") or result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+
+    # Even without vis_path, if we got boxes the test passed
+    if boxes:
+        logger.info("  (no vis image returned, but detections are valid)")
+        return "OK"
+    logger.warning("No detections and no vis image.")
     return None
 
 
@@ -389,6 +490,9 @@ def test_veo(
     """
     from spagent.tools import VeoTool
 
+    # "dummy" is a sentinel meaning text-to-video (no reference image)
+    if image_path and image_path.lower() == "dummy":
+        image_path = None
     if image_path and not os.path.exists(image_path):
         logger.error(f"Image not found: {image_path}")
         return None
@@ -583,7 +687,7 @@ def parse_args():
         type=str,
         required=True,
         choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2"],
-        help="Which tool to test.",
+        help="Which tool to test. depth/segmentation/detection now run real inference (no longer stubs).",
     )
     parser.add_argument(
         "--image",
@@ -739,7 +843,7 @@ def main():
         server = args.server_url or "http://localhost:20022"
         result_path = test_detection(
             image_path=args.image[0],
-            prompt=args.prompt,
+            prompt=args.prompt if args.prompt != "object" else "dog . cat . person . object",
             server_url=server,
             output_dir=args.output_dir,
         )

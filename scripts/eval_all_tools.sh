@@ -49,6 +49,7 @@ SEGMENTATION_URL="${SEGMENTATION_URL:-http://127.0.0.1:20020}"
 DEPTH_URL="${DEPTH_URL:-http://127.0.0.1:20019}"
 MOLMO2_URL="${MOLMO2_URL:-http://10.8.131.51:31793}"
 VACE_URL="${VACE_URL:-10.8.131.51:30860}"
+VACE_TIMEOUT="${VACE_TIMEOUT:-480}"   # seconds (8 min); override e.g. VACE_TIMEOUT=600
 # Veo uses Gemini API — no URL needed, set GOOGLE_API_KEY in your environment
 
 # ── Build --limit flag (empty = omit) ───────────────────────
@@ -87,4 +88,5 @@ python scripts/quick_eval.py \
     --depth-url        "${DEPTH_URL}" \
     --molmo2-url       "${MOLMO2_URL}" \
     --vace-url         "${VACE_URL}" \
+    --vace-timeout     "${VACE_TIMEOUT}" \
     "$@"

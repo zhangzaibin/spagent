@@ -25,6 +25,7 @@ class VaceTool(Tool):
         use_mock: bool = True,
         server_url: str = "http://localhost:20034",
         mode: str = "inference",
+        timeout_seconds: int = 480,
     ):
         super().__init__(
             name="video_generation_vace_tool",
@@ -41,6 +42,7 @@ class VaceTool(Tool):
         )
         self.use_mock = use_mock
         self.server_url = server_url
+        self.timeout_seconds = timeout_seconds
         # Same keyword as Pi3Tool / MapAnythingTool for evaluate_img.py; not VACE pipeline --mode.
         self.tool_mode = mode
         self._client = None
@@ -66,8 +68,8 @@ class VaceTool(Tool):
         try:
             from external_experts.vace.vace_client import VaceClient
 
-            self._client = VaceClient(server_url=self.server_url)
-            logger.info(f"Using real VACE service at {self.server_url}")
+            self._client = VaceClient(server_url=self.server_url, timeout_seconds=self.timeout_seconds)
+            logger.info(f"Using real VACE service at {self.server_url} (timeout={self.timeout_seconds}s)")
         except ImportError as exc:
             logger.error(f"Failed to import VACE client: {exc}")
             raise
