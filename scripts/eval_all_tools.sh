@@ -42,14 +42,13 @@ TRACE_DIR="${TRACE_DIR:-outputs/spagent_traces}"
 MINDCUBE_PATH="${MINDCUBE_PATH:-dataset/MindCube_data.jsonl}"
 
 # ── Tool server URLs ─────────────────────────────────────────
-PI3X_URL="${PI3X_URL:-http://10.8.131.51:30242}"
-# ORIENT_URL="${ORIENT_URL:-http://127.0.0.1:20034}"   # temporarily disabled
-DETECTION_URL="${DETECTION_URL:-http://127.0.0.1:20022}"
-SEGMENTATION_URL="${SEGMENTATION_URL:-http://127.0.0.1:20020}"
-DEPTH_URL="${DEPTH_URL:-http://127.0.0.1:20019}"
-MOLMO2_URL="${MOLMO2_URL:-http://10.8.131.51:31793}"
-VACE_URL="${VACE_URL:-10.8.131.51:30860}"
-VACE_TIMEOUT="${VACE_TIMEOUT:-480}"   # seconds (8 min); override e.g. VACE_TIMEOUT=600
+PI3X_URL="${PI3X_URL:-http://10.8.131.51:31537}"
+DETECTION_URL="${DETECTION_URL:-http://10.7.8.94:20022}"
+SEGMENTATION_URL="${SEGMENTATION_URL:-http://10.7.8.94:20020}"
+DEPTH_URL="${DEPTH_URL:-http://10.7.8.94:20019}"
+MOLMO2_URL="${MOLMO2_URL:-http://10.8.131.51:31108}"
+VACE_URL="${VACE_URL:-http://10.8.131.51:30014}"
+VACE_TIMEOUT="${VACE_TIMEOUT:-1000}"   # seconds (8 min); override e.g. VACE_TIMEOUT=600
 # Veo uses Gemini API — no URL needed, set GOOGLE_API_KEY in your environment
 
 # ── Build --limit flag (empty = omit) ───────────────────────

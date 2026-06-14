@@ -18,20 +18,28 @@ python scripts/quick_eval.py \
     --datasets MMStar VStarBench BLINK MMMU_DEV_VAL MathVista_MINI \
     --limit 50
 
-# Perception tools only (detection + segmentation + depth)
+# GroundingDINO tools (zoom for attributes, localize for spatial)
 python scripts/quick_eval.py \
     --model  gpt-4.1-mini \
-    --tools detection segmentation depth \
+    --tools zoom localize \
+    --datasets VStarBench \
+    --limit 50 \
+    --detection-url  http://localhost:20022
+
+# Perception tools only (zoom + segmentation + depth)
+python scripts/quick_eval.py \
+    --model  gpt-4.1-mini \
+    --tools zoom segmentation depth \
     --datasets MMStar VStarBench BLINK MMMU_DEV_VAL MathVista_MINI \
     --limit 50 \
     --detection-url  http://localhost:20022 \
     --segmentation-url http://localhost:20020 \
     --depth-url http://localhost:20019
 
-# Detection + depth only (custom combo)
+# Zoom only (attribute inspection)
 python scripts/quick_eval.py \
     --model  gpt-4.1-mini \
-    --tools detection depth \
+    --tools zoom \
     --datasets MMStar \
     --limit 50
 
@@ -191,7 +199,10 @@ def _clean(data):
 
 # Maps CLI tool name → (import class name, args attribute for server_url or None)
 _TOOL_SPECS: Dict[str, tuple] = {
-    "detection":    ("ObjectDetectionTool",   "detection_url"),
+    # GroundingDINO tools (share detection_url)
+    "zoom":         ("ZoomObjectTool",        "detection_url"),  # crop close-up for attributes
+    "localize":     ("LocalizeObjectTool",    "detection_url"),  # bbox on full image for spatial
+    "detection":    ("ZoomObjectTool",        "detection_url"),  # backward-compat alias for zoom
     "segmentation": ("SegmentationTool",      "segmentation_url"),
     "depth":        ("DepthEstimationTool",   "depth_url"),
     "pi3x":         ("Pi3XTool",             "pi3x_url"),
@@ -385,6 +396,42 @@ def decode_images(line: Dict, ds_name: str) -> List[str]:
 
 # ── Single-sample inference ───────────────────────────────────────────────────
 
+def _extract_mcq_letter(text: str) -> str:
+    """Extract A/B/C/D/E letter from a raw model answer or GT string."""
+    import re
+    if not isinstance(text, str):
+        return ""
+    inner = text
+    m = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
+    if m:
+        inner = m.group(1).strip()
+    m = re.search(r'\b([A-E])\b', inner)
+    if m:
+        return m.group(1)
+    for ch in inner:
+        if ch in "ABCDE":
+            return ch
+    return inner.strip()[:1].upper()
+
+
+def _write_error_log(
+    error_records: List[Dict],
+    out_dir: Path,
+    model_tag: str,
+    ds_name: str,
+) -> Optional[Path]:
+    """Write wrong-answer records to a JSONL file for later analysis."""
+    if not error_records:
+        print(f"  No errors to log for {ds_name}")
+        return None
+    error_log_path = out_dir / f"{model_tag}_{ds_name}_errors.jsonl"
+    with open(error_log_path, "w", encoding="utf-8") as f:
+        for record in error_records:
+            f.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
+    print(f"  Error log ({len(error_records)} wrong) → {error_log_path}")
+    return error_log_path
+
+
 def _build_conversation_log(result: Dict, question: str, image_paths: List[str]) -> Dict:
     """
     Build a structured conversation log from memory_entries for debugging.
@@ -457,6 +504,11 @@ def infer_sample(
             "question":     question,
             "image_paths":  image_paths,
             "answer":       prediction,
+            "prompts": {
+                "system_prompt": result.get("prompts", {}).get("system_prompt", ""),
+                "user_prompt":   result.get("prompts", {}).get("user_prompt", ""),
+                "workflow":      result.get("prompts", {}).get("workflow", ""),
+            },
             "used_tools":   result.get("used_tools", []),
             "tool_calls":   [_clean(tc) for tc in result.get("tool_calls", [])],
             "tool_results": {k: _clean(v) for k, v in result.get("tool_results", {}).items()},
@@ -573,6 +625,49 @@ def run_dataset(
             acc = (df["_gt"] == df["_pred"]).mean()
             scores = {"accuracy": round(acc, 4), "note": "fallback simple MCQ match"}
             print(f"  Fallback accuracy: {acc:.2%}")
+
+    # ── Error log: collect wrong-answer records ───────────────────────────────
+    td = trace_dir / model_tag / ds_name
+    import re as _re
+
+    error_records: List[Dict] = []
+    for pos, (_, row) in enumerate(df.iterrows()):
+        gt_letter   = _extract_mcq_letter(str(row.get("answer", "")))
+        pred_letter = _extract_mcq_letter(str(row.get("prediction", "")))
+        if not gt_letter or not pred_letter or gt_letter == pred_letter:
+            continue
+
+        # Load per-sample trace for full context
+        trace_data: Dict = {}
+        trace_path = td / f"{pos:05d}.json"
+        if trace_path.exists():
+            try:
+                with open(trace_path, encoding="utf-8") as f:
+                    trace_data = json.load(f)
+            except Exception:
+                pass
+
+        record: Dict[str, Any] = {
+            "dataset":             ds_name,
+            "position":            pos,
+            "index":               str(row.get("index", pos)),
+            "question":            trace_data.get("question", str(row.get("question", ""))),
+            "ground_truth":        str(row.get("answer", "")),
+            "ground_truth_letter": gt_letter,
+            "prediction_raw":      str(row.get("prediction", "")),
+            "prediction_letter":   pred_letter,
+            "image_paths":         trace_data.get("image_paths", []),
+            "system_prompt":       trace_data.get("prompts", {}).get("system_prompt", ""),
+            "user_prompt":         trace_data.get("prompts", {}).get("user_prompt", ""),
+            "used_tools":          trace_data.get("used_tools", []),
+            "tool_calls":          trace_data.get("tool_calls", []),
+            "tool_results":        trace_data.get("tool_results", {}),
+            "iterations":          trace_data.get("iterations", 0),
+            "elapsed_s":           trace_data.get("elapsed_s", 0),
+        }
+        error_records.append(record)
+
+    _write_error_log(error_records, out_dir, model_tag, ds_name)
 
     return {
         "dataset":   ds_name,
@@ -841,6 +936,43 @@ def run_local_dataset(
     df_out.to_excel(xlsx_path, index=False)
     print(f"  Saved results → {xlsx_path}")
 
+    # ── Error log: collect wrong-answer records ───────────────────────────────
+    local_error_records: List[Dict] = []
+    for r in successful:
+        if r.get("is_correct"):
+            continue
+        pos = results.index(r)
+        trace_data_local: Dict = {}
+        trace_path_local = td / f"{pos:05d}.json"
+        if trace_path_local.exists():
+            try:
+                with open(trace_path_local, encoding="utf-8") as f:
+                    trace_data_local = json.load(f)
+            except Exception:
+                pass
+
+        local_error_records.append({
+            "dataset":             ds_name,
+            "position":            pos,
+            "id":                  r.get("id", ""),
+            "task":                r.get("task", ""),
+            "question":            trace_data_local.get("question", r.get("question", "")),
+            "ground_truth":        r.get("answer", ""),
+            "ground_truth_letter": r.get("normalized_ground_truth", ""),
+            "prediction_raw":      r.get("prediction", ""),
+            "prediction_letter":   r.get("normalized_prediction", ""),
+            "image_paths":         trace_data_local.get("image_paths", []),
+            "system_prompt":       trace_data_local.get("prompts", {}).get("system_prompt", ""),
+            "user_prompt":         trace_data_local.get("prompts", {}).get("user_prompt", ""),
+            "used_tools":          trace_data_local.get("used_tools", []),
+            "tool_calls":          trace_data_local.get("tool_calls", []),
+            "tool_results":        trace_data_local.get("tool_results", {}),
+            "iterations":          trace_data_local.get("iterations", 0),
+            "elapsed_s":           r.get("elapsed", 0),
+        })
+
+    _write_error_log(local_error_records, out_dir, model_tag, ds_name)
+
     # ── Save full JSON results ─────────────────────────────────────────────────
     json_path = out_dir / f"{model_tag}_{ds_name}_results.json"
     with open(json_path, "w", encoding="utf-8") as f:
@@ -930,8 +1062,8 @@ def main():
     parser.add_argument("--molmo2-url",       default="http://localhost:20025")
     parser.add_argument("--orient-url",       default="http://localhost:20034")
     parser.add_argument("--vace-url",         default="http://localhost:20034")
-    parser.add_argument("--vace-timeout",     type=int, default=480,
-                        help="VACE inference timeout in seconds (default: 480)")
+    parser.add_argument("--vace-timeout",     type=int, default=600,
+                        help="VACE inference timeout in seconds (default: 600)")
     parser.add_argument("--sana-url",         default="http://127.0.0.1:30000")
     args = parser.parse_args()
 

@@ -25,7 +25,7 @@ class VaceTool(Tool):
         use_mock: bool = True,
         server_url: str = "http://localhost:20034",
         mode: str = "inference",
-        timeout_seconds: int = 480,
+        timeout_seconds: int = 600,
     ):
         super().__init__(
             name="video_generation_vace_tool",

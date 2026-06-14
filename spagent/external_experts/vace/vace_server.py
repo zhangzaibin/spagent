@@ -93,7 +93,7 @@ class VaceRunner:
         base: str = "wan",
         task: str = "frameref",
         mode: str = "firstframe",
-        timeout_seconds: int = 1800,
+        timeout_seconds: int = 600,
         extra_args: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         ready, message = self.is_ready()
@@ -453,7 +453,7 @@ def infer():
             base=payload.get("base", "wan"),
             task=payload.get("task", "frameref"),
             mode=payload.get("mode", "firstframe"),
-            timeout_seconds=int(payload.get("timeout_seconds", 1800)),
+            timeout_seconds=int(payload.get("timeout_seconds", 600)),
             extra_args=payload.get("extra_args"),
         )
     finally:
@@ -472,7 +472,7 @@ def infer_internal(
     base: str = "wan",
     task: str = "frameref",
     mode: str = "firstframe",
-    timeout_seconds: int = 1800,
+    timeout_seconds: int = 600,
     extra_args: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     global runner

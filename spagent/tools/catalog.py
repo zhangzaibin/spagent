@@ -15,7 +15,7 @@ from core.tool import Tool
 
 from .depth_tool import DepthEstimationTool
 from .segmentation_tool import SegmentationTool
-from .detection_tool import ObjectDetectionTool
+from .detection_tool import ObjectDetectionTool, ZoomObjectTool, LocalizeObjectTool
 from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
 from .yolo26_tool import YOLO26Tool
@@ -87,9 +87,16 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
     ),
     ToolCatalogEntry(
         "detection",
-        ObjectDetectionTool,
+        ZoomObjectTool,
         "2d_perception",
-        "detect_objects_tool",
+        "zoom_object_tool",
+        {"server_url": DEFAULT_SERVER_URLS["detection"]},
+    ),
+    ToolCatalogEntry(
+        "localize",
+        LocalizeObjectTool,
+        "2d_perception",
+        "localize_object_tool",
         {"server_url": DEFAULT_SERVER_URLS["detection"]},
     ),
     ToolCatalogEntry(

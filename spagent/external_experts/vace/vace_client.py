@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class VaceClient:
     """HTTP client for VACE firstframe generation service."""
 
-    def __init__(self, server_url: str = "http://localhost:20034", timeout_seconds: int = 1800):
+    def __init__(self, server_url: str = "http://localhost:20034", timeout_seconds: int = 600):
         self.server_url = server_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.session = requests.Session()

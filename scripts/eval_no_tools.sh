@@ -15,7 +15,7 @@ cd "${PROJECT_ROOT}"
 
 MODEL="${MODEL:-gpt-4.1-mini}"
 MODEL_BACKEND="${MODEL_BACKEND:-auto}"
-DATASETS="${DATASETS:-MindCube MMStar VStarBench BLINK}"
+DATASETS="${DATASETS:-MindCube VSIBench MMStar VStarBench BLINK MMMU_DEV_VAL MathVista_MINI MMBench_dev_en RealWorldQA ScienceQA_VAL HRBench4K HRBench8K MathVerse_MINI WeMath LogicVista MMMU_Pro_10c DynaMath}"
 LIMIT="${LIMIT:-50}"
 MAX_ITER="${MAX_ITER:-1}"
 TEMPERATURE="${TEMPERATURE:-0.0}"

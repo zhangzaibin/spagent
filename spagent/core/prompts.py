@@ -100,6 +100,13 @@ Instructions:
 - If YES: Use <tool_call></tool_call> to call a tool with appropriate parameters.
 - If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text.
 
+Detection tool guidance:
+- **zoom_object_tool** → use for attribute questions (color, texture, material, text, pattern). Returns close-up crops.
+- **localize_object_tool** → use for spatial/counting questions (where is X, how many, left/right of Y). Returns annotated full image.
+- If either tool returns 0 results or "no region passed the confidence threshold", this does NOT mean the object is absent. The object may be small, partially occluded, or low-contrast. Always inspect the full original image directly before concluding the object is not there.
+- Never answer "none of the options" solely because detection found nothing — the question guarantees a valid answer. Fall back to careful visual inspection of the original image.
+- If a synonym may help (e.g. 'motorbike' instead of 'motorcycle', 'luggage' instead of 'suitcase'), retry with that synonym before giving up.
+
 Tool usage policy for image generation tools such as Sana:
 - Use image generation only when you need to visualize a hypothetical scene, target state, plan outcome, or imagined world state.
 - Do not use generated images as direct evidence about the original observation.
@@ -165,7 +172,8 @@ Use this guide to pick the right tool before calling it. Only call tools that ar
 ## 2D Perception
 - **depth_estimation_tool**: Use when you need relative depth, near/far relationships, or occlusion ordering in a single image. Do not use for object labels or segmentation masks.
 - **segment_image_tool**: Use when you need precise pixel masks for objects or regions (SAM2). Provide points/boxes when possible.
-- **detect_objects_tool**: Use for open-vocabulary detection with a text prompt (GroundingDINO). Best when you know what object name to search for.
+- **zoom_object_tool**: Detect an object and return cropped close-up image(s) for fine-grained attribute inspection (GroundingDINO). Use when the question is about COLOR, TEXTURE, MATERIAL, PATTERN, TEXT, or any detail that requires magnification. Example: "What color is the helmet?" → zoom into helmet.
+- **localize_object_tool**: Detect objects and draw bounding boxes on the full image (GroundingDINO). Use when the question is about WHERE objects are, HOW MANY there are, or their SPATIAL LAYOUT. Returns annotated full image + text position summary. Example: "How many cars are there?" or "Is the dog to the left of the cat?"
 - **supervision_tool**: Use for classic YOLO-style detection (`image_det`) or instance segmentation (`image_seg`) with visualization.
 - **yoloe_detection_tool**: Use when you need custom class names with YOLO-E detection (bounding boxes only).
 - **yolo26_tool**: Use for fast local detection with class labels and confidence scores when no text prompt is needed.

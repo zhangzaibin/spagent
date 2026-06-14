@@ -27,7 +27,7 @@ VACE_URL="${VACE_URL:-http://10.8.131.51:30014}"
 TEST_IMAGE="${TEST_IMAGE:-assets/dog.jpeg}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs}"
 TIMEOUT="${TIMEOUT:-10}"    # seconds per curl /health /test request
-VACE_TIMEOUT="${VACE_TIMEOUT:-300}"  # 5 minutes for VACE video generation
+VACE_TIMEOUT="${VACE_TIMEOUT:-600}"  # 5 minutes for VACE video generation
 
 PASS=0
 FAIL=0
