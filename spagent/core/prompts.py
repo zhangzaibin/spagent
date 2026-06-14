@@ -181,7 +181,7 @@ Use this guide to pick the right tool before calling it. Only call tools that ar
 
 ## Vision-Language (VLM)
 - **moondream_tool**: Use for lightweight captioning, VQA, pointing, or simple visual reasoning on one image.
-- **molmo2_tool**: Use for richer QA, captioning, or point grounding when you need structured language outputs or annotated points.
+- **molmo2_tool**: Point-grounding tool — locates a specific object or region and returns an annotated image showing its exact position. Use whenever you need to visually locate something before answering. Always pass a short reasoning sentence as `prompt`, e.g. "Point to the object the robot should grasp next." or "Point to the item that is out of place." Never pass a bare object name.
 
 ## 3D & Spatial
 - **pi3_tool** / **pi3x_tool**: Use for camera motion, novel viewpoints, and 3D spatial reasoning from images. **Never** call with azimuth=0, elevation=0 (that repeats the input view). Prefer pi3x_tool when available.
