@@ -87,6 +87,13 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
     ),
     ToolCatalogEntry(
         "detection",
+        ObjectDetectionTool,
+        "2d_perception",
+        "detect_objects_tool",
+        {"server_url": DEFAULT_SERVER_URLS["detection"]},
+    ),
+    ToolCatalogEntry(
+        "zoom",
         ZoomObjectTool,
         "2d_perception",
         "zoom_object_tool",

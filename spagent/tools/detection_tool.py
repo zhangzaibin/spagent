@@ -651,10 +651,25 @@ class LocalizeObjectTool(_BaseDetectionTool):
 
 
 # ---------------------------------------------------------------------------
-# Backward-compatible alias
+# Backward-compatible shim
 # ---------------------------------------------------------------------------
 
-#: Alias kept so existing code (quick_eval.py, run_spagent_vlmeval.py, etc.)
-#: that imports/instantiates ``ObjectDetectionTool`` continues to work unchanged.
-#: It maps to ZoomObjectTool (crop / attribute-inspection mode).
-ObjectDetectionTool = ZoomObjectTool
+class ObjectDetectionTool(ZoomObjectTool):
+    """Backward-compatible wrapper preserving the legacy ``detect_objects_tool``
+    name and ``crop=`` constructor API used by existing call sites such as
+    quick_eval.py, run_spagent_vlmeval.py, and test/test_tool.py.
+    """
+
+    def __init__(
+        self,
+        use_mock: bool = True,
+        server_url: str = "http://10.8.131.51:30969",
+        crop: bool = True,
+        max_crops: int = 3,
+    ):
+        super().__init__(
+            use_mock=use_mock,
+            server_url=server_url,
+            max_crops=(max_crops if crop else 0),
+        )
+        self.name = "detect_objects_tool"
