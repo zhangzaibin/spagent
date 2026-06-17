@@ -31,7 +31,11 @@ external_experts/
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
 ├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+<<<<<<< HEAD
 ├── FlowSeek/                      # Optical flow estimation between image pairs (local or server port 20036)
+=======
+├── PaddleOCRVL/                   # Document OCR & structured recognition (PaddleOCR-VL-1.5, port 20037)
+>>>>>>> main
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -57,7 +61,11 @@ external_experts/
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
 | **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+<<<<<<< HEAD
 | **FlowSeek** | `FlowSeekTool` | Optical Flow Estimation | Estimate dense per-pixel motion between two images (consecutive frames or before/after pairs); returns colorized flow visualization; M variant (ViT-B) or T variant (ViT-S); source vendored in repo, requires `FLOWSEEK_CHECKPOINT` and `FLOWSEEK_DAV2_CHECKPOINT` env vars | Local / Server (port 20036) | `image1_path`, `image2_path`, `output_path`(optional) |
+=======
+| **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | Document OCR & Structured Recognition | 0.9B VLM for plain OCR, table parsing, chart reading, formula → LaTeX, text spotting, and seal recognition; supports local/server/mock; no checkpoint env var required | Local or Server (port 20037) | `image_path`, `task` ("ocr" / "table" / "chart" / "formula" / "spotting" / "seal") |
+>>>>>>> main
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1374,6 +1382,54 @@ python test/test_tool.py --tool flowseek \
 python test/test_tool.py --tool flowseek \
     --image assets/frame1.jpg assets/frame2.jpg \
     --use_mock
+### 15. PaddleOCR-VL-1.5 - Document OCR & Structured Recognition
+
+**Function**: Multi-task document understanding using the PaddleOCR-VL-1.5 vision-language model (0.9 B parameters).
+
+**Features**:
+- Six task modes: plain OCR, table, chart, formula (→ LaTeX), text spotting, and seal recognition
+- 94.5% on OmniDocBench — state-of-the-art as of May 2026
+- Supports local inference, Flask server (port 20037), and mock mode
+- Auto-downloads from HuggingFace; no vendoring or extra `sys.path` patches required
+
+**Setup**:
+
+```bash
+pip install transformers accelerate pillow sentencepiece
+
+# Optional: pre-download the model weights
+huggingface-cli download PaddlePaddle/PaddleOCR-VL-1.5 \
+  --local-dir checkpoints/paddleocr_vl/PaddleOCR-VL-1.5
+
+# Optional: point to a local copy
+export PADDLEOCR_VL_CHECKPOINT=/path/to/local/PaddleOCR-VL-1.5
+```
+
+**Start server** (optional — only needed for server mode):
+
+```bash
+python spagent/external_experts/PaddleOCRVL/paddleocr_vl_server.py \
+    --port 20037 --device cuda
+```
+
+**Usage**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import PaddleOCRVLTool
+
+model = GPTModel(model_name="gpt-4o")
+
+# Local inference (model loaded in-process)
+tools = [PaddleOCRVLTool(device="cuda")]
+
+# Server inference
+tools = [PaddleOCRVLTool(server_url="http://0.0.0.0:20037")]
+
+agent = SPAgent(model=model, tools=tools)
+result = agent.solve_problem("invoice.png", "Extract all text from this invoice.")
+print(result["answer"])
 ```
 
 **Parameters**:
@@ -1383,6 +1439,10 @@ python test/test_tool.py --tool flowseek \
 | `image1_path` | string | ✅ | — | Path to the first (source) image |
 | `image2_path` | string | ✅ | — | Path to the second (target) image |
 | `output_path` | string | ❌ | auto-generated | Path to save the colorized flow image |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to the input image |
+| `task` | `str` | `"ocr"` | Recognition mode: `"ocr"`, `"table"`, `"chart"`, `"formula"`, `"spotting"`, `"seal"` |
 
 **Returns**:
 
@@ -1395,6 +1455,11 @@ python test/test_tool.py --tool flowseek \
   "result": {
     "flow_magnitude_mean": 8.34,
     "output_path": "outputs/flowseek_frame1_frame2.png"
+  "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+  "task": "ocr",
+  "result": {
+    "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+    "task": "ocr"
   }
 }
 ```
@@ -1402,6 +1467,20 @@ python test/test_tool.py --tool flowseek \
 **Resources**:
 - [FlowSeek GitHub](https://github.com/mattpoggi/flowseek)
 - [Depth Anything V2 (vitb)](https://huggingface.co/depth-anything/Depth-Anything-V2-Base)
+**Task modes**:
+
+| Task | Description |
+|------|-------------|
+| `ocr` | Extract all visible text |
+| `table` | Parse table structure and cell content |
+| `chart` | Read chart title, axes, and data values |
+| `formula` | Transcribe mathematical formula to LaTeX |
+| `spotting` | Detect text regions and transcribe each one |
+| `seal` | Read circular or elliptical seal text |
+
+**Resources**:
+- [PaddleOCR-VL-1.5 on HuggingFace](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.5)
+- [Paper](https://arxiv.org/abs/2505.09816)
 
 ---
 

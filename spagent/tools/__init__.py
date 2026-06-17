@@ -25,7 +25,11 @@ from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
 from .sana_tool import SanaTool
 from .wilddet3d_tool import WildDet3DTool
+<<<<<<< HEAD
 from .flowseek_tool import FlowSeekTool
+=======
+from .paddleocr_vl_tool import PaddleOCRVLTool
+>>>>>>> main
 
 
 __all__ = [
@@ -49,5 +53,9 @@ __all__ = [
     'OrientAnythingV2Tool',
     'SanaTool',
     'WildDet3DTool',
+<<<<<<< HEAD
     'FlowSeekTool',
+=======
+    'PaddleOCRVLTool',
+>>>>>>> main
 ]
