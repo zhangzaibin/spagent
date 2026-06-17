@@ -1288,7 +1288,8 @@ print(result["answer"])
 pip install transformers accelerate pillow sentencepiece
 
 # Optional: pre-download the model weights
-huggingface-cli download PaddlePaddle/PaddleOCR-VL-1.5
+huggingface-cli download PaddlePaddle/PaddleOCR-VL-1.5 \
+  --local-dir checkpoints/paddleocr_vl/PaddleOCR-VL-1.5
 
 # Optional: point to a local copy
 export PADDLEOCR_VL_CHECKPOINT=/path/to/local/PaddleOCR-VL-1.5
