@@ -1022,7 +1022,6 @@ def main():
             output_dir=args.output_dir,
         )
 
-<<<<<<< HEAD
     elif args.tool == "flowseek":
         if len(args.image) < 2:
             print("Error: --tool flowseek requires two images: --image <img1> <img2>")
@@ -1031,12 +1030,10 @@ def main():
             image1_path=args.image[0],
             image2_path=args.image[1],
             device=args.device,
-=======
     elif args.tool == "paddleocr_vl":
         result_path = test_paddleocr_vl(
             image_paths=args.image,
             task=args.ocr_task,
->>>>>>> main
             server_url=args.server_url,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
