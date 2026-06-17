@@ -1,6 +1,8 @@
 # External Experts Module
 
-External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建、图像生成、视频生成等功能。工具分为本地 server/client 架构、本地进程内工具和云端 API 直调等形式，均支持独立部署和调用。
+> **中文版本**: 本文档 | **English Version**: [English Documentation](TOOL_USING.md)
+
+External Experts 模块包含了专门用于空间智能任务的专业模型，包括深度估计、目标检测、分割、3D重建、图像生成、视频生成、文档 OCR 等功能。工具分为本地 server/client 架构、本地进程内工具和云端 API 直调等形式，均支持独立部署和调用。
 
 ## 📁 模块结构
 
@@ -28,6 +30,7 @@ external_experts/
 ├── Veo/                           # Google Veo 视频生成（API 直调，无需本地服务器）
 ├── Sora/                          # OpenAI Sora 视频生成（API 直调，无需本地服务器）
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
+├── PaddleOCRVL/                   # 文档 OCR 与结构化识别（PaddleOCR-VL-1.5，端口 20037）
 └── supervision/                   # YOLO目标检测和标注工具
 ```
 
@@ -52,6 +55,7 @@ external_experts/
 | **Sora** | `SoraTool` | 视频生成 | 通过 OpenAI Sora 实现文生视频和图生视频 | API 直调（无需服务器） | `prompt`, `image_path`(可选), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | 物体朝向与旋转估计 | 估计物体绝对朝向（方位角/仰角/旋转角/对称阶数）以及两视角间的相对位姿（NeurIPS 2025 Spotlight） | 本地服务器（20034） | `image_path`, `task`, `image_path2`(可选) |
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
+| **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | 文档 OCR 与结构化识别 | 0.9B 视觉语言模型，支持纯文本 OCR、表格解析、图表读取、公式转 LaTeX、文本定位与印章识别；支持本地/服务器/mock 模式；无需额外 checkpoint 环境变量 | 本地或服务器（20037） | `image_path`, `task`（`"ocr"` / `"table"` / `"chart"` / `"formula"` / `"spotting"` / `"seal"`） |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1169,6 +1173,94 @@ python test/test_tool.py --tool vace \
 **资源链接**：
 - [Wan2.1-VACE-1.3B（HuggingFace）](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
 - [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
+### 14. PaddleOCR-VL-1.5 - 文档 OCR 与结构化识别
+
+**功能**：基于 PaddleOCR-VL-1.5 视觉语言模型（0.9B 参数）的多任务文档理解。
+
+**特点**：
+- 六种任务模式：纯文本 OCR、表格、图表、公式（→ LaTeX）、文本定位、印章识别
+- OmniDocBench 94.5% 准确率（截至 2026 年 5 月 SOTA）
+- 支持本地推理、Flask 服务器（端口 20037）和 mock 模式
+- 可从 HuggingFace 自动下载；无需 vendoring 或额外 `sys.path` 补丁
+
+**环境配置**：
+
+```bash
+pip install transformers accelerate pillow sentencepiece
+
+# 可选：预下载模型权重
+huggingface-cli download PaddlePaddle/PaddleOCR-VL-1.5 \
+  --local-dir checkpoints/paddleocr_vl/PaddleOCR-VL-1.5
+
+# 可选：指定本地权重路径
+export PADDLEOCR_VL_CHECKPOINT=checkpoints/paddleocr_vl/PaddleOCR-VL-1.5
+```
+
+**启动服务**（可选，仅 server 模式需要）：
+
+```bash
+python spagent/external_experts/PaddleOCRVL/paddleocr_vl_server.py \
+    --port 20037 --device cuda
+```
+
+**使用示例**：
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import PaddleOCRVLTool
+
+model = GPTModel(model_name="gpt-4o")
+
+# 本地推理（模型在进程内加载）
+tools = [PaddleOCRVLTool(device="cuda")]
+
+# 服务器推理
+tools = [PaddleOCRVLTool(server_url="http://0.0.0.0:20037")]
+
+agent = SPAgent(model=model, tools=tools)
+result = agent.solve_problem("invoice.png", "Extract all text from this invoice.")
+print(result["answer"])
+```
+
+**参数说明**：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `image_path` | `str` | 必填 | 输入图像路径 |
+| `task` | `str` | `"ocr"` | 识别模式：`"ocr"`、`"table"`、`"chart"`、`"formula"`、`"spotting"`、`"seal"` |
+
+**返回示例**：
+
+```json
+{
+  "success": true,
+  "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+  "task": "ocr",
+  "result": {
+    "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+    "task": "ocr"
+  }
+}
+```
+
+**任务模式**：
+
+| 任务 | 说明 |
+|------|------|
+| `ocr` | 提取所有可见文本 |
+| `table` | 解析表格结构与单元格内容 |
+| `chart` | 读取图表标题、坐标轴与数据值 |
+| `formula` | 将数学公式转写为 LaTeX |
+| `spotting` | 检测文本区域并逐块转写 |
+| `seal` | 识别圆形或椭圆形印章文字 |
+
+**资源链接**：
+- [PaddleOCR-VL-1.5（HuggingFace）](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.5)
+- [论文](https://arxiv.org/abs/2505.09816)
 
 ---
 

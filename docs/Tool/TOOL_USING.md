@@ -30,6 +30,8 @@ external_experts/
 ├── Veo/                           # Google Veo video generation (API-based)
 ├── Sora/                          # OpenAI Sora video generation (API-based)
 ├── vace/                          # VACE local video generation (first-frame pipeline, server port 20034)
+├── WildDet3D/                     # Promptable 3D object detection (local, no server)
+├── PaddleOCRVL/                   # Document OCR & structured recognition (PaddleOCR-VL-1.5, port 20037)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -54,6 +56,8 @@ external_experts/
 | **Sora** | `SoraTool` | Video Generation | Text-to-video and image-to-video via OpenAI Sora | API (no server) | `prompt`, `image_path`(optional), `duration`, `resolution`, `aspect_ratio` |
 | **Orient Anything V2** | `OrientAnythingV2Tool` | Object Orientation & Rotation Estimation | Estimate absolute orientation (azimuth/elevation/rotation, symmetry_alpha) and relative pose between two views (NeurIPS 2025 Spotlight) | Server (port 20034) | `image_path`, `task`, `image_path2`(optional) |
 | **VACE** | `VaceTool` | Local Video Generation | Generate a short video from one reference image + text prompt via the local Wan2.1-VACE first-frame pipeline; returns `.mp4` path | Server (port 20034) | `image_path`, `prompt`, `base`(optional), `task`(optional), `mode`(optional) |
+| **WildDet3D** | `WildDet3DTool` | Promptable 3D Object Detection | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars | Local (no server) | `image_path`, `prompt_text`(optional), `input_boxes`(optional), `input_points`(optional) |
+| **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | Document OCR & Structured Recognition | 0.9B VLM for plain OCR, table parsing, chart reading, formula → LaTeX, text spotting, and seal recognition; supports local/server/mock; no checkpoint env var required | Local or Server (port 20037) | `image_path`, `task` ("ocr" / "table" / "chart" / "formula" / "spotting" / "seal") |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1189,6 +1193,170 @@ python test/test_tool.py --tool vace \
 **Resources**:
 - [Wan2.1-VACE-1.3B on HuggingFace](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B)
 - [VACE GitHub](https://github.com/ali-vilab/VACE)
+
+---
+
+### 14. WildDet3D - Promptable 3D Object Detection
+
+**Function**: Detect and localize objects in 2D and 3D from a single RGB image.
+
+**Features**:
+- Text, bounding box, and point prompts supported
+- Returns 2D boxes, 3D boxes, confidence scores, and an annotated image
+- Runs locally — no server process needed
+- Lazy model loading (loaded on first call, reused across agent turns)
+
+**Setup**:
+
+```bash
+# 1. Clone with submodules (sam3 and lingbot_depth are required submodules)
+git clone --recurse-submodules https://github.com/allenai/WildDet3D.git /your/path/WildDet3D
+
+# 2. Install WildDet3D dependencies (Python 3.11 required)
+pip install vis4d==1.0.0
+pip install git+https://github.com/SysCV/vis4d_cuda_ops.git --no-build-isolation --no-cache-dir
+pip install -r /your/path/WildDet3D/requirements.txt
+
+# 3. Download the model checkpoint (~4.7 GB)
+huggingface-cli download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt --local-dir /your/path/ckpt
+
+# 4. Set environment variables
+export WILDDET3D_ROOT=/your/path/WildDet3D
+export WILDDET3D_CHECKPOINT=/your/path/ckpt/wilddet3d_alldata_all_prompt_v1.0.pt
+```
+
+**Usage**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import WildDet3DTool
+from spagent.core.prompts import GENERAL_VISION_SYSTEM_PROMPT
+
+model = GPTModel(model_name="gpt-4o")
+tools = [WildDet3DTool(device="cuda")]  # model loaded lazily on first call
+
+agent = SPAgent(model=model, tools=tools, system_prompt=GENERAL_VISION_SYSTEM_PROMPT)
+result = agent.solve_problem("image.jpg", "What objects are in this scene and where are they?")
+print(result["answer"])
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to input RGB image |
+| `prompt_text` | `str` | `"object"` | Text prompt (e.g. `"chair"`, `"car"`). Ignored when `input_boxes` or `input_points` are provided |
+| `input_boxes` | `list[float]` | `None` | 2D box prompt `[x1, y1, x2, y2]` in pixel coords. Takes priority over `prompt_text` |
+| `input_points` | `list[list]` | `None` | Point prompts `[[x, y, label], ...]` where `label=1` (foreground) or `0` (background) |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "boxes2d": [[x1, y1, x2, y2], ...],
+  "boxes3d": [...],
+  "scores": [0.95, ...],
+  "num_detections": 1,
+  "output_path": "outputs/wilddet3d_image.png",
+  "description": "WildDet3D detected 1 object(s) matching 'chair'."
+}
+```
+
+**Note**: Use `GENERAL_VISION_SYSTEM_PROMPT` (not `SPATIAL_3D_SYSTEM_PROMPT`) with WildDet3D to avoid the LLM confusing its parameters with Pi3-style angle arguments.
+
+**Resources**:
+- [WildDet3D GitHub](https://github.com/allenai/WildDet3D)
+- [Model checkpoint on HuggingFace](https://huggingface.co/allenai/WildDet3D)
+
+---
+
+### 15. PaddleOCR-VL-1.5 - Document OCR & Structured Recognition
+
+**Function**: Multi-task document understanding using the PaddleOCR-VL-1.5 vision-language model (0.9 B parameters).
+
+**Features**:
+- Six task modes: plain OCR, table, chart, formula (→ LaTeX), text spotting, and seal recognition
+- 94.5% on OmniDocBench — state-of-the-art as of May 2026
+- Supports local inference, Flask server (port 20037), and mock mode
+- Auto-downloads from HuggingFace; no vendoring or extra `sys.path` patches required
+
+**Setup**:
+
+```bash
+pip install transformers accelerate pillow sentencepiece
+
+# Optional: pre-download the model weights
+huggingface-cli download PaddlePaddle/PaddleOCR-VL-1.5 \
+  --local-dir checkpoints/paddleocr_vl/PaddleOCR-VL-1.5
+
+# Optional: point to a local copy
+export PADDLEOCR_VL_CHECKPOINT=/path/to/local/PaddleOCR-VL-1.5
+```
+
+**Start server** (optional — only needed for server mode):
+
+```bash
+python spagent/external_experts/PaddleOCRVL/paddleocr_vl_server.py \
+    --port 20037 --device cuda
+```
+
+**Usage**:
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import PaddleOCRVLTool
+
+model = GPTModel(model_name="gpt-4o")
+
+# Local inference (model loaded in-process)
+tools = [PaddleOCRVLTool(device="cuda")]
+
+# Server inference
+tools = [PaddleOCRVLTool(server_url="http://0.0.0.0:20037")]
+
+agent = SPAgent(model=model, tools=tools)
+result = agent.solve_problem("invoice.png", "Extract all text from this invoice.")
+print(result["answer"])
+```
+
+**Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_path` | `str` | required | Path to the input image |
+| `task` | `str` | `"ocr"` | Recognition mode: `"ocr"`, `"table"`, `"chart"`, `"formula"`, `"spotting"`, `"seal"` |
+
+**Returns**:
+
+```json
+{
+  "success": true,
+  "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+  "task": "ocr",
+  "result": {
+    "text": "Invoice No. 12345\nDate: 2026-05-27\n...",
+    "task": "ocr"
+  }
+}
+```
+
+**Task modes**:
+
+| Task | Description |
+|------|-------------|
+| `ocr` | Extract all visible text |
+| `table` | Parse table structure and cell content |
+| `chart` | Read chart title, axes, and data values |
+| `formula` | Transcribe mathematical formula to LaTeX |
+| `spotting` | Detect text regions and transcribe each one |
+| `seal` | Read circular or elliptical seal text |
+
+**Resources**:
+- [PaddleOCR-VL-1.5 on HuggingFace](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.5)
+- [Paper](https://arxiv.org/abs/2505.09816)
 
 ---
 
