@@ -90,6 +90,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | **WAN** | Video | Text/Image-to-Video Generation | API (no server) | Alibaba Wan via DashScope API; requires `DASHSCOPE_API_KEY`; supports t2v and i2v |
 | **VACE** | Video | Local Video Generation (First-Frame) | Local server (20034) | Wan2.1-VACE first-frame pipeline; one reference image + text prompt → `.mp4`; runs entirely on local GPU, no cloud API needed |
 | **WildDet3D** | 3D | Promptable 3D Object Detection | Local (no server) | Detect and localize objects in 2D and 3D from a single RGB image; supports text, box, and point prompts; requires `WILDDET3D_ROOT` and `WILDDET3D_CHECKPOINT` env vars |
+| **FlowSeek** | 2D | Optical Flow Estimation | Local / Server (20036) | Estimate dense per-pixel motion between two images; colorized flow output; M (ViT-B) or T (ViT-S) variants; source vendored in repo, requires `FLOWSEEK_CHECKPOINT` and `FLOWSEEK_DAV2_CHECKPOINT` |
 | **PaddleOCR-VL-1.5** | OCR | Document OCR & Structured Recognition | Local or server (20037) | 0.9B VLM; plain OCR, table, chart, formula→LaTeX, text spotting, seal recognition; auto-downloads from HuggingFace; Apache 2.0 |
 
 
@@ -163,6 +164,34 @@ from spagent.tools import WildDet3DTool
 tool = WildDet3DTool(device="cuda")  # loads model lazily on first call
 ```
 
+#### FlowSeek (local or server)
+
+FlowSeek source is vendored into the repo — no cloning needed. Only model weights are required.
+
+```bash
+# 1. Install pip dependencies
+pip install huggingface_hub timm
+
+# 2. Download weights (M variant — recommended)
+wget https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth \
+    -O /your/path/depth_anything_v2_vitb.pth
+gdown 1gbZ-6NE3muAnGqvypiS2s_BADHrI4ySf -O /your/path/flowseek_M_TartanCT_TSKH.pth
+
+# 3. Set environment variables
+export FLOWSEEK_CHECKPOINT=/your/path/flowseek_M_TartanCT_TSKH.pth
+export FLOWSEEK_DAV2_CHECKPOINT=/your/path/depth_anything_v2_vitb.pth
+
+# 4. (Optional) Start server
+python spagent/external_experts/FlowSeek/flowseek_server.py --port 20036
+```
+
+Then use `FlowSeekTool` in SPAgent:
+
+```python
+from spagent.tools import FlowSeekTool
+tool = FlowSeekTool(device="cuda")           # local
+# or
+tool = FlowSeekTool(server_url="http://localhost:20036")  # server mode
 #### PaddleOCR-VL-1.5 (local or server)
 
 PaddleOCR-VL-1.5 auto-downloads from HuggingFace — no cloning or env vars required for basic use:
