@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
-MODEL="${MODEL:-gpt-4.1-mini}"
+MODEL="${MODEL:-gpt-4.1}"
 MODEL_BACKEND="${MODEL_BACKEND:-auto}"
 DATASETS="${DATASETS:-MindCube VSIBench MMStar VStarBench BLINK MMMU_DEV_VAL MathVista_MINI MMBench_dev_en RealWorldQA ScienceQA_VAL HRBench4K HRBench8K MathVerse_MINI WeMath LogicVista MMMU_Pro_10c DynaMath}"
 LIMIT="${LIMIT:-50}"

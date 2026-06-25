@@ -97,7 +97,7 @@ def _load_dotenv():
 _load_dotenv()
 
 # ── SPAgent ───────────────────────────────────────────────────────────────────
-from spagent.core import SPAgent, GENERAL_VISION_CONTINUATION_HINT
+from spagent.core import SPAgent, build_general_vision_continuation_hint
 from spagent.models import GPTModel, QwenModel, QwenVLLMModel
 
 
@@ -331,7 +331,12 @@ LOCAL_DATASET_PATHS: Dict[str, str] = {
 }
 
 
-def load_dataset(name: str, limit: Optional[int], local_path: Optional[str] = None):
+def load_dataset(
+    name: str,
+    limit: Optional[int],
+    local_path: Optional[str] = None,
+    per_category: Optional[int] = None,
+):
     # ── Local JSONL (MindCube, VSIBench, or any explicit --data-path) ──────────
     jsonl_path = local_path or LOCAL_DATASET_PATHS.get(name)
     if jsonl_path:
@@ -344,7 +349,21 @@ def load_dataset(name: str, limit: Optional[int], local_path: Optional[str] = No
             )
         print(f"  Loading local JSONL: {full}")
         ds = _LocalDataset(name, str(full))
-        if limit and len(ds.raw_items) > limit:
+
+        # ── Per-category sampling (takes precedence over --limit for local datasets) ──
+        if per_category is not None:
+            cat_buckets: Dict[str, List[int]] = {}
+            for idx, item in enumerate(ds.raw_items):
+                cat = item.get("task", "") or "unknown"
+                cat_buckets.setdefault(cat, []).append(idx)
+            selected = sorted(
+                [i for indices in cat_buckets.values() for i in indices[:per_category]]
+            )
+            ds.raw_items = [ds.raw_items[i] for i in selected]
+            ds.data = ds.data.iloc[selected].reset_index(drop=True)
+            cats_summary = {c: min(len(v), per_category) for c, v in cat_buckets.items()}
+            print(f"  Per-category sampling ({per_category}/cat): {cats_summary} → {len(selected)} total")
+        elif limit and len(ds.raw_items) > limit:
             ds.raw_items = ds.raw_items[:limit]
             ds.data = ds.data.head(limit).reset_index(drop=True)
         return ds
@@ -728,6 +747,42 @@ def _normalize_answer_local(answer: str) -> str:
     return s
 
 
+def _extract_number(text: str) -> Optional[float]:
+    """Extract the first numeric value from a string (handles <answer> tags)."""
+    import re
+    s = text.strip()
+    a_start, a_end = s.find("<answer>"), s.find("</answer>")
+    if a_start != -1 and a_end > a_start:
+        s = s[a_start + 8 : a_end].strip()
+    m = re.search(r"[-+]?\d*\.?\d+", s)
+    if m:
+        try:
+            return float(m.group())
+        except ValueError:
+            pass
+    return None
+
+
+def _mra_score(pred_text: str, gt_text: str) -> float:
+    """
+    VSI-Bench Mean Relative Accuracy for a single numeric sample.
+
+    Computes the fraction of thresholds t ∈ {0.5, 0.55, …, 0.95} at which
+    the relative error falls within (1-t, 1+t), matching the VSI-Bench paper.
+    Returns a value in [0, 1]; returns 0.0 if either value cannot be parsed.
+    """
+    pred_val = _extract_number(pred_text)
+    gt_val   = _extract_number(gt_text)
+    if pred_val is None or gt_val is None:
+        return 0.0
+    if gt_val == 0.0:
+        return 1.0 if pred_val == 0.0 else 0.0
+    rel_err = abs(pred_val - gt_val) / abs(gt_val)
+    thresholds = [t / 100 for t in range(50, 100, 5)]  # 0.50 … 0.95
+    passes = sum(1 for t in thresholds if rel_err <= t)
+    return passes / len(thresholds)
+
+
 def run_local_dataset(
     ds_name: str,
     ds: "_LocalDataset",
@@ -890,41 +945,60 @@ def run_local_dataset(
         if r.get("skipped") and not r.get("answer"):
             r["answer"] = str(df_meta.at[r["id"], "answer"]) if r["id"] in df_meta.index else ""
 
-    # ── Scoring: normalize_answer letter match (no judge model needed) ─────────
-    correct = 0
-    task_stats: Dict[str, Dict[str, int]] = {}
+    # ── Build output_type lookup from dataset metadata ─────────────────────────
+    otype_map: Dict[str, str] = {}
+    for item in ds.raw_items:
+        sid = str(item.get("id", ""))
+        otype_map[sid] = item.get("output_type", "MCQ") or "MCQ"
+
+    # ── Scoring: MCQ letter match OR VSI-Bench MRA for Number output_type ──────
+    score_sum = 0.0
+    task_stats: Dict[str, Dict[str, float]] = {}
     successful = [r for r in results if r.get("success")]
 
     for r in successful:
-        norm_pred = _normalize_answer_local(r.get("prediction", ""))
-        norm_gt   = _normalize_answer_local(r.get("answer", ""))
-        r["normalized_prediction"] = norm_pred
-        r["normalized_ground_truth"] = norm_gt
-        r["is_correct"] = (norm_pred == norm_gt)
-        if r["is_correct"]:
-            correct += 1
+        pred_raw = r.get("prediction", "")
+        gt_raw   = r.get("answer", "")
+        output_type = otype_map.get(r.get("id", ""), "MCQ")
+
+        if output_type == "Number":
+            sample_score = _mra_score(pred_raw, gt_raw)
+            r["normalized_prediction"]    = str(_extract_number(pred_raw) or pred_raw)
+            r["normalized_ground_truth"]  = str(_extract_number(gt_raw) or gt_raw)
+            r["is_correct"]               = sample_score
+            r["output_type"]              = "Number"
+        else:
+            norm_pred = _normalize_answer_local(pred_raw)
+            norm_gt   = _normalize_answer_local(gt_raw)
+            sample_score = 1.0 if norm_pred == norm_gt else 0.0
+            r["normalized_prediction"]    = norm_pred
+            r["normalized_ground_truth"]  = norm_gt
+            r["is_correct"]               = bool(sample_score)
+            r["output_type"]              = output_type
+
+        score_sum += sample_score
         task = r.get("task", "unknown") or "unknown"
-        task_stats.setdefault(task, {"correct": 0, "total": 0})
+        task_stats.setdefault(task, {"score_sum": 0.0, "total": 0})
         task_stats[task]["total"] += 1
-        if r["is_correct"]:
-            task_stats[task]["correct"] += 1
+        task_stats[task]["score_sum"] += sample_score
 
     for task in task_stats:
         t = task_stats[task]
-        t["accuracy"] = round(t["correct"] / t["total"], 4) if t["total"] else 0.0
+        t["accuracy"] = round(t["score_sum"] / t["total"], 4) if t["total"] else 0.0
 
-    overall_acc = round(correct / len(successful), 4) if successful else 0.0
+    overall_acc = round(score_sum / len(successful), 4) if successful else 0.0
     scores = {"Overall": overall_acc, **{t: v["accuracy"] for t, v in task_stats.items()}}
 
-    print(f"  Overall accuracy: {overall_acc:.2%}  ({correct}/{len(successful)})")
+    print(f"  Overall accuracy: {overall_acc:.2%}  ({score_sum:.1f}/{len(successful)})")
     for task, s in sorted(task_stats.items()):
-        print(f"    {task:25s}: {s['accuracy']:.2%} ({s['correct']}/{s['total']})")
+        print(f"    {task:25s}: {s['accuracy']:.2%} ({s['score_sum']:.1f}/{s['total']})")
 
     # ── Save xlsx for inspection ───────────────────────────────────────────────
     xlsx_path = out_dir / f"{model_tag}_{ds_name}.xlsx"
     df_out = pd.DataFrame([{
         "id":                    r["id"],
         "task":                  r.get("task", ""),
+        "output_type":           r.get("output_type", "MCQ"),
         "answer":                r.get("answer", ""),
         "prediction":            r.get("prediction", ""),
         "normalized_prediction": r.get("normalized_prediction", ""),
@@ -939,7 +1013,8 @@ def run_local_dataset(
     # ── Error log: collect wrong-answer records ───────────────────────────────
     local_error_records: List[Dict] = []
     for r in successful:
-        if r.get("is_correct"):
+        is_c = r.get("is_correct", False)
+        if (is_c is True) or (isinstance(is_c, float) and is_c >= 1.0):
             continue
         pos = results.index(r)
         trace_data_local: Dict = {}
@@ -977,13 +1052,14 @@ def run_local_dataset(
     json_path = out_dir / f"{model_tag}_{ds_name}_results.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({
-            "dataset":         ds_name,
-            "total_samples":   len(ds.raw_items),
-            "successful":      len(successful),
-            "failed":          len(results) - len(successful),
+            "dataset":          ds_name,
+            "total_samples":    len(ds.raw_items),
+            "successful":       len(successful),
+            "failed":           len(results) - len(successful),
             "overall_accuracy": overall_acc,
-            "task_statistics": task_stats,
-            "scores":          scores,
+            "score_sum":        round(score_sum, 4),
+            "task_statistics":  task_stats,
+            "scores":           scores,
             "detailed_results": results,
         }, f, ensure_ascii=False, indent=2, default=_json_default)
 
@@ -1024,11 +1100,27 @@ def main():
                         default=["VStarBench"])
     parser.add_argument("--limit",   type=int, default=None,
                         help="Override sample limit (default: per-dataset defaults)")
+    parser.add_argument("--per-category", type=int, default=None, metavar="N",
+                        help=(
+                            "For local JSONL datasets (MindCube, VSIBench): sample N items per "
+                            "task category instead of a flat head-limit. Overrides --limit for "
+                            "local datasets when set."
+                        ))
+    parser.add_argument("--prompt", default="general", choices=["spatial", "general"],
+                        help=(
+                            "System prompt style. "
+                            "'spatial' uses the built-in SPATIAL_3D_ROLE + SPATIAL_3D_WORKFLOW + "
+                            "SPATIAL_3D_CONTINUATION_HINT (best for 3D reconstruction tools). "
+                            "'general' (default) uses a concise tool-hint prompt."
+                        ))
     parser.add_argument("--trace-dir", default="outputs/spagent_traces")
     parser.add_argument("--work-dir",  default="outputs/vlmeval_runs")
     parser.add_argument("--judge-model", default="gpt-4o-mini")
     parser.add_argument("--nproc",    type=int, default=4)
     parser.add_argument("--max-iterations", type=int, default=3)
+    parser.add_argument("--num-video-frames", type=int, default=16,
+                        help="Number of frames uniformly sampled from each video "
+                             "for VSIBench / video QA (default: 16).")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--seed",     type=int, default=42)
     parser.add_argument("--no-score", action="store_true",
@@ -1074,9 +1166,10 @@ def main():
     work_dir  = Path(args.work_dir)
     trace_dir = Path(args.trace_dir)
 
-    model_safe = args.model.replace("/", "_").replace("-", "_").replace(".", "_")
-    tools_tag  = "_".join(args.tools) if args.tools else "no_tools"
-    model_tag  = f"{model_safe}_{tools_tag}"
+    model_safe   = args.model.replace("/", "_").replace("-", "_").replace(".", "_")
+    tools_tag    = "_".join(args.tools) if args.tools else "no_tools"
+    prompt_tag   = args.prompt  # "spatial" or "general"
+    model_tag    = f"{model_safe}_{tools_tag}_{prompt_tag}"
 
     print(f"\n{'='*65}")
     print(f"  SPAgent Quick Eval")
@@ -1084,6 +1177,8 @@ def main():
     print(f"  Tools    : {args.tools or ['(none)']}")
     print(f"  Datasets : {args.datasets}")
     print(f"  Limit    : {args.limit or 'defaults'}")
+    print(f"  Per-cat  : {args.per_category or '(none)'}")
+    print(f"  Prompt   : {args.prompt}")
     print(f"  Tag      : {model_tag}")
     print(f"{'='*65}\n")
 
@@ -1097,18 +1192,63 @@ def main():
     tools = make_tools(args.tools, args)
     print(f"Tools: {[t.name for t in tools] if tools else ['(none)']}\n")
 
-    agent = SPAgent(
-        model=model_instance,
-        tools=tools,
-        max_workers=4,
-        system_prompt=(
-            "You are a helpful multimodal assistant. Analyze the image(s) carefully "
-            "and answer the question. Use available tools when they help you perceive "
-            "fine details, detect objects, or understand spatial relationships. "
-            "Always put your final answer inside <answer></answer> tags."
-        ),
-        continuation_hint=GENERAL_VISION_CONTINUATION_HINT,
-    )
+    tool_name_set = {t.name for t in tools}
+
+    if args.prompt == "spatial":
+        # Let SPAgent pick the built-in spatial_3d prompt:
+        #   SPATIAL_3D_ROLE + SPATIAL_3D_WORKFLOW + SPATIAL_3D_CONTINUATION_HINT
+        # This is activated when system_prompt and continuation_hint are both None
+        # (the default "spatial_3d" branch in _resolve_workflow_prompts).
+        agent = SPAgent(
+            model=model_instance,
+            tools=tools,
+            max_workers=4,
+        )
+    else:
+        # ── General prompt: per-tool role hints (original behaviour) ──────────
+        _ROLE_TOOL_HINTS = {
+            "zoom_object_tool": (
+                "• zoom_object_tool → inspect a specific object's color, material, text, or texture"
+            ),
+            "localize_object_tool": (
+                "• localize_object_tool → detect and count objects or find their location"
+            ),
+            "pi3x_tool": (
+                "• pi3x_tool → 3D spatial questions with multi-viewpoint images\n"
+                "  ⚠ NEVER call pi3x with azimuth=0, elevation=0 — it repeats your input images!\n"
+                "  Best approach: use elevation=45 (top-down) to understand the full 3D layout.\n"
+                "  For 'from camera X / image X viewpoint' questions: "
+                "rotation_reference_camera=X, camera_view=true, elevation=30~45"
+            ),
+            "pi3_tool": (
+                "• pi3_tool → 3D spatial questions with multi-viewpoint images\n"
+                "  ⚠ NEVER call pi3 with azimuth=0, elevation=0 — it repeats your input images!\n"
+                "  Best approach: use elevation=45 (top-down) to understand the full 3D layout."
+            ),
+        }
+        tool_hint_lines = [hint for name, hint in _ROLE_TOOL_HINTS.items() if name in tool_name_set]
+
+        if tool_hint_lines:
+            role_prompt = (
+                "You are a helpful multimodal assistant. Analyze the image(s) carefully "
+                "and answer the question. Use tools when they add clear value:\n"
+                + "\n".join(tool_hint_lines)
+                + "\n\nAlways put your final answer inside <answer></answer> tags."
+            )
+        else:
+            role_prompt = (
+                "You are a helpful multimodal assistant. Analyze the image(s) carefully "
+                "and answer the question.\n\n"
+                "Always put your final answer inside <answer></answer> tags."
+            )
+
+        agent = SPAgent(
+            model=model_instance,
+            tools=tools,
+            max_workers=4,
+            system_prompt=role_prompt,
+            continuation_hint=build_general_vision_continuation_hint(tool_name_set),
+        )
 
     all_results = {}
 
@@ -1121,7 +1261,8 @@ def main():
         local_path = args.data_path if args.data_path and len(args.datasets) == 1 else None
 
         try:
-            ds = load_dataset(ds_name, limit, local_path=local_path)
+            ds = load_dataset(ds_name, limit, local_path=local_path,
+                              per_category=args.per_category)
         except Exception as exc:
             print(f"  [ERROR] Load failed: {exc}")
             all_results[ds_name] = {"error": str(exc)}
@@ -1141,6 +1282,7 @@ def main():
                 trace_dir=trace_dir,
                 max_iterations=args.max_iterations,
                 debug=args.debug,
+                num_video_frames=args.num_video_frames,
             )
         else:
             result = run_dataset(

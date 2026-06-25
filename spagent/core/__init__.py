@@ -23,6 +23,8 @@ from .data_collector import DataCollector, InferenceSample, SessionData
 from .memory import AgentMemory, MemoryEntry, StepResult
 from .prompts import (
     build_system_prompt,
+    build_general_vision_continuation_hint,
+    build_tool_selection_guide,
     TOOL_CALLING_BLOCK,
     SPATIAL_3D_ROLE,
     GENERAL_VISION_ROLE,
@@ -53,6 +55,8 @@ __all__ = [
     'StepResult',
     # Prompt utilities
     'build_system_prompt',
+    'build_general_vision_continuation_hint',
+    'build_tool_selection_guide',
     'TOOL_CALLING_BLOCK',
     'SPATIAL_3D_ROLE',
     'GENERAL_VISION_ROLE',

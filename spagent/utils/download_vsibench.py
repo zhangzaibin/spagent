@@ -1,113 +1,172 @@
 #!/usr/bin/env python3
 """
 下载VSI-Bench数据集并转换为JSONL格式
-VSI-Bench是一个视频空间推理数据集，视频文件需要从本地路径复制
+
+HuggingFace 仓库 nyu-visionx/VSI-Bench 中视频以三个 zip 包存储：
+  arkitscenes.zip / scannet.zip / scannetpp.zip
+
+本脚本：
+  1. 从 HF 下载这三个 zip（已存在则跳过）
+  2. 解压到 dataset/VSI_videos/
+  3. 把元数据转换为 JSONL 格式
 """
 
 from datasets import load_dataset
 import json
 import os
 import shutil
+import zipfile
 from collections import defaultdict
+
+HF_REPO = "nyu-visionx/VSI-Bench"
+# 视频来源：仓库中的 zip 包名称
+VIDEO_ZIPS = ["arkitscenes.zip", "scannet.zip", "scannetpp.zip"]
+
+
+def _download_and_extract_zips(target_video_folder: str, zip_cache_dir: str) -> bool:
+    """
+    从 HuggingFace 仓库下载三个视频 zip 包并解压到 target_video_folder。
+    zip_cache_dir: zip 文件本地缓存目录。
+    返回是否全部成功。
+    """
+    from huggingface_hub import hf_hub_download
+
+    os.makedirs(zip_cache_dir, exist_ok=True)
+    os.makedirs(target_video_folder, exist_ok=True)
+
+    all_ok = True
+    for zip_name in VIDEO_ZIPS:
+        dataset_name = zip_name.replace(".zip", "")
+        # 检查是否已经解压过（用一个 .done 标记文件）
+        done_marker = os.path.join(target_video_folder, f".{dataset_name}_extracted")
+        if os.path.exists(done_marker):
+            print(f"  ⏭️  {zip_name} 已解压，跳过")
+            continue
+
+        zip_local = os.path.join(zip_cache_dir, zip_name)
+
+        # ── 下载 zip ──────────────────────────────────────────────────────
+        if not os.path.exists(zip_local):
+            print(f"  ⬇️  下载 {zip_name} ...", flush=True)
+            try:
+                downloaded = hf_hub_download(
+                    repo_id=HF_REPO,
+                    filename=zip_name,
+                    repo_type="dataset",
+                    local_dir=zip_cache_dir,
+                )
+                if os.path.abspath(downloaded) != os.path.abspath(zip_local):
+                    shutil.move(downloaded, zip_local)
+                print(f"  ✅ 下载完成: {zip_name} ({os.path.getsize(zip_local)/1024/1024:.1f} MB)")
+            except Exception as e:
+                print(f"  ❌ 下载失败: {zip_name}: {e}")
+                all_ok = False
+                continue
+        else:
+            print(f"  ⏭️  {zip_name} 已缓存，直接解压")
+
+        # ── 解压 zip ──────────────────────────────────────────────────────
+        print(f"  📦 解压 {zip_name} → {target_video_folder} ...", flush=True)
+        try:
+            with zipfile.ZipFile(zip_local, 'r') as zf:
+                members = zf.namelist()
+                print(f"     包含 {len(members)} 个文件")
+                for member in members:
+                    # zip 内结构可能是 scene.mp4 或 subdir/scene.mp4
+                    basename = os.path.basename(member)
+                    if not basename.endswith(".mp4"):
+                        continue
+                    # 目标路径：{dataset_name}_{scene_name}.mp4
+                    target_name = f"{dataset_name}_{basename}"
+                    target_path = os.path.join(target_video_folder, target_name)
+                    if not os.path.exists(target_path):
+                        with zf.open(member) as src, open(target_path, 'wb') as dst:
+                            shutil.copyfileobj(src, dst)
+            # 写入完成标记
+            open(done_marker, 'w').close()
+            print(f"  ✅ 解压完成: {zip_name}")
+        except Exception as e:
+            print(f"  ❌ 解压失败: {zip_name}: {e}")
+            all_ok = False
+
+    return all_ok
+
 
 def download_vsibench(test_mode=False, max_samples=5, start_index=0):
     """下载VSI-Bench数据集并转换为JSONL格式"""
-    
+
     print(f"开始处理VSI-Bench数据集... {'(测试模式，从索引' + str(start_index) + '开始处理' + str(max_samples) + '条数据)' if test_mode else ''}")
-    
-    # 源视频文件夹路径
-    source_video_base = "dataset/VSI-Bench"
-    
-    # 目标文件夹路径
+
+    source_video_base = "dataset/VSI-Bench"   # 保留旧路径（本地手动复制仍可用）
     target_video_folder = "dataset/VSI_videos"
+    zip_cache_dir = "dataset/VSI-Bench-zips"
     dataset_folder = "dataset"
-    
-    print(f"源视频路径: {source_video_base}")
+
     print(f"目标视频文件夹: {os.path.abspath(target_video_folder)}")
-    
-    # 创建目标文件夹
+
     os.makedirs(dataset_folder, exist_ok=True)
     os.makedirs(target_video_folder, exist_ok=True)
-    
-    # 检查源文件夹是否存在
-    if not os.path.exists(source_video_base):
-        print(f"❌ 源视频文件夹不存在: {source_video_base}")
-        print("请确保VSI-Bench数据集已下载到指定路径")
-        return
-    
-    print(f"✅ 源文件夹存在，开始处理...")
-    
-    # 加载VSI-Bench数据集（从本地路径加载）
+    os.makedirs(source_video_base, exist_ok=True)
+
+    # ── 加载元数据 ────────────────────────────────────────────────────────────
     try:
-        # 先尝试从本地parquet文件加载
         parquet_path = os.path.join(source_video_base, "test-00000-of-00001.parquet")
         if os.path.exists(parquet_path):
             print(f"📂 从本地加载数据集: {parquet_path}")
             ds = load_dataset("parquet", data_files={"test": parquet_path})
-            test_data = ds['test']
-            print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
         else:
-            # 如果本地没有parquet文件，尝试从Hub加载
-            print(f"⚠️  本地parquet文件不存在，尝试从Hub加载...")
-            ds = load_dataset("nyu-visionx/VSI-Bench")
-            test_data = ds['test']
-            print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
+            print(f"⚠️  本地parquet文件不存在，从Hub加载...")
+            ds = load_dataset(HF_REPO)
+        test_data = ds['test']
+        print(f"✅ 数据集加载成功！数据量: {len(test_data)}")
     except Exception as e:
         print(f"❌ 加载数据集失败: {e}")
         return
-    
-    # 统计需要的视频文件
-    video_files_needed = set()
-    # 在测试模式下只处理指定范围的数据
+
     if test_mode:
         end_index = min(start_index + max_samples, len(test_data))
         process_data = [test_data[i] for i in range(start_index, end_index)]
     else:
         process_data = test_data
-    
+
+    # ── 统计需要的视频文件 ────────────────────────────────────────────────────
+    video_files_needed = set()
     for sample in process_data:
-        dataset_name = sample['dataset']
-        scene_name = sample['scene_name']
-        video_path = f"{dataset_name}/{scene_name}.mp4"
-        video_files_needed.add(video_path)
-    
+        video_files_needed.add(f"{sample['dataset']}/{sample['scene_name']}.mp4")
+
     print(f"📊 需要的视频文件数量: {len(video_files_needed)}")
-    
-    # 复制视频文件
-    copied_videos = set()
-    failed_videos = []
-    
-    print("📹 开始复制视频文件...")
-    for video_path in video_files_needed:
-        source_path = os.path.join(source_video_base, video_path)
-        target_path = os.path.join(target_video_folder, video_path.replace('/', '_'))
-        
-        # 创建目标子文件夹
-        target_dir = os.path.dirname(target_path)
-        if target_dir:
-            os.makedirs(target_dir, exist_ok=True)
-        
+
+    # ── 下载并解压 zip 包（主要下载路径） ─────────────────────────────────────
+    print("\n📹 从 HuggingFace 下载视频 zip 包...")
+    _download_and_extract_zips(target_video_folder, zip_cache_dir)
+
+    # ── 从旧的本地路径补充复制（兜底） ────────────────────────────────────────
+    for video_rel in sorted(video_files_needed):
+        target_path = os.path.join(target_video_folder, video_rel.replace('/', '_'))
+        if os.path.exists(target_path):
+            continue
+        source_path = os.path.join(source_video_base, video_rel)
         if os.path.exists(source_path):
             try:
-                if not os.path.exists(target_path):  # 避免重复复制
-                    shutil.copy2(source_path, target_path)
-                    print(f"  ✅ 复制: {video_path}")
-                else:
-                    print(f"  ⏭️  跳过: {video_path} (已存在)")
-                copied_videos.add(video_path)
-            except Exception as e:
-                print(f"  ❌ 复制失败: {video_path} - {e}")
-                failed_videos.append(video_path)
+                shutil.copy2(source_path, target_path)
+            except Exception:
+                pass
+
+    # ── 统计实际可用的视频 ────────────────────────────────────────────────────
+    copied_videos = set()
+    failed_videos = []
+    for video_rel in video_files_needed:
+        target_path = os.path.join(target_video_folder, video_rel.replace('/', '_'))
+        if os.path.exists(target_path):
+            copied_videos.add(video_rel)
         else:
-            print(f"  ❌ 源文件不存在: {source_path}")
-            failed_videos.append(video_path)
-    
-    print(f"\n📊 视频复制结果:")
-    print(f"  成功复制: {len(copied_videos)} 个")
-    print(f"  复制失败: {len(failed_videos)} 个")
-    
+            failed_videos.append(video_rel)
+
+    print(f"\n📊 视频获取结果:")
+    print(f"  成功: {len(copied_videos)} 个")
+    print(f"  失败: {len(failed_videos)} 个")
     if failed_videos:
-        print(f"  失败的视频: {failed_videos[:5]}..." if len(failed_videos) > 5 else f"  失败的视频: {failed_videos}")
+        print(f"  失败列表: {failed_videos[:5]}{'...' if len(failed_videos) > 5 else ''}")
     
     # 转换为JSONL格式
     print("\n📝 开始转换为JSONL格式...")

@@ -18,6 +18,7 @@ from .memory import AgentMemory, StepResult
 from .prompts import (
     create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt,
     SPATIAL_3D_CONTINUATION_HINT, GENERAL_VISION_CONTINUATION_HINT,
+    build_general_vision_continuation_hint,
     SPATIAL_3D_SYSTEM_PROMPT, GENERAL_VISION_SYSTEM_PROMPT,
     GENERATION_SYSTEM_PROMPT, GENERATION_CONTINUATION_HINT,
     TOOL_CALLING_BLOCK, build_system_prompt, create_all_tools_system_prompt,
@@ -638,6 +639,7 @@ class SPAgent:
           3. Built-in preset chosen by ``workflow_mode``
         """
         tools_json = _json.dumps(tool_schemas, indent=2)
+        tool_names = {s["function"]["name"] for s in tool_schemas}
 
         # ── all_tools workflow ────────────────────────────────────────────────
         if self.workflow_mode == "all_tools":
@@ -656,7 +658,7 @@ class SPAgent:
             continuation_hint = (
                 self.user_continuation_hint
                 if self.user_continuation_hint is not None
-                else GENERAL_VISION_CONTINUATION_HINT
+                else build_general_vision_continuation_hint(tool_names)
             )
             return system_prompt, continuation_hint, "custom"
 
@@ -666,7 +668,11 @@ class SPAgent:
             if workflow == "generation":
                 role, wf_block, hint = GENERATION_ROLE, GENERATION_WORKFLOW, GENERATION_CONTINUATION_HINT
             elif workflow == "general_vision":
-                role, wf_block, hint = GENERAL_VISION_ROLE, GENERAL_VISION_WORKFLOW, GENERAL_VISION_CONTINUATION_HINT
+                role, wf_block, hint = (
+                    GENERAL_VISION_ROLE,
+                    GENERAL_VISION_WORKFLOW,
+                    build_general_vision_continuation_hint(tool_names),
+                )
             else:
                 role, wf_block, hint = SPATIAL_3D_ROLE, SPATIAL_3D_WORKFLOW, SPATIAL_3D_CONTINUATION_HINT
             system_prompt = build_system_prompt(role, tools_json, workflow=wf_block)
