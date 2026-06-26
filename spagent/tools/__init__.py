@@ -7,7 +7,7 @@ for the SPAgent system.
 
 from .depth_tool import DepthEstimationTool
 from .segmentation_tool import SegmentationTool
-from .detection_tool import ObjectDetectionTool
+from .detection_tool import ObjectDetectionTool, ZoomObjectTool, LocalizeObjectTool
 from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
 from .yolo26_tool import YOLO26Tool
@@ -24,15 +24,29 @@ from .wan_tool import WanTool
 from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
 from .sana_tool import SanaTool
+<<<<<<< HEAD
 from .wilddet3d_tool import WildDet3DTool
 from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
+=======
+from .catalog import (
+    TOOL_CATALOG,
+    build_all_tools,
+    build_tools,
+    get_catalog_by_group,
+    list_catalog_keys,
+    list_catalog_tool_names,
+    resolve_tool_keys,
+)
+>>>>>>> spagentv05
 
 
 __all__ = [
     'DepthEstimationTool',
     'SegmentationTool',
     'ObjectDetectionTool',
+    'ZoomObjectTool',
+    'LocalizeObjectTool',
     'SupervisionTool',
     'YOLOETool',
     'YOLO26Tool',
@@ -49,7 +63,17 @@ __all__ = [
     'VaceTool',
     'OrientAnythingV2Tool',
     'SanaTool',
+<<<<<<< HEAD
     'WildDet3DTool',
     'FlowSeekTool',
     'PaddleOCRVLTool',
+=======
+    'TOOL_CATALOG',
+    'build_all_tools',
+    'build_tools',
+    'get_catalog_by_group',
+    'list_catalog_keys',
+    'list_catalog_tool_names',
+    'resolve_tool_keys',
+>>>>>>> spagentv05
 ]

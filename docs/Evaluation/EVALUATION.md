@@ -2,6 +2,12 @@
 
 > **中文版本**: [中文文档](EVALUATION_ZH.md) | **English Version**: This document
 
+This guide covers **dataset preparation**. For running evaluations once the data
+is ready, see:
+- [QUICK_EVAL.md](QUICK_EVAL.md) — the recommended multi-benchmark entry point (`scripts/quick_eval.py`)
+- [REPRODUCE.md](REPRODUCE.md) — the full end-to-end reproduction recipe
+- The per-tool scripts under `examples/evaluation/` (e.g. `evaluate_img.py`, `evaluate_pi3x.py`)
+
 All datasets need to be downloaded and converted to a unified JSONL format first. Each data entry in the JSONL file contains the following standard fields:
 - `id`: Unique identifier for the data sample
 - `image`: List of image paths (supports multiple images), empty if none
@@ -16,8 +22,31 @@ All datasets need to be downloaded and converted to a unified JSONL format first
 # Create sample data (optional, for quick testing)
 python dataset/create_json_sample.py --input_file dataset/ERQA_All_Data.jsonl --sample 30
 
-python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
+# Per-tool example evaluator (scripts live under examples/evaluation/)
+python examples/evaluation/evaluate_img.py \
+    --data_path dataset/BLINK_All_Tasks.jsonl \
+    --max_workers 4 \
+    --image_base_path dataset \
+    --model gpt-4o-mini
 ```
+
+## Dataset Overview
+
+| Dataset | Prep command | Output JSONL |
+|---------|--------------|--------------|
+| BLINK | `python spagent/utils/download_blink.py` | `dataset/BLINK_All_Tasks.jsonl` |
+| MindCube | `python spagent/utils/download_mindcube.py` | `dataset/MindCube_data.jsonl` |
+| CVBench | `python spagent/utils/cvbench_img.py` → `python spagent/utils/download_cvbench.py` | `dataset/CVBench*.jsonl` |
+| ERQA | `python spagent/utils/download_erqa.py` | `dataset/ERQA_All_Data.jsonl` |
+| VSI-Bench | `python spagent/utils/download_vsibench.py` | `dataset/VSI_Bench.jsonl` |
+| VLM4D | `python spagent/utils/download_vlm4d.py` | `dataset/VLM4D*.jsonl` |
+| Omni-Perspective | `python spagent/utils/download_Omni-Perspective.py` | `dataset/Omni_Perspective_All.jsonl` |
+| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI*.jsonl` |
+
+> **Note**: `MindCube` and `VSIBench` are wired into `scripts/quick_eval.py` directly
+> (use `--datasets MindCube` / `--datasets VSIBench`). The standard VLMEvalKit benchmarks
+> (MMStar, VStarBench, BLINK, …) are downloaded automatically by VLMEvalKit on first use —
+> see [QUICK_EVAL.md](QUICK_EVAL.md).
 
 ## 1. BLINK Dataset
 

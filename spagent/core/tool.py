@@ -7,6 +7,7 @@ external expert tools in the SPAgent system.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -129,11 +130,27 @@ class ToolRegistry:
         """
         return self._tools.copy()
     
-    def get_function_schemas(self) -> List[Dict[str, Any]]:
+    def get_function_schemas(self, compact: bool = False) -> List[Dict[str, Any]]:
         """
         Get OpenAI function schemas for all registered tools
+        
+        Args:
+            compact: When True, truncate each tool description to its first sentence.
         
         Returns:
             List of function schema dictionaries
         """
-        return [tool.to_function_schema() for tool in self._tools.values()] 
+        schemas = [tool.to_function_schema() for tool in self._tools.values()]
+        if not compact:
+            return schemas
+
+        compact_schemas: List[Dict[str, Any]] = []
+        for schema in schemas:
+            copied = json.loads(json.dumps(schema))
+            description = copied.get("function", {}).get("description", "")
+            if description:
+                first_sentence = description.split(".", 1)[0].strip()
+                if first_sentence:
+                    copied["function"]["description"] = first_sentence + "."
+            compact_schemas.append(copied)
+        return compact_schemas 

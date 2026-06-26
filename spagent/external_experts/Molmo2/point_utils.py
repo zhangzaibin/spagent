@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 _UNIFIED_COORD_RE = re.compile(r'<(?:points|tracks).*?coords="([0-9\t:;, .]+)"\s*/?>')
 _UNIFIED_FRAME_RE = re.compile(r'(?:^|\t|:|,|;)([0-9\.]+) ([0-9\. ]+)')
@@ -19,6 +19,10 @@ _LEGACY_POINT_PATTERNS = [
     re.compile(r"\(([0-9]+\.[0-9]),? ?([0-9]+\.[0-9])\)"),
     re.compile(r'x\d*="\s*([0-9]+(?:\.[0-9]+)?)"\s+y\d*="\s*([0-9]+(?:\.[0-9]+)?)"'),
 ]
+# Molmo2 <point x="..." y="..." alt="..."> tags — attributes can appear in any order.
+_MOLMO2_POINT_TAG_RE = re.compile(r'<point\b([^>]*?)/?>', re.IGNORECASE)
+_MOLMO2_ATTR_X_RE = re.compile(r'\bx="\s*([0-9]+(?:\.[0-9]+)?)"')
+_MOLMO2_ATTR_Y_RE = re.compile(r'\by="\s*([0-9]+(?:\.[0-9]+)?)"')
 
 
 def default_output_dir() -> Path:
@@ -80,15 +84,44 @@ def annotate_images_as_base64(
                 image = loaded_image.convert("RGB")
 
         draw = ImageDraw.Draw(image)
-        radius = max(4, int(max(image.size) * 0.01))
+        radius = max(12, int(max(image.size) * 0.03))
+        border = max(3, radius // 5)
+        line_w = max(2, radius // 5)
+        _MARKER_FILL = "rgb(240, 82, 156)"
+
+        try:
+            font_size = max(14, radius)
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
         for point_index, point in enumerate(group["points"], start=1):
-            x = point["x"]
-            y = point["y"]
+            x = int(round(point["x"]))
+            y = int(round(point["y"]))
+            label = str(point_index)
+
+            # outer white ring for contrast
+            draw.ellipse(
+                (x - radius - border, y - radius - border, x + radius + border, y + radius + border),
+                outline="white",
+                width=border,
+            )
+            # pink filled circle
             draw.ellipse(
                 (x - radius, y - radius, x + radius, y + radius),
-                fill="rgb(240, 82, 156)",
+                fill=_MARKER_FILL,
             )
-            draw.text((x + radius + 2, y - radius), str(point_index), fill="white")
+            # crosshair lines
+            draw.line([(x - radius, y), (x + radius, y)], fill="white", width=line_w)
+            draw.line([(x, y - radius), (x, y + radius)], fill="white", width=line_w)
+
+            # label with pink background box
+            bbox = draw.textbbox((0, 0), label, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            lx = x + radius + border + 2
+            ly = y - radius
+            draw.rectangle([lx - 2, ly - 2, lx + tw + 2, ly + th + 2], fill=_MARKER_FILL)
+            draw.text((lx, ly), label, fill="white", font=font)
 
         buffer = io.BytesIO()
         image.save(buffer, format="JPEG")
@@ -150,6 +183,20 @@ def _extract_unified_points(
 
 def _extract_legacy_points(text: str, width: int, height: int) -> List[Tuple[int, float, float]]:
     all_points: List[Tuple[int, float, float]] = []
+
+    # Molmo2 <point x="..." y="..." alt="..."> tags (attributes in any order)
+    for tag_match in _MOLMO2_POINT_TAG_RE.finditer(text):
+        attrs = tag_match.group(1)
+        x_m = _MOLMO2_ATTR_X_RE.search(attrs)
+        y_m = _MOLMO2_ATTR_Y_RE.search(attrs)
+        if x_m and y_m:
+            x, y = float(x_m.group(1)), float(y_m.group(1))
+            if max(x, y) <= 100:
+                all_points.append((1, x / 100.0 * width, y / 100.0 * height))
+
+    if all_points:
+        return all_points
+
     for pattern in _LEGACY_POINT_PATTERNS:
         for match in pattern.finditer(text):
             x = float(match.group(1))

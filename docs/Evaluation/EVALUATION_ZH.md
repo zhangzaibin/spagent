@@ -1,5 +1,12 @@
 # 图像数据集评测 (Image Dataset Evaluation)
 
+> **English Version**: [EVALUATION.md](EVALUATION.md) | **中文版本**: 本文档
+
+本文档讲解**数据集准备**。数据准备好之后如何运行评测，请参考：
+- [QUICK_EVAL_ZH.md](QUICK_EVAL_ZH.md) —— 推荐的多 benchmark 评测入口（`scripts/quick_eval.py`）
+- [REPRODUCE_ZH.md](REPRODUCE_ZH.md) —— 完整的端到端复现流程
+- `examples/evaluation/` 下的单工具脚本（如 `evaluate_img.py`、`evaluate_pi3x.py`）
+
 所有数据集都需要先下载并转换为统一的JSONL格式，其中jsonl中每条数据包含以下标准字段：
 - `id`: 数据样本的唯一标识符
 - `image`: 图片路径列表（支持多图像），若没有则为空
@@ -14,8 +21,32 @@
 # 创建样本数据（可选，用于快速测试）
 python dataset/create_json_sample.py --input_file dataset/ERQA_All_Data.jsonl --sample 30
 
-python evaluate_img.py --data_path dataset/BLINK_All_Tasks.jsonl --max_workers 4 --image_base_path dataset --model gpt-4o-mini
+# 单工具示例评测脚本（脚本位于 examples/evaluation/ 下）
+python examples/evaluation/evaluate_img.py \
+    --data_path dataset/BLINK_All_Tasks.jsonl \
+    --max_workers 4 \
+    --image_base_path dataset \
+    --model gpt-4o-mini
 ```
+
+## 数据集总览
+
+| 数据集 | 准备命令 | 输出 JSONL |
+|--------|----------|-----------|
+| BLINK | `python spagent/utils/download_blink.py` | `dataset/BLINK_All_Tasks.jsonl` |
+| MindCube | `python spagent/utils/download_mindcube.py` | `dataset/MindCube_data.jsonl` |
+| CVBench | `python spagent/utils/cvbench_img.py` → `python spagent/utils/download_cvbench.py` | `dataset/CVBench*.jsonl` |
+| ERQA | `python spagent/utils/download_erqa.py` | `dataset/ERQA_All_Data.jsonl` |
+| VSI-Bench | `python spagent/utils/download_vsibench.py` | `dataset/VSI_Bench.jsonl` |
+| VLM4D | `python spagent/utils/download_vlm4d.py` | `dataset/VLM4D*.jsonl` |
+| Omni-Perspective | `python spagent/utils/download_Omni-Perspective.py` | `dataset/Omni_Perspective_All.jsonl` |
+| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI*.jsonl` |
+
+> **说明**：`MindCube` 和 `VSIBench` 已直接接入 `scripts/quick_eval.py`
+> （用 `--datasets MindCube` / `--datasets VSIBench`）。标准的 VLMEvalKit benchmark
+> （MMStar、VStarBench、BLINK 等）会在首次使用时由 VLMEvalKit 自动下载，
+> 详见 [QUICK_EVAL_ZH.md](QUICK_EVAL_ZH.md)。
+
 ## 1. BLINK数据集
 
 ```bash

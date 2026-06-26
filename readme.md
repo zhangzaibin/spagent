@@ -29,6 +29,8 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 - [External Experts](#-external-experts)
 - [Installation & Setup](#️-installation--setup)
 - [Quick Start](#-quick-start)
+- [step() API and AgentMemory](#8-step-api-and-agentmemory)
+- [Evaluation](#-evaluation)
 - [Testing & Development](#-testing--development)
 - [Reinforcement Learning Training](#-reinforcement-learning-training)
 - [Important Notes](#️-important-notes)
@@ -38,7 +40,9 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Document | Description |
 |----------|-------------|
 | **[Tool Reference](docs/Tool/TOOL_USING.md)** | External expert tools API and deployment guide |
-| **[Evaluation Guide](docs/Evaluation/EVALUATION.md)** | Dataset download and evaluation usage |
+| **[Reproduce Results](docs/Evaluation/REPRODUCE.md)** | End-to-end recipe to reproduce benchmark numbers |
+| **[Quick Eval](docs/Evaluation/QUICK_EVAL.md)** | `quick_eval.py` reference, tools, and shell shortcuts |
+| **[Dataset Preparation](docs/Evaluation/EVALUATION.md)** | Per-benchmark dataset download and JSONL conversion |
 | **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** | Specialized agents, tool mixing, and RL training |
 
 ##  **SPAgent Features**
@@ -53,15 +57,23 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 - ✅ **Customizable System Prompt** - Per-agent prompt templates; built-in 3D spatial and general vision presets
 - ✅ **Flexible Configuration** - Easy to customize and extend
 - ✅ **Reinforcement Learning** - Support reinforcement learning
+- ✅ **Multimodal Agent Memory** - `AgentMemory` records every turn: text, images, tool calls, and tool results with output images
+- ✅ **Multi-turn Stateful Conversations** - Pass an `AgentMemory` across `step()` calls to maintain context; save/load sessions to disk
 
 ## 📂 Project Structure
 
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
+<<<<<<< HEAD
 | **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- ObjectDetectionTool<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **OrientAnythingV2Tool** (orientation & rotation estimation)<br>- **SanaTool** (text-to-image generation, local SGLang server)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation)<br>- **WildDet3DTool** (promptable 3D object detection, local, no server)<br>- **PaddleOCRVLTool** (document OCR & structured recognition, local or server port 20037) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
 | **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Promptable 3D Object Detection (**WildDet3D**, local, no server)<br>- Document OCR & Structured Recognition (**PaddleOCR-VL-1.5**, local or server port 20037)<br>- Each includes client/server implementations and can run as external APIs |
+=======
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- **ZoomObjectTool** (`zoom_object_tool`, GroundingDINO crop close-up for attribute inspection)<br>- **LocalizeObjectTool** (`localize_object_tool`, GroundingDINO bbox annotation for spatial/counting)<br>- ObjectDetectionTool (backward-compatible alias of `ZoomObjectTool`)<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation & rotation estimation)<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **SanaTool** (local Sana text-to-image generation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation) |
+| **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
+>>>>>>> spagentv05
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
 | **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode and optional live server checks<br>- Molmo2 expert unit tests (`test_molmo2_expert.py`) — mock service and HTTP client coverage<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
@@ -73,7 +85,7 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | --- | --- | --- | --- | --- |
 | **Depth-AnythingV2** | 2D | Monocular Depth Estimation | Local server (20019) | Convert 2D images to pixel-level depth maps |
 | **SAM2** | 2D | Image Segmentation | Local server (20020) | Segment Anything Model 2nd generation, interactive or automatic segmentation |
-| **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions |
+| **GroundingDINO** | 2D | Open-vocabulary Object Detection | Local server (20022) | Detect arbitrary objects based on text descriptions. Exposed as **two tools**: `zoom_object_tool` (crop a close-up of the detected region for attribute/color/text inspection) and `localize_object_tool` (draw labeled bounding boxes on the full image + return a position summary for spatial/counting questions). Both share adaptive threshold back-off (auto-retry at lower thresholds when nothing is found) and report "no region found ≠ object absent". |
 | **Moondream** | 2D | Vision Language Model | Local server (20024) | Small and efficient visual Q&A model, supports image description and Q&A |
 | **Molmo2** | 2D | Multimodal Reasoning & Point Grounding | Local server (20025) | Molmo2 service for `qa`, `caption`, and `point` tasks, with mock mode and optional annotated point outputs |
 | **Pi3** | 3D | 3D Point Cloud Reconstruction | Local server (20030) | Generate 3D point clouds and multi-view rendered images from images |
@@ -247,7 +259,9 @@ from spagent.models import GPTModel
 from spagent.tools import (
     DepthEstimationTool,      # Depth estimation
     SegmentationTool,         # Image segmentation  
-    ObjectDetectionTool,      # Object detection
+    ZoomObjectTool,           # GroundingDINO: crop close-up for attributes (color/text/texture)
+    LocalizeObjectTool,       # GroundingDINO: bbox annotation for spatial/counting
+    ObjectDetectionTool,      # Alias of ZoomObjectTool (backward compatibility)
     SupervisionTool,          # Supervision tool
     YOLOETool,                # YOLO-E detection
     MoondreamTool,            # Visual Q&A
@@ -261,7 +275,8 @@ model = GPTModel(model_name="gpt-4o-mini")
 tools = [
     DepthEstimationTool(use_mock=True),
     SegmentationTool(use_mock=True),
-    ObjectDetectionTool(use_mock=True),
+    ZoomObjectTool(use_mock=True),       # zoom into objects for attribute inspection
+    LocalizeObjectTool(use_mock=True),   # locate objects + draw boxes for spatial reasoning
     SupervisionTool(use_mock=True),
     YOLOETool(use_mock=True)
 ]
@@ -435,11 +450,77 @@ python examples/evaluation/evaluate_sana.py \
     --max_workers 1
 ```
 
-### 8. Image Dataset Evaluation
+### 8. `step()` API and AgentMemory
 
-For detailed image dataset evaluation usage guide, please refer to: **[Image Dataset Evaluation Usage Guide](docs/Evaluation/EVALUATION.md)**
+`step()` is the general-purpose entry point that replaces `solve_problem`. It accepts any text content and optional images, runs the tool loop, and returns a typed `StepResult`. The existing `solve_problem` is preserved as a backward-compatible wrapper.
 
-**Basic Evaluation Commands:**
+#### One-shot use (stateless)
+
+```python
+from spagent import SPAgent
+from spagent.models import GPTModel
+from spagent.tools import DepthEstimationTool
+
+agent = SPAgent(model=GPTModel(model_name="gpt-4o"), tools=[DepthEstimationTool(use_mock=True)])
+
+result = agent.step("Analyze the depth relationships in this scene.", images="photo.jpg")
+print(result.answer)          # final answer text
+print(result.used_tools)      # e.g. ["depth_estimation_tool_iter1"]
+print(result.additional_images)  # depth maps / vis images produced by tools
+```
+
+#### Multi-turn stateful conversation
+
+Pass a shared `AgentMemory` across calls — the agent accumulates context automatically.
+
+```python
+from spagent.core.memory import AgentMemory
+
+memory = AgentMemory()
+
+r1 = agent.step("Describe the scene.", images="photo.jpg", memory=memory)
+print(r1.answer)
+
+# Follow-up: memory carries the full history, no need to re-supply the image
+r2 = agent.step("Now estimate the depth of the main object.", memory=memory)
+print(r2.answer)
+
+# Inspect memory
+print(f"Total entries recorded: {len(memory)}")
+print(f"All images produced by tools: {memory.get_all_images()}")
+print(f"Tool calls made: {[e.metadata['tool_name'] for e in memory.get_tool_calls()]}")
+```
+
+#### Persist and restore a session
+
+```python
+# Save session to disk (images stored as file paths, not raw bytes)
+memory.save("session.json")
+
+# Restore in a later run
+memory = AgentMemory.load("session.json")
+r3 = agent.step("What objects did we identify earlier?", memory=memory)
+print(r3.answer)
+```
+
+#### `StepResult` fields
+
+| Field | Type | Description |
+|---|---|---|
+| `answer` | `str` | Final answer text (may contain `<answer>` tags) |
+| `memory` | `AgentMemory` | Updated memory after this step |
+| `tool_calls` | `List[Dict]` | All tool-call dicts made this step |
+| `tool_results` | `Dict[str, Any]` | Mapping of `tool_name_iterN → result` |
+| `used_tools` | `List[str]` | Names of tools that succeeded |
+| `additional_images` | `List[str]` | All image paths produced by tools |
+| `iterations` | `int` | Number of tool-call iterations performed |
+| `prompts` | `Dict[str, str]` | Key prompts used (system, user, workflow label) |
+
+### 9. Image Dataset Evaluation
+
+For detailed evaluation usage guide, please refer to: **[Evaluation Guide](docs/Evaluation/EVALUATION.md)**
+
+**Basic Evaluation Commands (legacy per-dataset scripts):**
 
 ```bash
 # Normal evaluation
@@ -484,6 +565,54 @@ python examples/evaluation/evaluate_sora.py \
 
 For more advanced usage patterns, specialized agents, tool mixing strategies, video analysis, and reinforcement learning training, please refer to: **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)**
 
+## 📊 Evaluation
+
+`scripts/quick_eval.py` is the unified evaluation entry point. It runs SPAgent over
+VLMEvalKit-registered benchmarks and local datasets (MindCube, VSIBench) with automatic
+routing, automatic resuming, and per-sample traces.
+
+📖 **Full guides live in [`docs/Evaluation/`](docs/Evaluation/):**
+
+| Guide | Contents |
+|-------|----------|
+| **[REPRODUCE.md](docs/Evaluation/REPRODUCE.md)** | End-to-end recipe: env → tool servers → data → run → read scores |
+| **[QUICK_EVAL.md](docs/Evaluation/QUICK_EVAL.md)** | `quick_eval.py` reference, all `--tools`, and the shell-script shortcuts |
+| **[EVALUATION.md](docs/Evaluation/EVALUATION.md)** | Per-benchmark dataset download & JSONL conversion |
+
+**60-second smoke test** (no tool servers required):
+
+```bash
+# Single quick check
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets MMStar --limit 5
+
+# No-tools baseline across all benchmarks
+bash scripts/eval_no_tools.sh
+```
+
+**With tools** (start the servers first — see [REPRODUCE.md](docs/Evaluation/REPRODUCE.md)):
+
+```bash
+# GroundingDINO zoom + localize
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini --tools zoom localize \
+    --datasets MMStar VStarBench --limit 50 \
+    --detection-url http://localhost:20022
+
+# Full perception + spatial stack via the shell wrapper
+MODEL=gpt-4.1 DATASETS="MindCube MMStar VStarBench BLINK" LIMIT=200 \
+  bash scripts/eval_all_tools.sh
+```
+
+**Ready-to-run wrappers** in `scripts/` (every knob is an env var — see [QUICK_EVAL.md](docs/Evaluation/QUICK_EVAL.md)):
+`eval_no_tools.sh`, `eval_all_tools.sh`, `eval_detection_only.sh`, `eval_detection_pi3x.sh`,
+`eval_molmo2_only.sh`, `eval_pi3x_only.sh`.
+
+**Outputs** are written to `outputs/vlmeval_runs/<model_tag>/<dataset>/`
+(`*_quick_summary.json` for scores, `*.xlsx` for predictions) with per-sample traces under
+`outputs/spagent_traces/`.
+
+---
+
 ## 🧪 Testing & Development
 
 ### Direct Tool Testing (without LLM Agent)
@@ -498,7 +627,7 @@ python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --eleva
 python test/test_tool.py --tool pi3x --image assets/dog.jpeg --azimuth 45 --elevation -30
 
 # Specify a custom server address
-python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --elevation -30 --server_url http://10.7.8.94:20030
+python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --elevation -30 --server_url http://localhost:20030
 
 # Use first-person camera view mode
 python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 90 --elevation 0 --camera_view
@@ -583,7 +712,8 @@ python test/test_prompt.py --case 3d        # 3D spatial prompt
 tools = [
     DepthEstimationTool(use_mock=False, server_url="http://localhost:20019"),
     SegmentationTool(use_mock=False, server_url="http://localhost:20020"),
-    ObjectDetectionTool(use_mock=False, server_url="http://localhost:30969")
+    ZoomObjectTool(use_mock=False, server_url="http://localhost:20022"),      # crop close-up
+    LocalizeObjectTool(use_mock=False, server_url="http://localhost:20022"),  # bbox on full image
 ]
 ```
 

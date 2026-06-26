@@ -94,7 +94,7 @@ Full end-to-end smoke test: extracts frames from a video, passes them to an
 `SPAgent` configured with `Pi3Tool`, and prints the final answer.
 
 Requires:
-- Pi3 server running at `http://10.7.8.94:20030`
+- Pi3 server running at `http://localhost:20030` (override with `--server_url`)
 - A valid video file at `dataset/VLM4D_videos/synthetic_synth_216.mp4`
 - `OPENAI_API_KEY` set in environment
 

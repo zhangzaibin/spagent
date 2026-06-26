@@ -489,6 +489,7 @@ def evaluate_tool_config(
     temperature: float = 0.0,
     seed: int = 42,
     top_p: float = 1.0,
+    num_frames: int = 7,
 ) -> Dict[str, Any]:
     """Evaluate a specific tool configuration
     
@@ -551,18 +552,14 @@ def evaluate_tool_config(
             # Image sample
             result = evaluate_single_sample(agent, sample, image_base_path, config_name, max_iterations)
         elif has_video and not has_image:
-            # Video sample
-            if sample['data_source'] == "VSI-Bench":
-                num_frames = 7  # Uniformly sample 10 frames
-                pi3_num_frames = 7  # Use more frames for pi3 reconstruction
-            elif sample['data_source'] == "VLM4D":
-                num_frames = 7  # Uniformly sample 10 frames
-                pi3_num_frames = 7  # Use more frames for pi3 reconstruction
-            else:
-                num_frames = 7
-                pi3_num_frames = 7
-                print(f"The num_frames parameter has not been specified for the {sample['data_source']} dataset yet, and the default value of 10 will be adopted")
-            result = evaluate_single_video(agent, sample, image_base_path, num_frames=num_frames, pi3_num_frames=pi3_num_frames, config_name=config_name, max_iterations=max_iterations)
+            # Video sample — num_frames is controlled by the caller
+            result = evaluate_single_video(
+                agent, sample, image_base_path,
+                num_frames=num_frames,
+                pi3_num_frames=num_frames,
+                config_name=config_name,
+                max_iterations=max_iterations,
+            )
         else:
             # Invalid sample
             result = {

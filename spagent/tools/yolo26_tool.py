@@ -32,9 +32,12 @@ class YOLO26Tool(Tool):
         super().__init__(
             name="yolo26_tool",
             description=(
-                "Run YOLO26 object detection on an image. "
-                "Use this when you need bounding boxes, class labels, and confidence scores "
-                "for objects in an image."
+                "Run fast local YOLO26 object detection on one image. Returns bounding boxes, class labels, "
+                "and confidence scores; can save an annotated visualization.\n\n"
+                "When to use: quick detection of common object classes without writing a text prompt.\n"
+                "When NOT to use: rare/custom object names (prefer detect_objects_tool or yoloe_detection_tool), "
+                "segmentation masks, or 3D reasoning.\n"
+                "Example: image_path='kitchen.jpg', conf=0.25 to list visible appliances and furniture."
             )
         )
         self.model_path = model_path

@@ -1,8 +1,9 @@
 """
-Molmo2 Tool — vision-language inference via the Molmo2 HTTP expert (or mock).
+Molmo2 Tool — visual point grounding via the Molmo2 HTTP expert (or mock).
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Molmo2Tool(Tool):
-    """Vision-language tasks (qa, caption, point) using a Molmo2 Transformers server."""
+    """Point-grounding tool: locates objects in an image and returns annotated overlays."""
 
     def __init__(
         self,
@@ -26,13 +27,17 @@ class Molmo2Tool(Tool):
         super().__init__(
             name="molmo2_tool",
             description=(
-                "Molmo2: image QA, captioning, or pointing (point parses model output and can save overlays). "
-                "Requires Molmo2 server unless use_mock=True."
+                "Molmo2 point-grounding tool. Given a natural-language instruction, it locates the "
+                "described object or region in the image and returns an annotated overlay image "
+                "showing the exact position with a marked point. "
+                "Always use a short reasoning sentence as the prompt, e.g. "
+                "'Point to the object the robot should grasp next.' or "
+                "'Point to the item that does not belong with the others.'"
             ),
         )
         self.use_mock = use_mock
         self.server_url = server_url
-        self.output_dir = output_dir
+        self.output_dir = output_dir or os.environ.get("MOLMO2_OUTPUT_DIR")
         self._client = None
         self._init_client()
 
@@ -84,13 +89,13 @@ class Molmo2Tool(Tool):
         )
 
         if self.use_mock:
-            # Legacy point regex requires decimals, e.g. Click(50.0, 50.0)
             raw_text = "Click(50.0, 50.0)"
         else:
             gen = self._generate_text(paths[0], prompt, max_new_tokens)
             if not gen.get("success"):
                 return {"success": False, "error": gen.get("error", "generation failed")}
             raw_text = gen.get("text", "")
+
         sizes: List[tuple] = []
         for p in paths:
             with Image.open(p) as im:
@@ -116,7 +121,21 @@ class Molmo2Tool(Tool):
         elif save_annotated and not points:
             logger.warning("point task: no parseable points in model output")
 
-        return {"success": True, "result": result, "output_path": output_path, "response_text": raw_text[:500]}
+        saved = result.get("saved_paths", [])
+        description = (
+            f"Molmo2 pointed to {len(points)} location(s). Annotated image attached."
+            if points
+            else "Molmo2 found no parseable point coordinates in the model output."
+        )
+        return {
+            "success": True,
+            "result": result,
+            "output_path": output_path,
+            "vis_path": output_path,
+            "crop_paths": saved[1:] if len(saved) > 1 else [],
+            "description": description,
+            "response_text": raw_text[:500],
+        }
 
     @property
     def parameters(self) -> Dict[str, Any]:
@@ -125,31 +144,37 @@ class Molmo2Tool(Tool):
             "properties": {
                 "image_path": {
                     "type": "string",
-                    "description": "Path to the input image (or use list in code for multi-image).",
+                    "description": "Path to the input image.",
                 },
-                "task": {
+                "prompt": {
                     "type": "string",
-                    "enum": ["qa", "caption", "point"],
-                    "description": "qa: answer a question; caption: describe; point: grounding (parses coords).",
+                    "description": (
+                        "A short reasoning sentence describing what to point to. "
+                        "Do NOT just name an object — phrase it as a task, e.g. "
+                        "'Point to the object the robot should grasp next.' or "
+                        "'Point to the ripest fruit on the table.' or "
+                        "'Point to the item that is out of place.' "
+                        "This lets the model apply scene understanding before pointing."
+                    ),
                 },
-                "prompt": {"type": "string", "description": "Question, caption hint, or pointing instruction."},
                 "save_annotated": {
                     "type": "boolean",
-                    "description": "For task=point, save JPEG overlay(s) with marked points.",
+                    "description": "Save a JPEG overlay with the marked point(s). Default true.",
                     "default": True,
                 },
                 "max_new_tokens": {"type": "integer", "default": 200},
             },
-            "required": ["image_path"],
+            "required": ["image_path", "prompt"],
         }
 
     def call(
         self,
         image_path: Union[str, List[str]],
-        task: str = "qa",
         prompt: Optional[str] = None,
         save_annotated: bool = True,
         max_new_tokens: int = 200,
+        # keep task kwarg for backward compat but ignore it — always point
+        task: str = "point",
     ) -> Dict[str, Any]:
         paths = self._normalize_paths(image_path)
         for p in paths:
@@ -157,42 +182,10 @@ class Molmo2Tool(Tool):
                 return {"success": False, "error": f"Image file not found: {p}"}
 
         out_base = Path(self.output_dir) if self.output_dir else None
+        use_prompt = prompt or "Point to the most salient object in the image."
 
         try:
-            if task == "caption":
-                use_prompt = prompt or "Describe this image."
-                eff_task = "caption"
-            elif task == "qa":
-                use_prompt = prompt or "What do you see in this image? Answer briefly."
-                eff_task = "qa"
-            elif task == "point":
-                use_prompt = prompt or (
-                    "Point to the requested location. Output pointing coordinates in the model's standard format."
-                )
-                return self._run_point(paths, use_prompt, save_annotated, max_new_tokens, out_base)
-            else:
-                return {"success": False, "error": f"Unknown task: {task}"}
-
-            if self.use_mock:
-                gen_text = f"[mock] {use_prompt[:120]} on {Path(paths[0]).name}"
-                return {
-                    "success": True,
-                    "result": {"task": eff_task, "generated_text": gen_text, "prompt": use_prompt},
-                    "response_text": gen_text,
-                }
-
-            assert self._client is not None
-            remote = self._client.infer_path(paths[0], prompt=use_prompt, max_new_tokens=max_new_tokens)
-            if not remote.get("success"):
-                return {"success": False, "error": remote.get("error", "Unknown error")}
-
-            gen_text = remote.get("text", "")
-            return {
-                "success": True,
-                "result": {"task": eff_task, "generated_text": gen_text, "prompt": use_prompt},
-                "response_text": gen_text,
-                "raw": remote,
-            }
+            return self._run_point(paths, use_prompt, save_annotated, max_new_tokens, out_base)
         except Exception as e:
             logger.exception("Molmo2 tool error")
             return {"success": False, "error": str(e)}

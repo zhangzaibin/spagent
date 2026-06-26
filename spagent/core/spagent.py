@@ -8,18 +8,23 @@ using external expert tools and VLLM models.
 import json
 import re
 import logging
-import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Optional, Union
 from pathlib import Path
 
 from .tool import Tool, ToolRegistry
 from .model import Model
+from .memory import AgentMemory, StepResult
 from .prompts import (
     create_system_prompt, create_follow_up_prompt, create_user_prompt, create_fallback_prompt,
     SPATIAL_3D_CONTINUATION_HINT, GENERAL_VISION_CONTINUATION_HINT,
+    build_general_vision_continuation_hint,
     SPATIAL_3D_SYSTEM_PROMPT, GENERAL_VISION_SYSTEM_PROMPT,
     GENERATION_SYSTEM_PROMPT, GENERATION_CONTINUATION_HINT,
+    TOOL_CALLING_BLOCK, build_system_prompt, create_all_tools_system_prompt,
+    SPATIAL_3D_ROLE, GENERAL_VISION_ROLE, GENERATION_ROLE,
+    SPATIAL_3D_WORKFLOW, GENERAL_VISION_WORKFLOW, GENERATION_WORKFLOW,
+    ALL_TOOLS_CONTINUATION_HINT,
 )
 import json as _json
 from .data_collector import DataCollector
@@ -53,15 +58,18 @@ class SPAgent:
             tools: List of external expert tools (optional)
             max_workers: Maximum number of parallel tool executions
             data_collector: Optional DataCollector for training data collection
-            system_prompt: Optional system prompt template string.
-                If provided it overrides the default 3D-spatial prompt built by
-                ``create_system_prompt``.  The string may contain a
-                ``{tools_json}`` placeholder which will be replaced with the
-                JSON-serialised tool schemas at inference time.  If no
-                placeholder is present the tools block is appended automatically.
-                Use the ``SPATIAL_3D_SYSTEM_PROMPT`` or
-                ``GENERAL_VISION_SYSTEM_PROMPT`` constants from
-                ``spagent.core.prompts`` as starting points.
+            system_prompt: Optional *role* prompt that describes what the agent
+                is and what it should do.  The tool-calling block (tool list +
+                ``<tool_call>`` wire format) is **always appended automatically**,
+                so you do not need to include it here.  Example::
+
+                    agent = SPAgent(model=..., system_prompt="You are a robot navigation assistant.")
+
+                For full control over all three layers (role + tools + workflow),
+                call ``build_system_prompt()`` from ``spagent.core.prompts`` and
+                pass the result here.  Legacy strings that already contain a
+                ``{tools_json}`` placeholder are treated as full templates and
+                substituted directly (backward-compatible).
             continuation_hint: Optional next-step instructions injected into
                 every multi-step continuation prompt (iteration 2+).
                 If None, auto-selects: GENERAL_VISION_CONTINUATION_HINT when
@@ -71,6 +79,7 @@ class SPAgent:
                 - "default": preserve existing behavior
                 - "auto": automatically choose between spatial_3d, general_vision,
                   and generation workflows based on tools, images, and task text
+                - "all_tools": use the all-tools role, selection guide, and workflow
         """
         self.model = model
         self.tool_registry = ToolRegistry()
@@ -127,118 +136,149 @@ class SPAgent:
         self.model = model
         logger.info(f"Updated model to: {model.model_name}")
     
-    def solve_problem(
-        self, 
-        image_path: Union[str, List[str]], 
-        question: str,
-        max_iterations: int = 3,
+    def step(
+        self,
+        content: str,
+        images: Optional[Union[str, List[str]]] = None,
+        memory: Optional[AgentMemory] = None,
+        system_prompt: Optional[str] = None,
+        max_tool_iterations: int = 3,
+        max_images_in_context: int = 6,
         video_path: Optional[str] = None,
         pi3_num_frames: int = 7,
-        use_baseline_comparison: bool = False,
         video_num_frames: int = 4,
-        **model_kwargs
-    ) -> Dict[str, Any]:
+        use_baseline_comparison: bool = False,
+        **model_kwargs,
+    ) -> StepResult:
         """
-        Solve a spatial intelligence problem
-        
+        Execute a single agent step: perceive → reason → act → update memory.
+
+        This is the primary entry point for all agent interactions.  It can be
+        called once for a self-contained query (stateless) or repeatedly with
+        the same ``memory`` object to build a multi-turn conversation (stateful).
+
         Args:
-            image_path: Path to image or list of image paths
-            question: User's question about the image(s)
-            max_iterations: Maximum number of tool-call iterations (default: 1)
-            video_path: Optional path to original video (for pi3 tool re-sampling)
-            pi3_num_frames: Number of frames to uniformly sample for pi3 tool (default 10)
-            use_baseline_comparison: If True, run a naive baseline (no tools) in parallel
-                                    and synthesize final answer from both results (default: False)
-            video_num_frames: Number of frames to uniformly sample from a tool-generated video
-                              and pass back to the model (default: 4)
-            **model_kwargs: Additional arguments for model inference
-            
+            content:               Text instruction or question for this step.
+            images:                Input image path(s) for this step.  May be
+                                   ``None`` for text-only tasks.
+            memory:                An existing :class:`AgentMemory` to append to.
+                                   When ``None`` a fresh memory is created, giving
+                                   stateless (one-shot) behavior.
+            system_prompt:         Optional *role* prompt that overrides the
+                                   agent-level default for this step only.
+                                   Provide just the role / task description —
+                                   the tool-calling block and workflow are appended
+                                   automatically.  Use ``build_system_prompt()``
+                                   from ``spagent.core.prompts`` when you need
+                                   full control over all three layers.
+            max_tool_iterations:   Maximum number of tool-call iterations within
+                                   this single step (default: 3).
+            max_images_in_context: Maximum number of images sent to the model per
+                                   inference call. Original input images are always
+                                   kept; only the most recent tool outputs fill the
+                                   remaining budget (default: 6).
+            video_path:            Optional path to original video (used to
+                                   re-sample frames for the pi3 tool).
+            pi3_num_frames:        Number of frames to uniformly sample for the
+                                   pi3 tool when ``video_path`` is provided.
+            video_num_frames:      Number of frames to extract from tool-generated
+                                   video outputs before feeding them back to the
+                                   model (default: 4).
+            use_baseline_comparison: When ``True``, a naive (no-tool) baseline
+                                   answer is obtained the first time tool calls
+                                   are detected and later synthesized with the
+                                   tool-enhanced answer.
+            **model_kwargs:        Extra keyword arguments forwarded to every
+                                   model inference call.
+
         Returns:
-            Dictionary containing:
-            - answer: Final answer text
-            - initial_response: Model's initial response
-            - tool_calls: List of tool calls made
-            - tool_results: Results from tool execution
-            - used_tools: List of tools that were used
-            - additional_images: List of additional images generated by tools
-            - iterations: Number of iterations performed
-            - baseline_answer: Naive baseline answer (if use_baseline_comparison=True)
+            A :class:`StepResult` containing the final answer, the updated
+            memory, and full trace information (tool calls, results, images,
+            iteration count, prompts).
         """
-        logger.info(f"Starting problem solving for question: {question} (max_iterations={max_iterations})")
-        
-        # Validate inputs
-        if isinstance(image_path, str):
-            image_paths = [image_path]
+        if memory is None:
+            memory = AgentMemory()
+
+        # Normalize image input
+        if images is None:
+            image_paths: List[str] = []
+        elif isinstance(images, str):
+            image_paths = [images]
         else:
-            image_paths = image_path
-        
+            image_paths = list(images)
+
         for path in image_paths:
             if not Path(path).exists():
                 raise FileNotFoundError(f"Image not found: {path}")
-        
+
+        logger.info(
+            f"Starting step: content={content!r}, images={image_paths}, "
+            f"max_tool_iterations={max_tool_iterations}"
+        )
+
         # Start data collection session if enabled
         if self.data_collector:
-            self.data_collector.start_session(question, image_paths)
-        
-        # Create system prompt with available tools
+            self.data_collector.start_session(content, image_paths)
+
+        # Resolve system prompt, continuation hint, and workflow label
         tool_schemas = self.tool_registry.get_function_schemas()
-        system_prompt, active_continuation_hint, active_workflow = self._resolve_workflow_prompts(
-            question=question,
+        system_prompt_str, active_continuation_hint, active_workflow = self._resolve_workflow_prompts(
+            question=content,
             image_paths=image_paths,
             tool_schemas=tool_schemas,
+            role_prompt_override=system_prompt,
         )
-        # system_prompt += '\nThis time, you need to call the function anyway in <tool_call></tool_call> format.' # Debug Only!
-        user_prompt = create_user_prompt(question, image_paths, tool_schemas)
-        
-        # Initialize tracking variables for multi-step workflow
-        all_tool_calls = []
-        all_tool_results = {}
-        all_additional_images = []
-        all_successful_tools = []
-        current_images = image_paths
-        initial_response = None
-        last_response = None
+        system_prompt = system_prompt_str  # rebind to local for rest of step
+        user_prompt = create_user_prompt(content, image_paths, tool_schemas)
+        logger.info(
+            "System prompt size: %d chars (~%d tokens), tools=%d, workflow=%s",
+            len(system_prompt),
+            len(system_prompt) // 4,
+            len(tool_schemas),
+            active_workflow,
+        )
+
+        # Record system and user turns in memory
+        memory.add_system(system_prompt)
+        memory.add_user_turn(content, images=image_paths)
+
+        # Per-step tracking (not stored in memory directly, used to build StepResult)
+        all_tool_calls: List[Dict[str, Any]] = []
+        all_tool_results: Dict[str, Any] = {}
+        all_additional_images: List[str] = []
+        all_successful_tools: List[str] = []
+        current_images = image_paths if image_paths else []
         iteration = 0
-        baseline_answer = None  # For naive baseline comparison
-        baseline_triggered = False  # Track if baseline has been triggered
-        
-        # Multi-step workflow loop
-        while iteration < max_iterations:
+        baseline_answer = None
+        baseline_triggered = False
+
+        # ----------------------------------------------------------------
+        # Tool-call iteration loop
+        # ----------------------------------------------------------------
+        while iteration < max_tool_iterations:
             iteration += 1
-            logger.info(f"=== Iteration {iteration}/{max_iterations} ===")
-            
-            # Step 1: Get model response
+            logger.info(f"=== Iteration {iteration}/{max_tool_iterations} ===")
+
             if iteration == 1:
-                # First iteration: use initial prompt
                 prompt = system_prompt + "\n\n" + user_prompt
                 logger.info("Getting initial model response...")
             else:
-                # Subsequent iterations: create continuation prompt
-                prompt = self._create_continuation_prompt(
-                    question, 
-                    last_response, 
-                    all_tool_results, 
-                    image_paths,
-                    all_additional_images,
-                    iteration,
-                    max_iterations
+                prompt = memory.build_prompt_context(
+                    current_iteration=iteration,
+                    max_iterations=max_tool_iterations,
+                    continuation_hint=active_continuation_hint,
                 )
                 logger.info(f"Getting continuation response for iteration {iteration}...")
-            
+
             current_response = self._run_model_inference(
-                current_images,
-                prompt,
-                **model_kwargs
+                current_images, prompt, **model_kwargs
             )
-            
             logger.info(f"Response: {current_response}")
-            
-            # Save initial response
-            if iteration == 1:
-                initial_response = current_response
-            last_response = current_response
-            
-            # Record inference data if collection is enabled
+
+            # Record assistant turn in memory
+            memory.add_assistant_turn(current_response, metadata={"iteration": iteration})
+
+            # Record inference in data collector if enabled
             if self.data_collector:
                 self.data_collector.record_inference(
                     iteration=iteration,
@@ -248,85 +288,122 @@ class SPAgent:
                     context={
                         "tool_calls_history": all_tool_calls,
                         "tool_results_history": all_tool_results,
-                        "additional_images_history": all_additional_images
-                    }
+                        "additional_images_history": all_additional_images,
+                    },
                 )
-            
-            # Step 2: Parse tool calls from response
+
+            # Parse tool calls from the response
             tool_calls = self._parse_tool_calls(current_response)
-            
-            # Trigger naive baseline if enabled and tool calls detected
+
+            # Optionally trigger naive baseline on first tool use
             if use_baseline_comparison and tool_calls and not baseline_triggered:
                 baseline_triggered = True
-                logger.info("Tool calls detected - triggering naive baseline agent...")
-                baseline_answer = self._get_naive_baseline_answer(image_paths, question, **model_kwargs)
+                logger.info("Tool calls detected — triggering naive baseline agent...")
+                baseline_answer = self._get_naive_baseline_answer(
+                    image_paths, content, **model_kwargs
+                )
                 logger.info(f"Naive baseline answer: {baseline_answer}")
-            
-            # Check if response has <answer> tags (indicating completion)
+
             has_answer = self._has_answer_tags(current_response)
-            
+
             if not tool_calls:
                 logger.info(f"No tool calls found in iteration {iteration}")
-                if has_answer or iteration == max_iterations:
+                if has_answer or iteration == max_tool_iterations:
                     logger.info("Ending workflow: final answer provided or max iterations reached")
                     break
-                # If no tool calls and no answer, continue to next iteration
                 continue
-            
-            # Step 3: Execute tools
+
+            # Execute tools
             logger.info(f"Executing {len(tool_calls)} tool calls in iteration {iteration}...")
-            tool_results = self._execute_tools(tool_calls, video_path=video_path, pi3_num_frames=pi3_num_frames)
-            
-            # Step 4: Collect results
-            iteration_additional_images = []
+            tool_results = self._execute_tools(
+                tool_calls, video_path=video_path, pi3_num_frames=pi3_num_frames
+            )
+
+            # Collect output images and record everything in memory
+            iteration_additional_images: List[str] = []
             for tool_name, result in tool_results.items():
-                if result.get('success'):
+                output_images: List[str] = []
+                if result.get("success"):
                     all_successful_tools.append(f"{tool_name}_iter{iteration}")
-                    # Collect additional images
-                    if 'output_path' in result and result['output_path'] is not None:
-                        out_path = result['output_path']
+                    if result.get("output_path") is not None:
+                        out_path = result["output_path"]
                         if Path(out_path).exists():
-                            if Path(out_path).suffix.lower() == '.mp4':
-                                # Generated video: extract frames uniformly and use them
+                            if Path(out_path).suffix.lower() == ".mp4":
                                 frame_paths = self._extract_video_frames(out_path, video_num_frames)
-                                logger.info(f"Extracted {len(frame_paths)} frames from generated video: {out_path}")
+                                logger.info(
+                                    f"Extracted {len(frame_paths)} frames from generated video: {out_path}"
+                                )
                                 iteration_additional_images.extend(frame_paths)
+                                output_images.extend(frame_paths)
                             else:
                                 iteration_additional_images.append(out_path)
-                    if 'vis_path' in result and result['vis_path'] is not None:
-                        if Path(result['vis_path']).exists():
-                            iteration_additional_images.append(result['vis_path'])
-            
-            # Update tracking variables
+                                output_images.append(out_path)
+                    if result.get("vis_path") is not None and Path(result["vis_path"]).exists():
+                        iteration_additional_images.append(result["vis_path"])
+                        output_images.append(result["vis_path"])
+                    if result.get("crop_paths"):
+                        for crop_path in result["crop_paths"]:
+                            if Path(crop_path).exists():
+                                iteration_additional_images.append(crop_path)
+                                output_images.append(crop_path)
+
+                # Record each tool call + result pair in memory
+                for tc in tool_calls:
+                    if tc["name"] == tool_name:
+                        memory.add_tool_call(
+                            tool_name=tool_name,
+                            arguments=tc["arguments"],
+                            iteration=iteration,
+                        )
+                        break
+                memory.add_tool_result(
+                    tool_name=tool_name,
+                    result=result,
+                    output_images=output_images,
+                    iteration=iteration,
+                )
+
+            # Update step-level accumulators
             all_tool_calls.extend(tool_calls)
-            all_tool_results.update({f"{k}_iter{iteration}": v for k, v in tool_results.items()})
+            all_tool_results.update(
+                {f"{k}_iter{iteration}": v for k, v in tool_results.items()}
+            )
             all_additional_images.extend(iteration_additional_images)
-            
-            # Update current images for next iteration
+
+            # Update current_images for next iteration (respect image budget)
             if iteration_additional_images:
-                # Combine original images with ALL accumulated images (not just current iteration)
-                # This ensures all previously generated images are available for next iteration
-                valid_all_images = self._sort_additional_images_by_input_order(image_paths, all_additional_images)
+                valid_all_images = self._sort_additional_images_by_input_order(
+                    image_paths, all_additional_images
+                )
                 if valid_all_images:
-                    # Keep original images + all accumulated additional images for comprehensive analysis
-                    current_images = image_paths + valid_all_images
-                # else: keep current_images unchanged
-            
-            # Check if we should stop (has answer tag and we're not forcing more iterations)
-            if has_answer and iteration < max_iterations:
-                logger.info(f"Answer provided in iteration {iteration}, but continuing workflow if more tool calls exist")
-        
-        # Generate final response if needed
+                    current_images = self._apply_image_budget(
+                        image_paths,
+                        valid_all_images,
+                        max_images_in_context,
+                    )
+
+            if has_answer and iteration < max_tool_iterations:
+                logger.info(
+                    f"Answer provided in iteration {iteration}, "
+                    "but continuing workflow if more tool calls exist"
+                )
+
+        # ----------------------------------------------------------------
+        # Post-loop: generate final response if needed
+        # ----------------------------------------------------------------
+        last_response = memory.get_last_assistant_text() or ""
+
         if not self._has_answer_tags(last_response) and all_successful_tools:
             logger.info("Generating final response...")
             tool_description = None
             if all_tool_results:
                 last_result = list(all_tool_results.values())[-1]
-                if last_result.get('description'):
-                    tool_description = last_result.get('description')
-            
+                if last_result.get("description"):
+                    tool_description = last_result["description"]
+
+            initial_response = memory.get_first_assistant_text() or last_response
             follow_up_prompt = create_follow_up_prompt(
-                question,
+                content,
                 initial_response,
                 all_tool_results,
                 image_paths,
@@ -334,20 +411,17 @@ class SPAgent:
                 tool_description,
                 continuation_hint=active_continuation_hint,
             )
-            
-            valid_additional_images = self._sort_additional_images_by_input_order(image_paths, all_additional_images)
-            final_images = valid_additional_images if valid_additional_images else image_paths
-            
-            final_response = self._run_model_inference(
-                final_images,
-                follow_up_prompt,
-                **model_kwargs
+            valid_additional_images = self._sort_additional_images_by_input_order(
+                image_paths, all_additional_images
             )
-            
-            # Record final synthesis inference if collection is enabled
+            final_images = valid_additional_images if valid_additional_images else (image_paths or current_images)
+
+            final_response = self._run_model_inference(final_images, follow_up_prompt, **model_kwargs)
+            memory.add_assistant_turn(final_response, metadata={"type": "final_synthesis"})
+
             if self.data_collector:
                 self.data_collector.record_inference(
-                    iteration=iteration + 1,  # Final synthesis is an additional step
+                    iteration=iteration + 1,
                     images=final_images,
                     prompt=follow_up_prompt,
                     response=final_response,
@@ -355,21 +429,18 @@ class SPAgent:
                         "type": "final_synthesis",
                         "tool_calls_history": all_tool_calls,
                         "tool_results_history": all_tool_results,
-                        "additional_images_history": all_additional_images
-                    }
+                        "additional_images_history": all_additional_images,
+                    },
                 )
-                
+
         elif not self._has_answer_tags(last_response):
-            # Generate fallback if no answer tags
             logger.warning("No answer tags found, generating fallback response")
-            fallback_prompt = create_fallback_prompt(question, last_response)
+            fallback_prompt = create_fallback_prompt(content, last_response)
             final_response = self._run_model_inference(
-                current_images,
-                fallback_prompt,
-                **model_kwargs
+                current_images, fallback_prompt, **model_kwargs
             )
-            
-            # Record fallback inference if collection is enabled
+            memory.add_assistant_turn(final_response, metadata={"type": "fallback"})
+
             if self.data_collector:
                 self.data_collector.record_inference(
                     iteration=iteration + 1,
@@ -379,52 +450,52 @@ class SPAgent:
                     context={
                         "type": "fallback",
                         "tool_calls_history": all_tool_calls,
-                        "tool_results_history": all_tool_results
-                    }
+                        "tool_results_history": all_tool_results,
+                    },
                 )
         else:
             final_response = last_response
-        
-        # Synthesize final answer with baseline comparison if enabled
+
+        # Optional baseline synthesis
         if use_baseline_comparison and baseline_answer is not None:
             logger.info("Synthesizing final answer from tool-based and baseline responses...")
-            baseline_response = final_response  # Save pre-synthesis response
+            pre_synthesis_response = final_response
             final_response = self._synthesize_with_baseline(
-                question, 
-                final_response, 
-                baseline_answer, 
+                content,
+                final_response,
+                baseline_answer,
                 image_paths,
                 all_additional_images,
-                **model_kwargs
+                **model_kwargs,
             )
-            
-            # Record baseline synthesis inference if collection is enabled
+            memory.add_assistant_turn(final_response, metadata={"type": "baseline_synthesis"})
+
             if self.data_collector:
-                valid_additional_images = self._sort_additional_images_by_input_order(image_paths, all_additional_images)
+                valid_additional_images = self._sort_additional_images_by_input_order(
+                    image_paths, all_additional_images
+                )
                 final_images = valid_additional_images if valid_additional_images else image_paths
                 self.data_collector.record_inference(
-                    iteration=iteration + 2,  # Baseline synthesis is an additional step
+                    iteration=iteration + 2,
                     images=final_images,
-                    prompt=f"Synthesizing tool-based and baseline answers for: {question}",
+                    prompt=f"Synthesizing tool-based and baseline answers for: {content}",
                     response=final_response,
                     context={
                         "type": "baseline_synthesis",
-                        "tool_based_answer": baseline_response,
+                        "tool_based_answer": pre_synthesis_response,
                         "baseline_answer": baseline_answer,
                         "tool_calls_history": all_tool_calls,
-                        "tool_results_history": all_tool_results
-                    }
+                        "tool_results_history": all_tool_results,
+                    },
                 )
-        
+
         # Clean up temporary pi3 frames
         self._cleanup_pi3_frames()
-        
-        # End data collection session if enabled
+
+        # End data collection session
         if self.data_collector:
-            # Extract final answer from response
             extracted_answer = self._extract_answer(final_response)
-            success = extracted_answer is not None  # Success if we have an answer
-            
+            success = extracted_answer is not None
             self.data_collector.end_session(
                 success=success,
                 final_answer=extracted_answer or final_response,
@@ -433,25 +504,99 @@ class SPAgent:
                     "iterations": iteration,
                     "num_tool_calls": len(all_tool_calls),
                     "used_tools": all_successful_tools,
-                    "num_additional_images": len(all_additional_images)
-                }
+                    "num_additional_images": len(all_additional_images),
+                },
             )
-        
-        return {
-            "answer": final_response,
-            "initial_response": initial_response or final_response,
-            "tool_calls": all_tool_calls,
-            "tool_results": all_tool_results,
-            "used_tools": all_successful_tools,
-            "additional_images": all_additional_images,
-            "iterations": iteration,
-            "baseline_answer": baseline_answer,  # Naive baseline answer (if enabled)
-            "prompts": {
+
+        return StepResult(
+            answer=final_response,
+            memory=memory,
+            tool_calls=all_tool_calls,
+            tool_results=all_tool_results,
+            used_tools=all_successful_tools,
+            additional_images=all_additional_images,
+            iterations=iteration,
+            prompts={
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
-                "follow_up_prompt": None,  # This is now handled in continuation prompts
+                "follow_up_prompt": None,
                 "workflow": active_workflow,
-            }
+            },
+        )
+
+    def solve_problem(
+        self,
+        image_path: Union[str, List[str]],
+        question: str,
+        max_iterations: int = 3,
+        video_path: Optional[str] = None,
+        pi3_num_frames: int = 7,
+        use_baseline_comparison: bool = False,
+        video_num_frames: int = 4,
+        **model_kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Solve a spatial intelligence problem.
+
+        This is a backward-compatible wrapper around :meth:`step`.  All existing
+        callers (evaluation scripts, examples) continue to receive the same
+        dictionary-shaped return value.
+
+        Args:
+            image_path:            Path to image or list of image paths.
+            question:              User's question about the image(s).
+            max_iterations:        Maximum number of tool-call iterations (default: 3).
+            video_path:            Optional path to original video (for pi3 re-sampling).
+            pi3_num_frames:        Frames to uniformly sample for the pi3 tool.
+            use_baseline_comparison: Run a naive baseline and synthesize with the
+                                   tool-enhanced answer (default: False).
+            video_num_frames:      Frames to extract from tool-generated videos.
+            **model_kwargs:        Additional arguments forwarded to model inference.
+
+        Returns:
+            Dictionary containing:
+            - answer:           Final answer text.
+            - initial_response: Model's first response.
+            - tool_calls:       List of tool calls made.
+            - tool_results:     Results from tool execution.
+            - used_tools:       List of tools that succeeded.
+            - additional_images:List of images produced by tools.
+            - iterations:       Number of iterations performed.
+            - baseline_answer:  Naive baseline answer (if use_baseline_comparison=True).
+            - prompts:          Dict of key prompts used.
+        """
+        result = self.step(
+            content=question,
+            images=image_path,
+            max_tool_iterations=max_iterations,
+            video_path=video_path,
+            pi3_num_frames=pi3_num_frames,
+            use_baseline_comparison=use_baseline_comparison,
+            video_num_frames=video_num_frames,
+            **model_kwargs,
+        )
+
+        initial_response = result.memory.get_first_assistant_text() or result.answer
+        baseline_answer = None
+        for entry in reversed(result.memory.get_by_role("assistant")):
+            if entry.metadata.get("type") == "baseline_synthesis":
+                # baseline_answer is stored in the tool result metadata, not directly in memory;
+                # recover it from the StepResult via the pre-synthesis path — we expose it
+                # through the data_collector context but not in StepResult fields.  To keep
+                # backward compatibility we leave it as None when not accessible.
+                break
+
+        return {
+            "answer": result.answer,
+            "initial_response": initial_response,
+            "tool_calls": result.tool_calls,
+            "tool_results": result.tool_results,
+            "used_tools": result.used_tools,
+            "additional_images": result.additional_images,
+            "iterations": result.iterations,
+            "baseline_answer": baseline_answer,
+            "prompts": result.prompts,
+            "memory_entries": [e.to_dict() for e in result.memory.entries],
         }
 
     def _run_model_inference(
@@ -483,34 +628,58 @@ class SPAgent:
         question: str,
         image_paths: List[str],
         tool_schemas: List[Dict[str, Any]],
+        role_prompt_override: Optional[str] = None,
     ) -> tuple[str, str, str]:
         """
         Resolve the active system prompt, continuation hint, and workflow label.
+
+        Priority order for the role prompt:
+          1. ``role_prompt_override``  — per-step argument to ``step()``
+          2. ``self.system_prompt_template``  — agent-level default
+          3. Built-in preset chosen by ``workflow_mode``
         """
-        if self.system_prompt_template is not None:
-            system_prompt = self._render_system_prompt_template(self.system_prompt_template, tool_schemas)
+        tools_json = _json.dumps(tool_schemas, indent=2)
+        tool_names = {s["function"]["name"] for s in tool_schemas}
+
+        # ── all_tools workflow ────────────────────────────────────────────────
+        if self.workflow_mode == "all_tools":
+            system_prompt = create_all_tools_system_prompt(tool_schemas)
             continuation_hint = (
                 self.user_continuation_hint
                 if self.user_continuation_hint is not None
-                else GENERAL_VISION_CONTINUATION_HINT
+                else ALL_TOOLS_CONTINUATION_HINT
+            )
+            return system_prompt, continuation_hint, "all_tools"
+
+        # ── per-step or agent-level custom role prompt ───────────────────────
+        role_prompt = role_prompt_override or self.system_prompt_template
+        if role_prompt is not None:
+            system_prompt = self._render_role_prompt(role_prompt, tools_json)
+            continuation_hint = (
+                self.user_continuation_hint
+                if self.user_continuation_hint is not None
+                else build_general_vision_continuation_hint(tool_names)
             )
             return system_prompt, continuation_hint, "custom"
 
+        # ── auto workflow selection ───────────────────────────────────────────
         if self.workflow_mode == "auto":
             workflow = self._select_workflow(question, image_paths)
             if workflow == "generation":
-                template = GENERATION_SYSTEM_PROMPT
-                hint = GENERATION_CONTINUATION_HINT
+                role, wf_block, hint = GENERATION_ROLE, GENERATION_WORKFLOW, GENERATION_CONTINUATION_HINT
             elif workflow == "general_vision":
-                template = GENERAL_VISION_SYSTEM_PROMPT
-                hint = GENERAL_VISION_CONTINUATION_HINT
+                role, wf_block, hint = (
+                    GENERAL_VISION_ROLE,
+                    GENERAL_VISION_WORKFLOW,
+                    build_general_vision_continuation_hint(tool_names),
+                )
             else:
-                template = SPATIAL_3D_SYSTEM_PROMPT
-                hint = SPATIAL_3D_CONTINUATION_HINT
-            system_prompt = self._render_system_prompt_template(template, tool_schemas)
+                role, wf_block, hint = SPATIAL_3D_ROLE, SPATIAL_3D_WORKFLOW, SPATIAL_3D_CONTINUATION_HINT
+            system_prompt = build_system_prompt(role, tools_json, workflow=wf_block)
             continuation_hint = self.user_continuation_hint if self.user_continuation_hint is not None else hint
             return system_prompt, continuation_hint, workflow
 
+        # ── default: spatial_3d ───────────────────────────────────────────────
         system_prompt = create_system_prompt(tool_schemas)
         continuation_hint = (
             self.user_continuation_hint
@@ -519,19 +688,26 @@ class SPAgent:
         )
         return system_prompt, continuation_hint, "spatial_3d"
 
-    def _render_system_prompt_template(
+    def _render_role_prompt(
         self,
-        template: str,
-        tool_schemas: List[Dict[str, Any]],
+        role_prompt: str,
+        tools_json: str,
     ) -> str:
-        tools_json = _json.dumps(tool_schemas, indent=2)
-        if "{tools_json}" in template:
-            return template.replace("{tools_json}", tools_json)
-        tools_block = (
-            f"\n# Tools\nYou have access to the following tools:\n"
-            f"<tools>\n{tools_json}\n</tools>\n"
-        )
-        return template + tools_block
+        """
+        Render a user-supplied role prompt into a complete system prompt.
+
+        Two cases:
+        * The prompt already contains ``{tools_json}`` — it is a legacy
+          full-template; substitute the placeholder and return as-is.
+        * The prompt is a plain role description — automatically append the
+          full tool-calling block (tool list + ``<tool_call>`` wire format)
+          so the model always knows how to invoke tools.
+        """
+        if "{tools_json}" in role_prompt:
+            # Legacy full-template: trust the user's structure
+            return role_prompt.replace("{tools_json}", tools_json)
+        # Pure role description: append tool-calling instructions
+        return build_system_prompt(role_prompt, tools_json, workflow=None)
 
     def _select_workflow(self, question: str, image_paths: List[str]) -> str:
         """
@@ -578,6 +754,39 @@ class SPAgent:
             return "spatial_3d"
 
         return "general_vision"
+
+    def _apply_image_budget(
+        self,
+        image_paths: List[str],
+        additional_images: List[str],
+        max_images_in_context: int,
+    ) -> List[str]:
+        """
+        Keep all original input images and only the most recent tool outputs
+        that fit within the image budget.
+        """
+        if max_images_in_context <= 0:
+            return image_paths
+
+        remaining = max(0, max_images_in_context - len(image_paths))
+        if remaining <= 0:
+            logger.info(
+                "Image budget reached by input images alone (%d); dropping tool images",
+                len(image_paths),
+            )
+            return image_paths
+
+        if len(additional_images) <= remaining:
+            return image_paths + additional_images
+
+        trimmed = additional_images[-remaining:]
+        logger.info(
+            "Image budget applied: kept %d/%d tool images (max=%d total)",
+            len(trimmed),
+            len(additional_images),
+            max_images_in_context,
+        )
+        return image_paths + trimmed
     
     def _parse_tool_calls(self, response: str) -> List[Dict[str, Any]]:
         """
@@ -859,83 +1068,6 @@ class SPAgent:
             return match.group(1).strip()
         return None
     
-    def _create_continuation_prompt(
-        self, 
-        question: str, 
-        last_response: str, 
-        all_tool_results: Dict[str, Any],
-        original_images: List[str],
-        additional_images: List[str],
-        current_iteration: int,
-        max_iterations: int
-    ) -> str:
-        """
-        Create continuation prompt for multi-step workflow
-        
-        Args:
-            question: Original user question
-            last_response: Last model response
-            all_tool_results: All tool results so far
-            original_images: Original image paths
-            additional_images: All additional images generated
-            current_iteration: Current iteration number
-            max_iterations: Maximum iterations allowed
-            
-        Returns:
-            Continuation prompt string
-        """
-        tool_summary = []
-        angle_info = []
-        
-        for tool_name, result in all_tool_results.items():
-            if result.get('success'):
-                tool_summary.append(f"- {tool_name}: Successfully executed")
-                
-                # Extract angle information if available
-                if 'azimuth_angle' in result and 'elevation_angle' in result:
-                    azim = result.get('azimuth_angle')
-                    elev = result.get('elevation_angle')
-                    angle_info.append(f"  └─ Viewing angle: azimuth={azim}°, elevation={elev}°")
-                
-                if result.get('description'):
-                    tool_summary.append(f"  Description: {result.get('description')}")
-            else:
-                tool_summary.append(f"- {tool_name}: Failed - {result.get('error', 'Unknown error')}")
-        
-        tool_summary_text = "\n".join(tool_summary) if tool_summary else "None yet"
-        angle_info_text = "\n".join(angle_info) if angle_info else ""
-        
-        original_images_info = "\n".join([f"- {path}" for path in original_images]) if original_images else "None"
-        additional_images_info = "\n".join([f"- {path}" for path in additional_images]) if additional_images else "None yet"
-        
-        remaining = max_iterations - current_iteration
-        
-        prompt = f"""=== Multi-Step Analysis: Iteration {current_iteration}/{max_iterations} ===
-
-Original Question: {question}
-
-Your Previous Response: 
-{last_response}
-
-Tool Execution Summary:
-{tool_summary_text}
-{angle_info_text}
-
-Original Images:
-{original_images_info}
-
-Generated Images Available for Analysis:
-{additional_images_info}
-
-=== Next Steps ===
-
-You have {remaining} more iteration(s) available.
-
-{self.continuation_hint}
-
-Please continue:"""
-        
-        return prompt
     def _extract_video_frames(self, video_path: str, num_frames: int = 4) -> List[str]:
         """Uniformly sample frames from a video file and save them as JPEG images.
 
