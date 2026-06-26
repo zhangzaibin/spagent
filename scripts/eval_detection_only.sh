@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # ============================================================
-#  eval_detection_pi3x.sh
-#  Run quick_eval.py with the GroundingDINO tools plus the
-#  Pi3X 3D reconstruction tool.
+#  eval_detection_only.sh
+#  Run quick_eval.py with the GroundingDINO tools only.
 #
 #  Tools enabled (override via TOOLS=...):
-#    zoom      — zoom_object_tool:     crop close-up for attributes
-#    localize  — localize_object_tool: bboxes for spatial / counting
-#    pi3x      — pi3x_tool:            3D reconstruction with custom viewpoints
+#    zoom      — zoom_object_tool:     crop close-up for attribute
+#                inspection (color / texture / text)
+#    localize  — localize_object_tool: draw bboxes on the full image
+#                for spatial / counting questions
 #
 #  Usage:
-#    bash scripts/eval_detection_pi3x.sh
-#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval_detection_pi3x.sh
-#    DATASETS="MindCube VStarBench" bash scripts/eval_detection_pi3x.sh
-#    TOOLS="zoom pi3x" bash scripts/eval_detection_pi3x.sh        # subset
+#    bash scripts/eval_detection_only.sh
+#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval_detection_only.sh
+#    TOOLS="zoom" bash scripts/eval_detection_only.sh            # zoom only
+#    DATASETS="VStarBench HRBench4K HRBench8K" bash scripts/eval_detection_only.sh
 # ============================================================
 
 source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"
@@ -21,12 +21,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"
 # ── Script-specific defaults ────────────────────────────────
 DATASETS="${DATASETS:-MMStar}"
 LIMIT="${LIMIT:-50}"
-TOOLS="${TOOLS:-zoom localize pi3x}"
+TOOLS="${TOOLS:-zoom localize}"
 
-eval_print_header "eval_detection_pi3x.sh" \
+eval_print_header "eval_detection_only.sh" \
     "Tools     : ${TOOLS}" \
-    "Detection : ${DETECTION_URL}" \
-    "Pi3X      : ${PI3X_URL}"
+    "Detection : ${DETECTION_URL}"
 
 python scripts/quick_eval.py \
     --model            "${MODEL}" \
@@ -40,5 +39,4 @@ python scripts/quick_eval.py \
     --work-dir         "${WORK_DIR}" \
     --trace-dir        "${TRACE_DIR}" \
     --detection-url    "${DETECTION_URL}" \
-    --pi3x-url         "${PI3X_URL}" \
     "$@"

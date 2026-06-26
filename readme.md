@@ -40,7 +40,9 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Document | Description |
 |----------|-------------|
 | **[Tool Reference](docs/Tool/TOOL_USING.md)** | External expert tools API and deployment guide |
-| **[Evaluation Guide](docs/Evaluation/EVALUATION.md)** | Dataset download and evaluation usage |
+| **[Reproduce Results](docs/Evaluation/REPRODUCE.md)** | End-to-end recipe to reproduce benchmark numbers |
+| **[Quick Eval](docs/Evaluation/QUICK_EVAL.md)** | `quick_eval.py` reference, tools, and shell shortcuts |
+| **[Dataset Preparation](docs/Evaluation/EVALUATION.md)** | Per-benchmark dataset download and JSONL conversion |
 | **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** | Specialized agents, tool mixing, and RL training |
 
 ##  **SPAgent Features**
@@ -63,12 +65,9 @@ We introduce **SPAgent**, a foundation agent designed for perception, reasoning,
 | Module | Path | Description |
 |--------|------|-------------|
 | **SPAgent Core** | `spagent/core/` | Core agent architecture:<br>- SPAgent class and agent logic<br>- Tool base classes and registry<br>- Model base classes and wrappers<br>- Unified prompt system (built-in `SPATIAL_3D_SYSTEM_PROMPT` / `GENERAL_VISION_SYSTEM_PROMPT` templates, fully customisable via `system_prompt` parameter)<br>- Data collection utilities |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- **ZoomObjectTool** (`zoom_object_tool`, GroundingDINO crop close-up for attribute inspection)<br>- **LocalizeObjectTool** (`localize_object_tool`, GroundingDINO bbox annotation for spatial/counting)<br>- ObjectDetectionTool (backward-compatible alias of `ZoomObjectTool`)<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation) |
+| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- **ZoomObjectTool** (`zoom_object_tool`, GroundingDINO crop close-up for attribute inspection)<br>- **LocalizeObjectTool** (`localize_object_tool`, GroundingDINO bbox annotation for spatial/counting)<br>- ObjectDetectionTool (backward-compatible alias of `ZoomObjectTool`)<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation & rotation estimation)<br>- **YOLO26Tool** (local YOLO26 object detection, no server needed)<br>- **SanaTool** (local Sana text-to-image generation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based)<br>- **WanTool** (Alibaba Wan, API-based)<br>- **VaceTool** (local Wan2.1-VACE first-frame video generation) |
 | **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
-| **Tools** | `spagent/tools/` | Modular expert tool implementations:<br>- DepthEstimationTool<br>- SegmentationTool<br>- **ZoomObjectTool** / **LocalizeObjectTool** (GroundingDINO zoom + localize; `ObjectDetectionTool` is an alias of `ZoomObjectTool`)<br>- SupervisionTool<br>- YOLOETool<br>- MoondreamTool<br>- **Molmo2Tool** (multimodal reasoning and point grounding)<br>- Pi3Tool<br>- Pi3XTool<br>- VGGTTool<br>- MapAnythingTool<br>- **OrientAnythingV2Tool** (orientation \& rotation estimation)<br>- **VeoTool** (Google Veo, API-based)<br>- **SoraTool** (OpenAI Sora, API-based) |
-| **Models** | `spagent/models/` | Model wrappers for different backends:<br>- GPTModel (OpenAI API)<br>- QwenModel (DashScope API)<br>- QwenVLLMModel (local VLLM) |
-| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora**, API-based, no local server needed)<br>- Each includes client/server implementations and can run as external APIs |
+| **External Experts** | `spagent/external_experts/` | Specialized expert models with client/server architecture:<br>- Depth Estimation (**Depth-AnythingV2**)<br>- Image/Video Segmentation (**SAM2**)<br>- Open-vocabulary Detection (**GroundingDINO** / **Qwen2.5-VL**)<br>- Vision Language Model (**Moondream** / **Molmo2**)<br>- 3D Point Cloud Reconstruction (**Pi3** / **Pi3X**)<br>- Multi-view 3D Reconstruction & Pose Estimation (**VGGT**)<br>- Dense 3D Reconstruction via Depth Estimation (**MapAnything**)<br>- YOLO-E Detection & Annotation (**Supervision**)<br>- Object Orientation & Rotation Estimation (**OrientAnythingV2**, NeurIPS 2025 Spotlight)<br>- Image Generation (**Sana**, local SGLang server)<br>- Video Generation (**Veo** / **Sora** / **WAN**, API-based, no local server needed)<br>- Local Video Generation (**VACE**, Wan2.1-VACE first-frame pipeline, local server)<br>- Each includes client/server implementations and can run as external APIs |
 | **VLLM Models** | `spagent/vllm_models/` | VLLM inference utilities and wrappers:<br>- GPT API wrapper<br>- Qwen API wrapper<br>- Local VLLM inference for Qwen models |
 | **Examples** | `examples/` | Example scripts and usage tutorials:<br>- Evaluation scripts for datasets<br>- Quick start examples<br>- Tool definition examples |
 | **Test** | `test/` | Test scripts for tools and models:<br>- Direct tool testing without LLM Agent (`test_tool.py`) — supports Pi3, Depth, Segmentation, Detection, Molmo2, Veo, Sora<br>- Molmo2 tool testing (`test_molmo2_tool.py`) — mock mode and optional live server checks<br>- Molmo2 expert unit tests (`test_molmo2_expert.py`) — mock service and HTTP client coverage<br>- Orient Anything V2 tool testing (`test_orient_anything_v2_tool.py`) — mock & real server modes<br>- Pi3 tool testing with video frame extraction (`test_pi3_llm.py`)<br>- System prompt construction verification (`test_prompt.py`) |
@@ -481,255 +480,49 @@ For more advanced usage patterns, specialized agents, tool mixing strategies, vi
 
 ## 📊 Evaluation
 
-SPAgent provides two complementary evaluation approaches:
+`scripts/quick_eval.py` is the unified evaluation entry point. It runs SPAgent over
+VLMEvalKit-registered benchmarks and local datasets (MindCube, VSIBench) with automatic
+routing, automatic resuming, and per-sample traces.
 
-| Approach | Script | Best for |
-|----------|--------|----------|
-| **quick_eval.py** | `scripts/quick_eval.py` | Multi-benchmark sweeps; MindCube / VSIBench; automated resuming |
-| **evaluate_all_tools.py** | `examples/evaluation/evaluate_all_tools.py` | Custom JSONL datasets; per-sample detailed traces |
+📖 **Full guides live in [`docs/Evaluation/`](docs/Evaluation/):**
 
----
+| Guide | Contents |
+|-------|----------|
+| **[REPRODUCE.md](docs/Evaluation/REPRODUCE.md)** | End-to-end recipe: env → tool servers → data → run → read scores |
+| **[QUICK_EVAL.md](docs/Evaluation/QUICK_EVAL.md)** | `quick_eval.py` reference, all `--tools`, and the shell-script shortcuts |
+| **[EVALUATION.md](docs/Evaluation/EVALUATION.md)** | Per-benchmark dataset download & JSONL conversion |
 
-### quick_eval.py — Multi-Benchmark Evaluation
-
-`scripts/quick_eval.py` is the unified evaluation entry point. It supports VLMEvalKit-registered benchmarks, and local datasets (MindCube, VSIBench) with automatic routing — no configuration change needed.
-
-**Supported datasets:**
-
-| Type | Names |
-|------|-------|
-| Local (spatial) | `MindCube`, `VSIBench` |
-| VLMEvalKit | `MMStar` `VStarBench` `BLINK` `MMMU_DEV_VAL` `MathVista_MINI` `MMBench_dev_en` `RealWorldQA` `ScienceQA_VAL` `HRBench4K` `HRBench8K` `MathVerse_MINI` `WeMath` `LogicVista` `MMMU_Pro_10c` `DynaMath` |
-
-**Quick commands:**
+**60-second smoke test** (no tool servers required):
 
 ```bash
-# No-tools baseline (MindCube + 3 standard benchmarks, 50 samples each)
-python scripts/quick_eval.py \
-    --model gpt-4.1-mini \
-    --datasets MindCube MMStar VStarBench BLINK \
-    --limit 50
+# Single quick check
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets MMStar --limit 5
 
-# With tools (Pi3X + GroundingDINO zoom/localize + SAM2 + Depth + Moondream)
-python scripts/quick_eval.py \
-    --model gpt-4.1-mini \
-    --tools pi3x zoom localize segmentation depth moondream \
-    --datasets MindCube MMStar BLINK \
-    --limit 50 \
-    --pi3x-url      http://127.0.0.1:20031 \
-    --detection-url http://127.0.0.1:20022 \
-    --segmentation-url http://127.0.0.1:20020 \
-    --depth-url     http://127.0.0.1:20019 \
-    --moondream-url http://127.0.0.1:20024
-
-# MindCube only — full set, no sample limit
-python scripts/quick_eval.py \
-    --model gpt-4.1-mini \
-    --datasets MindCube
-
-# MindCube tinybench (fast smoke test)
-python scripts/quick_eval.py \
-    --model gpt-4.1-mini \
-    --datasets MindCube \
-    --mindcube-path dataset/mindcube/data/raw/MindCube_tinybench.jsonl \
-    --limit 50
-
-# Use Qwen model (auto-detected from name)
-python scripts/quick_eval.py \
-    --model Qwen2.5-VL-7B-Instruct \
-    --datasets MindCube MMStar \
-    --limit 50
-```
-
-**All available `--tools` values:**
-
-| `--tools` key | Tool | Default port |
-|--------------|------|-------------|
-| `pi3x` | Pi3X 3D reconstruction | 20031 |
-| `pi3` | Pi3 3D reconstruction | 20030 |
-| `orient` | Orient Anything V2 | 20034 |
-| `zoom` | GroundingDINO — `zoom_object_tool` (crop close-up for attributes) | 20022 |
-| `localize` | GroundingDINO — `localize_object_tool` (bbox annotation for spatial/counting) | 20022 |
-| `detection` | GroundingDINO — alias of `zoom` (backward compatibility) | 20022 |
-| `segmentation` | SAM2 | 20020 |
-| `depth` | Depth Anything V2 | 20019 |
-| `moondream` | Moondream | 20024 |
-| `molmo2` | Molmo2 | 20025 |
-| `sana` | Sana (image gen) | 30000 |
-| `veo` | Veo (video gen) | — (Gemini API) |
-| `vggt` | VGGT | 20032 |
-| `mapanything` | MapAnything | 20033 |
-
-**Outputs** (written to `outputs/vlmeval_runs/<model_tag>/<dataset>/`):
-
-- `*.xlsx` — predictions spreadsheet (auto-resumed on re-run)
-- `*_predictions.json` — prediction cache for local datasets
-- `*_results.json` — full per-sample results with accuracy breakdown
-- `*_quick_summary.json` — all-dataset score summary
-
----
-
-### Shell Script Shortcuts
-
-Two ready-to-run shell scripts are provided for common use cases:
-
-**With full tool stack** (`pi3x` + `orient` + `detection` + `segmentation` + `depth` + `moondream` + `sana` + `veo`):
-
-```bash
-bash scripts/eval_all_tools.sh
-
-# Override any setting via env vars:
-MODEL=gpt-4.1 \
-DATASETS="MindCube MMStar VStarBench BLINK MMMU_DEV_VAL" \
-LIMIT=100 \
-bash scripts/eval_all_tools.sh
-```
-
-**No-tools baseline:**
-
-```bash
+# No-tools baseline across all benchmarks
 bash scripts/eval_no_tools.sh
-
-# Override:
-MODEL=gpt-4.1 DATASETS="MindCube MMStar" LIMIT="" bash scripts/eval_no_tools.sh
 ```
 
-Environment variables accepted by both scripts:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODEL` | `gpt-4.1-mini` | Model name |
-| `MODEL_BACKEND` | `auto` | `auto` / `gpt` / `qwen` / `qwen-vllm` |
-| `DATASETS` | `MindCube MMStar VStarBench BLINK` | Space-separated dataset list |
-| `LIMIT` | `50` | Samples per dataset (empty = no limit) |
-| `MAX_ITER` | `3` / `1` | Max tool-call iterations |
-| `MINDCUBE_PATH` | `dataset/MindCube_data.jsonl` | MindCube JSONL path |
-| `PI3X_URL` | `http://127.0.0.1:20031` | Pi3X server URL |
-| `DETECTION_URL` | `http://127.0.0.1:20022` | GroundingDINO URL |
-| `SEGMENTATION_URL` | `http://127.0.0.1:20020` | SAM2 URL |
-| `DEPTH_URL` | `http://127.0.0.1:20019` | Depth Anything URL |
-| `MOONDREAM_URL` | `http://127.0.0.1:20024` | Moondream URL |
-
----
-
-### eval_detection_only.sh — GroundingDINO (zoom + localize)
-
-`scripts/eval_detection_only.sh` runs `quick_eval.py` with only the two GroundingDINO tools enabled. It is the recommended entry point for studying detection-driven perception on high-resolution benchmarks (VStarBench / HRBench / MMStar).
+**With tools** (start the servers first — see [REPRODUCE.md](docs/Evaluation/REPRODUCE.md)):
 
 ```bash
-# Default: both zoom_object_tool + localize_object_tool, MMStar, 50 samples
-bash scripts/eval_detection_only.sh
+# GroundingDINO zoom + localize
+python scripts/quick_eval.py \
+    --model gpt-4.1-mini --tools zoom localize \
+    --datasets MMStar VStarBench --limit 50 \
+    --detection-url http://localhost:20022
 
-# Zoom only (attribute-style questions: color / texture / text)
-TOOLS="zoom" bash scripts/eval_detection_only.sh
-
-# Localize only (spatial / counting questions)
-TOOLS="localize" bash scripts/eval_detection_only.sh
-
-# Override model / dataset / limit
-MODEL=gpt-4.1 DATASETS=VStarBench LIMIT=50 bash scripts/eval_detection_only.sh
+# Full perception + spatial stack via the shell wrapper
+MODEL=gpt-4.1 DATASETS="MindCube MMStar VStarBench BLINK" LIMIT=200 \
+  bash scripts/eval_all_tools.sh
 ```
 
-Script-specific environment variables:
+**Ready-to-run wrappers** in `scripts/` (every knob is an env var — see [QUICK_EVAL.md](docs/Evaluation/QUICK_EVAL.md)):
+`eval_no_tools.sh`, `eval_all_tools.sh`, `eval_detection_only.sh`, `eval_detection_pi3x.sh`,
+`eval_molmo2_only.sh`, `eval_pi3x_only.sh`.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MODEL` | `gpt-4.1` | Model name |
-| `DATASETS` | `MMStar` | Space-separated dataset list |
-| `LIMIT` | `50` | Samples per dataset (empty = no limit) |
-| `MAX_ITER` | `3` | Max tool-call iterations |
-| `TOOLS` | `zoom localize` | GroundingDINO tools to enable |
-| `DETECTION_URL` | `http://10.7.8.94:20022` | GroundingDINO server URL |
-
-> **Note on the output tag.** The result directory is named from the enabled tools, so
-> `--tools zoom localize` writes to `outputs/vlmeval_runs/<model>_zoom_localize/`,
-> while the legacy `--tools detection` writes to `<model>_detection/`. Different tool
-> combinations therefore never overwrite each other.
-
-#### Re-running the judge / fixing a bad score
-
-`quick_eval.py` scores predictions with a VLMEvalKit judge model (default `gpt-4o-mini`). If the judge API is unreachable (SSL / proxy errors in the log), VLMEvalKit silently falls back to **exact string matching**, which under-counts correct answers (e.g. a real ~0.52 can show up as 0.32). Two things matter when re-scoring:
-
-1. **The judge result is cached.** Simply re-running the script will *not* re-call the judge — VLMEvalKit reuses the cached `*_<judge>_result.pkl` / `.xlsx`. Delete the cache (and the stale `_acc.csv`) first:
-
-```bash
-RUN=outputs/vlmeval_runs/gpt_4_1_zoom_localize/MMStar
-rm -f "$RUN"/*_gpt-4o-mini_result.pkl \
-      "$RUN"/*_gpt-4o-mini_result.xlsx \
-      "$RUN"/*_acc.csv
-```
-
-2. **Make sure the judge API works**, then re-run. Predictions are loaded from the existing `*.xlsx` (inference is skipped), so only the judge re-runs:
-
-```bash
-# Clear any broken proxy that blocks api.openai.com
-unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
-
-# Point the judge at a reachable endpoint if needed
-export OPENAI_API_BASE="https://your-endpoint/v1/chat/completions"
-export OPENAI_API_KEY="your_key"
-
-DATASETS=MMStar LIMIT=50 bash scripts/eval_detection_only.sh
-```
-
-A correct judge run prints `Scoring (judge=gpt-4o-mini) ...` **without** the `will use exact matching for evaluation` warning. Verify the cache was regenerated:
-
-```bash
-ls -la outputs/vlmeval_runs/gpt_4_1_zoom_localize/MMStar/*gpt-4o-mini*
-cat   outputs/vlmeval_runs/gpt_4_1_zoom_localize/MMStar/*_acc.csv
-```
-
----
-
-### evaluate_all_tools.py — Dataset Shortcuts
-
-`examples/evaluation/evaluate_all_tools.py` supports direct `--dataset` shortcuts for MindCube and VSIBench:
-
-```bash
-# MindCube with Pi3X tools
-python examples/evaluation/evaluate_all_tools.py \
-    --dataset mindcube \
-    --config pi3x \
-    --model gpt-4.1-mini \
-    --max_samples 200
-
-# VSIBench (video spatial reasoning), 7 sampled frames
-python examples/evaluation/evaluate_all_tools.py \
-    --dataset vsibench \
-    --config pi3x \
-    --model gpt-4.1-mini \
-    --num_frames 7
-
-# No-tools baseline on MindCube
-python examples/evaluation/evaluate_all_tools.py \
-    --dataset mindcube \
-    --config dinosam \
-    --model gpt-4.1-mini
-
-# Custom JSONL with same schema
-python examples/evaluation/evaluate_all_tools.py \
-    --data_path /path/to/custom.jsonl \
-    --image_base_path dataset \
-    --config dinosam \
-    --model gpt-4.1-mini
-```
-
----
-
-### Preparing Local Datasets
-
-**MindCube:**
-```bash
-python spagent/utils/download_mindcube.py          # full set → dataset/MindCube_data.jsonl
-# Or use the bundled raw files directly:
-# dataset/mindcube/data/raw/MindCube_tinybench.jsonl  (small, fast)
-# dataset/mindcube/data/raw/MindCube.jsonl             (full)
-```
-
-**VSIBench** (video spatial reasoning, requires local video files):
-```bash
-python spagent/utils/download_vsibench.py          # → dataset/VSI_Bench.jsonl + dataset/VSI_videos/
-```
+**Outputs** are written to `outputs/vlmeval_runs/<model_tag>/<dataset>/`
+(`*_quick_summary.json` for scores, `*.xlsx` for predictions) with per-sample traces under
+`outputs/spagent_traces/`.
 
 ---
 
@@ -747,7 +540,7 @@ python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --eleva
 python test/test_tool.py --tool pi3x --image assets/dog.jpeg --azimuth 45 --elevation -30
 
 # Specify a custom server address
-python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --elevation -30 --server_url http://10.7.8.94:20030
+python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 45 --elevation -30 --server_url http://localhost:20030
 
 # Use first-person camera view mode
 python test/test_tool.py --tool pi3 --image assets/dog.jpeg --azimuth 90 --elevation 0 --camera_view

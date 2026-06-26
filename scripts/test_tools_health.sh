@@ -16,13 +16,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${PROJECT_ROOT}"
 
-# ── Server URLs (mirror eval_all_tools.sh defaults) ──────────
-PI3X_URL="${PI3X_URL:-http://10.8.131.51:31537}"
-DETECTION_URL="${DETECTION_URL:-http://10.7.8.94:20022}"
-SEGMENTATION_URL="${SEGMENTATION_URL:-http://10.7.8.94:20020}"
-DEPTH_URL="${DEPTH_URL:-http://10.7.8.94:20019}"
-MOLMO2_URL="${MOLMO2_URL:-http://10.8.131.51:31108}"
-VACE_URL="${VACE_URL:-http://10.8.131.51:30014}"
+# ── Server URLs (localhost defaults; override for remote, e.g.
+#    PI3X_URL=http://10.8.131.51:31537 bash scripts/test_tools_health.sh) ──
+PI3X_URL="${PI3X_URL:-http://localhost:20031}"
+DETECTION_URL="${DETECTION_URL:-http://localhost:20022}"
+SEGMENTATION_URL="${SEGMENTATION_URL:-http://localhost:20020}"
+DEPTH_URL="${DEPTH_URL:-http://localhost:20019}"
+MOLMO2_URL="${MOLMO2_URL:-http://localhost:20025}"
+VACE_URL="${VACE_URL:-http://localhost:20034}"
 
 TEST_IMAGE="${TEST_IMAGE:-assets/dog.jpeg}"
 OUTPUT_DIR="${OUTPUT_DIR:-outputs}"

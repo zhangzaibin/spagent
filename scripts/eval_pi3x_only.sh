@@ -4,12 +4,10 @@
 #  Run quick_eval.py with the Pi3X 3D reconstruction tool only.
 #
 #  Tools enabled:
-#    pi3x — pi3x_tool: 3D reconstruction from images, generates
-#            point clouds and visualizations from custom viewpoints
+#    pi3x — pi3x_tool: 3D reconstruction from images, renders
+#           point clouds / novel viewpoints for spatial reasoning
 #
-#  Default datasets  : MindCube (50/category) + VSIBench
-#  Default prompt    : spatial  (SPATIAL_3D_ROLE + SPATIAL_3D_WORKFLOW)
-#  Default per-cat   : 50  (samples per MindCube task category)
+#  Defaults : MindCube (per-category) + VSIBench, spatial prompt
 #
 #  Usage:
 #    bash scripts/eval_pi3x_only.sh
@@ -19,60 +17,30 @@
 #
 #  VSI-Bench data prep (run once before evaluating VSIBench):
 #    python spagent/utils/download_vsibench.py
-#  (Requires raw dataset at dataset/VSI-Bench/ from HF nyu-visionx/VSI-Bench)
+#    (Requires raw data at dataset/VSI-Bench/ from HF nyu-visionx/VSI-Bench)
 # ============================================================
-set -euo pipefail
 
-# ── Project root ────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-cd "${PROJECT_ROOT}"
+source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"
 
-# ── Configurable via env-var overrides ──────────────────────
-MODEL="${MODEL:-gpt-4.1}"
-MODEL_BACKEND="${MODEL_BACKEND:-auto}"
+# ── Script-specific defaults ────────────────────────────────
 DATASETS="${DATASETS:-MindCube VSIBench}"
-PROMPT="${PROMPT:-spatial}"
-PER_CATEGORY="${PER_CATEGORY:-1000}"
-LIMIT="${LIMIT:-}"
-MAX_ITER="${MAX_ITER:-3}"
+PROMPT="${PROMPT:-spatial}"            # spatial | general
+PER_CATEGORY="${PER_CATEGORY:-1000}"   # samples per MindCube task category
+LIMIT="${LIMIT:-}"                     # empty = no flat head-limit
 NUM_VIDEO_FRAMES="${NUM_VIDEO_FRAMES:-16}"
-TEMPERATURE="${TEMPERATURE:-0.0}"
-SEED="${SEED:-42}"
-WORK_DIR="${WORK_DIR:-outputs/vlmeval_runs}"
-TRACE_DIR="${TRACE_DIR:-outputs/spagent_traces}"
 
-# ── Pi3X server URL ──────────────────────────────────────────
-PI3X_URL="${PI3X_URL:-http://10.7.8.94:20031}"
-
-# ── Build optional flags ─────────────────────────────────────
-# --limit is only forwarded when explicitly set (non-empty).
-# For local datasets (MindCube / VSIBench), --per-category takes precedence.
-LIMIT_FLAG=""
-if [ -n "${LIMIT}" ]; then
-    LIMIT_FLAG="--limit ${LIMIT}"
-fi
-
+# ── Optional flags ───────────────────────────────────────────
 PER_CATEGORY_FLAG=""
 if [ -n "${PER_CATEGORY}" ]; then
     PER_CATEGORY_FLAG="--per-category ${PER_CATEGORY}"
 fi
 
-# ── Print config ─────────────────────────────────────────────
-echo "========================================================"
-echo "  SPAgent eval_pi3x_only.sh"
-echo "  Model     : ${MODEL}  (backend=${MODEL_BACKEND})"
-echo "  Datasets  : ${DATASETS}"
-echo "  Prompt    : ${PROMPT}"
-echo "  Per-cat   : ${PER_CATEGORY:-none}"
-echo "  Limit     : ${LIMIT:-none}"
-echo "  Max iter  : ${MAX_ITER}"
-echo "  Video frm : ${NUM_VIDEO_FRAMES}"
-echo "  Work dir  : ${WORK_DIR}"
-echo "  Tools     : pi3x"
-echo "  Pi3X URL  : ${PI3X_URL}"
-echo "========================================================"
-echo ""
+eval_print_header "eval_pi3x_only.sh" \
+    "Tools     : pi3x" \
+    "Prompt    : ${PROMPT}" \
+    "Per-cat   : ${PER_CATEGORY:-none}" \
+    "Video frm : ${NUM_VIDEO_FRAMES}" \
+    "Pi3X      : ${PI3X_URL}"
 
 # ── VSI-Bench data check ──────────────────────────────────────
 if echo "${DATASETS}" | grep -qw "VSIBench"; then
@@ -85,7 +53,6 @@ if echo "${DATASETS}" | grep -qw "VSIBench"; then
     fi
 fi
 
-# ── Run ──────────────────────────────────────────────────────
 python scripts/quick_eval.py \
     --model            "${MODEL}" \
     --model-backend    "${MODEL_BACKEND}" \
@@ -93,7 +60,7 @@ python scripts/quick_eval.py \
     --tools            pi3x \
     --prompt           "${PROMPT}" \
     ${PER_CATEGORY_FLAG} \
-    ${LIMIT_FLAG} \
+    $(eval_limit_flag) \
     --max-iterations   "${MAX_ITER}" \
     --num-video-frames "${NUM_VIDEO_FRAMES}" \
     --temperature      "${TEMPERATURE}" \
