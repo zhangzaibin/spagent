@@ -39,9 +39,6 @@ diffusers>=0.31.0
 accelerate>=1.1.1
 ftfy
 einops
-<<<<<<< HEAD
 sentencepiece
-=======
-# VLMEvalKit - install from GitHub: pip install git+https://github.com/open-compass/VLMEvalKit.git
-vlmeval
->>>>>>> spagentv05
+# VLMEvalKit has no PyPI release; install directly from GitHub via PEP 508 direct reference
+vlmeval @ git+https://github.com/open-compass/VLMEvalKit.git

@@ -24,11 +24,9 @@ from .wan_tool import WanTool
 from .vace_tool import VaceTool
 from .orient_anything_v2_tool import OrientAnythingV2Tool
 from .sana_tool import SanaTool
-<<<<<<< HEAD
 from .wilddet3d_tool import WildDet3DTool
 from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
-=======
 from .catalog import (
     TOOL_CATALOG,
     build_all_tools,
@@ -38,7 +36,6 @@ from .catalog import (
     list_catalog_tool_names,
     resolve_tool_keys,
 )
->>>>>>> spagentv05
 
 
 __all__ = [
@@ -63,11 +60,9 @@ __all__ = [
     'VaceTool',
     'OrientAnythingV2Tool',
     'SanaTool',
-<<<<<<< HEAD
     'WildDet3DTool',
     'FlowSeekTool',
     'PaddleOCRVLTool',
-=======
     'TOOL_CATALOG',
     'build_all_tools',
     'build_tools',
@@ -75,5 +70,4 @@ __all__ = [
     'list_catalog_keys',
     'list_catalog_tool_names',
     'resolve_tool_keys',
->>>>>>> spagentv05
 ]
