@@ -773,12 +773,6 @@ def test_flowseek(
     image2_path: str,
     variant: str = "M",
     device: str = "cuda",
-# PaddleOCR-VL-1.5 Tool Test
-# ============================================================
-
-def test_paddleocr_vl(
-    image_paths: List[str],
-    task: str = "ocr",
     server_url: Optional[str] = None,
     use_mock: bool = False,
     output_dir: str = "outputs/tool_test",
@@ -842,6 +836,20 @@ def test_paddleocr_vl(
 
     logger.warning("No output image path in result.")
     return None
+
+
+# ============================================================
+# PaddleOCR-VL-1.5 Tool Test
+# ============================================================
+
+def test_paddleocr_vl(
+    image_paths: List[str],
+    task: str = "ocr",
+    server_url: Optional[str] = None,
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
     Directly test PaddleOCR-VL-1.5 document recognition tool.
 
     Args:
@@ -897,14 +905,8 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-<<<<<<< HEAD
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek"],
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "paddleocr_vl"],
-        help="Which tool to test.",
-=======
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl"],
         help="Which tool to test. depth/segmentation/detection now run real inference (no longer stubs).",
->>>>>>> spagentv05
     )
     parser.add_argument(
         "--image",
@@ -1139,6 +1141,11 @@ def main():
             image1_path=args.image[0],
             image2_path=args.image[1],
             device=args.device,
+            server_url=args.server_url,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
     elif args.tool == "paddleocr_vl":
         result_path = test_paddleocr_vl(
             image_paths=args.image,
