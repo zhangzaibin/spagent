@@ -198,17 +198,27 @@ class FlowSeekLocalClient:
             os.makedirs(Path(output_path).parent, exist_ok=True)
             cv2.imwrite(output_path, flow_vis)
 
+            # Persist the raw dense (H, W, 2) u,v flow field alongside the
+            # visualization. Without this the flow field — the tool's actual
+            # informative output — is discarded, leaving only a scalar mean and
+            # a colorized PNG. Consumers that need per-pixel flow load this .npy.
+            flow_path = str(Path(output_path).with_suffix(".npy"))
+            np.save(flow_path, flow_np.astype(np.float32))
+
             magnitude = float(np.sqrt(flow_np[..., 0] ** 2 + flow_np[..., 1] ** 2).mean())
 
             return {
                 "success": True,
                 "output_path": output_path,
+                "flow_path": flow_path,
+                "flow_shape": list(flow_np.shape),
                 "flow_magnitude_mean": round(magnitude, 4),
                 "description": (
                     f"FlowSeek-{self._variant} estimated optical flow from "
                     f"{Path(image1_path).name} to {Path(image2_path).name}. "
                     f"Mean flow magnitude: {magnitude:.2f} px. "
-                    f"Colorized flow saved to {output_path}."
+                    f"Colorized flow saved to {output_path}; "
+                    f"raw (H,W,2) flow field saved to {flow_path}."
                 ),
             }
 

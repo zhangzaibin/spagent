@@ -99,6 +99,8 @@ class FlowSeekTool(Tool):
                 raw["result"] = {
                     "flow_magnitude_mean": raw.get("flow_magnitude_mean", 0.0),
                     "output_path": raw.get("output_path", ""),
+                    "flow_path": raw.get("flow_path"),
+                    "flow_shape": raw.get("flow_shape"),
                 }
             return raw
         except Exception as e:
@@ -115,13 +117,18 @@ class _MockFlowSeekClient:
         **kwargs,
     ) -> Dict[str, Any]:
         out = output_path or image1_path
+        flow_path = str(Path(out).with_suffix(".npy"))
         return {
             "success": True,
             "result": {
                 "flow_magnitude_mean": 5.0,
                 "output_path": out,
+                "flow_path": flow_path,
+                "flow_shape": [0, 0, 2],
             },
             "output_path": out,
+            "flow_path": flow_path,
+            "flow_shape": [0, 0, 2],
             "flow_magnitude_mean": 5.0,
             "description": f"[mock] FlowSeek estimated flow from {Path(image1_path).name} to {Path(image2_path).name}.",
         }
