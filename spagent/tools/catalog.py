@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 from core.tool import Tool
+from core.tool_result import ALL_CATEGORIES
 
 from .depth_tool import DepthEstimationTool
 from .segmentation_tool import SegmentationTool
@@ -32,6 +33,9 @@ from .sora_tool import SoraTool
 from .wan_tool import WanTool
 from .vace_tool import VaceTool
 from .qwenvl_tool import QwenVLTool
+from .flowseek_tool import FlowSeekTool
+from .paddleocr_vl_tool import PaddleOCRVLTool
+from .wilddet3d_tool import WildDet3DTool
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,14 @@ ToolGroup = str  # "2d_perception" | "vlm" | "3d" | "generation"
 
 @dataclass(frozen=True)
 class ToolCatalogEntry:
-    """Metadata for one catalog tool."""
+    """Metadata for one catalog tool.
+
+    ``group`` is the coarse prompt-grouping bucket (4 values); ``category``
+    is the fine output-contract category (one of
+    ``core.tool_result.ALL_CATEGORIES``) driving validation and rendering.
+    Dual-behavior tools (supervision) register their primary category; the
+    effective category is resolved per call from the result.
+    """
 
     key: str
     cls: Type[Tool]
@@ -48,6 +59,7 @@ class ToolCatalogEntry:
     tool_name: str
     default_kwargs: Dict[str, Any] = field(default_factory=dict)
     accepts_use_mock: bool = True
+    category: str = ""
 
 
 # Default server URLs aligned with docs/Tool/TOOL_USING.md
@@ -77,6 +89,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "depth_estimation_tool",
         {"server_url": DEFAULT_SERVER_URLS["depth"]},
+        category="depth",
     ),
     ToolCatalogEntry(
         "segmentation",
@@ -84,6 +97,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "segment_image_tool",
         {"server_url": DEFAULT_SERVER_URLS["segmentation"]},
+        category="segmentation",
     ),
     ToolCatalogEntry(
         "detection",
@@ -91,6 +105,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "detect_objects_tool",
         {"server_url": DEFAULT_SERVER_URLS["detection"]},
+        category="detection",
     ),
     ToolCatalogEntry(
         "zoom",
@@ -98,6 +113,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "zoom_object_tool",
         {"server_url": DEFAULT_SERVER_URLS["detection"]},
+        category="detection",
     ),
     ToolCatalogEntry(
         "localize",
@@ -105,6 +121,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "localize_object_tool",
         {"server_url": DEFAULT_SERVER_URLS["detection"]},
+        category="detection",
     ),
     ToolCatalogEntry(
         "supervision",
@@ -112,6 +129,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "supervision_tool",
         {"server_url": DEFAULT_SERVER_URLS["supervision"]},
+        category="detection",
     ),
     ToolCatalogEntry(
         "yoloe",
@@ -119,6 +137,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "yoloe_detection_tool",
         {"server_url": DEFAULT_SERVER_URLS["yoloe"]},
+        category="detection",
     ),
     ToolCatalogEntry(
         "yolo26",
@@ -127,6 +146,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "yolo26_tool",
         {},
         accepts_use_mock=False,
+        category="detection",
     ),
     ToolCatalogEntry(
         "qwenvl",
@@ -134,6 +154,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "qwenvl_detection_tool",
         {},
+        category="detection",
     ),
     # VLM
     ToolCatalogEntry(
@@ -142,6 +163,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "vlm",
         "moondream_tool",
         {"server_url": DEFAULT_SERVER_URLS["moondream"]},
+        category="point_grounding",
     ),
     ToolCatalogEntry(
         "molmo2",
@@ -149,6 +171,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "vlm",
         "molmo2_tool",
         {"server_url": DEFAULT_SERVER_URLS["molmo2"]},
+        category="point_grounding",
     ),
     # 3D
     ToolCatalogEntry(
@@ -157,6 +180,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "pi3_tool",
         {"server_url": DEFAULT_SERVER_URLS["pi3"]},
+        category="3d_reconstruction",
     ),
     ToolCatalogEntry(
         "pi3x",
@@ -164,6 +188,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "pi3x_tool",
         {"server_url": DEFAULT_SERVER_URLS["pi3x"]},
+        category="3d_reconstruction",
     ),
     ToolCatalogEntry(
         "vggt",
@@ -171,6 +196,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "vggt_tool",
         {"server_url": DEFAULT_SERVER_URLS["vggt"]},
+        category="3d_reconstruction",
     ),
     ToolCatalogEntry(
         "mapanything",
@@ -178,6 +204,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "mapanything_tool",
         {"server_url": DEFAULT_SERVER_URLS["mapanything"]},
+        category="3d_reconstruction",
     ),
     ToolCatalogEntry(
         "orient_anything_v2",
@@ -185,6 +212,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "orient_anything_v2_tool",
         {"server_url": DEFAULT_SERVER_URLS["orient_anything_v2"]},
+        category="orientation",
     ),
     # Generation
     ToolCatalogEntry(
@@ -193,6 +221,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "generation",
         "image_generation_sana_tool",
         {"server_url": DEFAULT_SERVER_URLS["sana"]},
+        category="image_generation",
     ),
     ToolCatalogEntry(
         "veo",
@@ -200,6 +229,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "generation",
         "video_generation_veo_tool",
         {},
+        category="video_generation",
     ),
     ToolCatalogEntry(
         "sora",
@@ -207,6 +237,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "generation",
         "video_generation_sora_tool",
         {},
+        category="video_generation",
     ),
     ToolCatalogEntry(
         "wan",
@@ -214,6 +245,7 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "generation",
         "video_generation_wan_tool",
         {},
+        category="video_generation",
     ),
     ToolCatalogEntry(
         "vace",
@@ -221,8 +253,39 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "generation",
         "video_generation_vace_tool",
         {"server_url": DEFAULT_SERVER_URLS["vace"]},
+        category="video_generation",
+    ),
+    # Previously exported but unregistered (docs/Tool/TOOL_CONFIGURATIONS.md)
+    ToolCatalogEntry(
+        "flowseek",
+        FlowSeekTool,
+        "2d_perception",
+        "flowseek_tool",
+        {},
+        category="optical_flow",
+    ),
+    ToolCatalogEntry(
+        "paddleocr_vl",
+        PaddleOCRVLTool,
+        "2d_perception",
+        "paddleocr_vl_tool",
+        {},
+        category="ocr",
+    ),
+    ToolCatalogEntry(
+        "wilddet3d",
+        WildDet3DTool,
+        "3d",
+        "wilddet3d_tool",
+        {},
+        category="detection",
     ),
 ]
+
+# Every entry must carry a known output-contract category.
+_bad = [e.key for e in TOOL_CATALOG if e.category not in ALL_CATEGORIES]
+if _bad:  # pragma: no cover - configuration error surfaced at import
+    raise ValueError(f"catalog entries with unknown category: {_bad}")
 
 
 def _catalog_index() -> Dict[str, ToolCatalogEntry]:
