@@ -28,6 +28,7 @@ from .prompts import (
 )
 import json as _json
 from .data_collector import DataCollector
+from .render import render as render_tool_result
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class SPAgent:
         system_prompt: Optional[str] = None,
         continuation_hint: Optional[str] = None,
         workflow_mode: str = "default",
+        render_config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize SPAgent
@@ -80,6 +82,11 @@ class SPAgent:
                 - "auto": automatically choose between spatial_3d, general_vision,
                   and generation workflows based on tools, images, and task text
                 - "all_tools": use the all-tools role, selection guide, and workflow
+            render_config: Optional projection config for the render module
+                (see ``spagent.core.render``): which payload fields of each
+                tool result reach the model. ``None`` uses per-category
+                defaults; plain-dict results from un-migrated tools always
+                render with legacy behavior. Overridable per step() call.
         """
         self.model = model
         self.tool_registry = ToolRegistry()
@@ -89,6 +96,7 @@ class SPAgent:
         self.user_continuation_hint = continuation_hint
         self.workflow_mode = workflow_mode
         self.continuation_hint = continuation_hint
+        self.render_config = render_config
         
         # Register provided tools
         if tools:
@@ -148,6 +156,7 @@ class SPAgent:
         pi3_num_frames: int = 7,
         video_num_frames: int = 4,
         use_baseline_comparison: bool = False,
+        render_config: Optional[Dict[str, Any]] = None,
         **model_kwargs,
     ) -> StepResult:
         """
@@ -198,6 +207,10 @@ class SPAgent:
         """
         if memory is None:
             memory = AgentMemory()
+
+        # Per-call render config wins over the agent-level default
+        effective_render_config = (render_config if render_config is not None
+                                   else self.render_config)
 
         # Normalize image input
         if images is None:
@@ -322,30 +335,33 @@ class SPAgent:
             # Collect output images and record everything in memory
             iteration_additional_images: List[str] = []
             for tool_name, result in tool_results.items():
+                # Project the result into (text, images) for the model.
+                # Standardized results (known category) follow the configured
+                # projection; plain dicts take the legacy projection, which
+                # reproduces the historical inline behavior exactly.
+                # tool_name may carry a duplicate suffix ("<name>_2") — strip
+                # it so per-tool render config still matches.
+                base_tool_name = re.sub(r"_\d+$", "", tool_name)
+                rendered = render_tool_result(
+                    result, config=effective_render_config,
+                    tool_name=base_tool_name,
+                )
+                is_standardized = bool(result.get("category"))
+
                 output_images: List[str] = []
                 if result.get("success"):
                     all_successful_tools.append(f"{tool_name}_iter{iteration}")
-                    if result.get("output_path") is not None:
-                        out_path = result["output_path"]
-                        if Path(out_path).exists():
-                            if Path(out_path).suffix.lower() == ".mp4":
-                                frame_paths = self._extract_video_frames(out_path, video_num_frames)
-                                logger.info(
-                                    f"Extracted {len(frame_paths)} frames from generated video: {out_path}"
-                                )
-                                iteration_additional_images.extend(frame_paths)
-                                output_images.extend(frame_paths)
-                            else:
-                                iteration_additional_images.append(out_path)
-                                output_images.append(out_path)
-                    if result.get("vis_path") is not None and Path(result["vis_path"]).exists():
-                        iteration_additional_images.append(result["vis_path"])
-                        output_images.append(result["vis_path"])
-                    if result.get("crop_paths"):
-                        for crop_path in result["crop_paths"]:
-                            if Path(crop_path).exists():
-                                iteration_additional_images.append(crop_path)
-                                output_images.append(crop_path)
+                    for out_path in rendered.images:
+                        if Path(out_path).suffix.lower() == ".mp4":
+                            frame_paths = self._extract_video_frames(out_path, video_num_frames)
+                            logger.info(
+                                f"Extracted {len(frame_paths)} frames from generated video: {out_path}"
+                            )
+                            iteration_additional_images.extend(frame_paths)
+                            output_images.extend(frame_paths)
+                        else:
+                            iteration_additional_images.append(out_path)
+                            output_images.append(out_path)
 
                 # Record each tool call + result pair in memory
                 for tc in tool_calls:
@@ -361,6 +377,7 @@ class SPAgent:
                     result=result,
                     output_images=output_images,
                     iteration=iteration,
+                    rendered_text=rendered.text if is_standardized else None,
                 )
 
             # Update step-level accumulators
