@@ -14,6 +14,7 @@ from typing import Dict, Any, List
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import BOX_XYXY_PIXEL, DetectionPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -160,15 +161,42 @@ class YOLOETool(Tool):
             
             if result and result.get('success'):
                 logger.info("YOLO-E detection completed successfully")
-                return {
-                    "success": True,
-                    "result": result,
-                    "boxes": result.get('boxes', []),
-                    "labels": result.get('labels', []),
-                    "confidence": result.get('confidence', []),
-                    "class_names": result.get('class_names', class_names),
-                    "vis_path": result.get('vis_path')
-                }
+                boxes = result.get('boxes', []) or []
+                labels = result.get('labels', []) or []
+                confidence = result.get('confidence', []) or []
+
+                # Guard against unaligned legacy arrays: DetectionPayload
+                # requires parallel boxes/labels/confidence, so fall back to
+                # synthetic labels and drop misaligned confidence (the raw
+                # arrays stay available under the legacy extras).
+                payload_labels = labels
+                if len(payload_labels) != len(boxes):
+                    payload_labels = [f"obj_{i}" for i in range(len(boxes))]
+                conf_arg = confidence if len(confidence) == len(boxes) else None
+
+                summary = (
+                    f"YOLO-E detected {len(boxes)} object(s) for classes "
+                    f"{class_names}."
+                )
+                # Standardized output: ToolResult is dict-compatible; legacy
+                # result/confidence/class_names/vis_path keys are preserved.
+                # Box coordinates are pixel xyxy (the client emits e.g.
+                # [100, 100, 200, 200]; it never returns normalized coords).
+                payload = DetectionPayload(
+                    boxes=boxes,
+                    labels=payload_labels,
+                    box_format=BOX_XYXY_PIXEL,
+                    confidence=conf_arg,
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=summary,
+                    vis_path=result.get('vis_path'),
+                    result=result,
+                    confidence=confidence,
+                    class_names=result.get('class_names', class_names),
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.error(f"YOLO-E detection failed: {error_msg}")

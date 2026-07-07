@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import SEGMENTATION, SegmentationPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -172,16 +173,46 @@ class SegmentationTool(Tool):
             
             if result and result.get('success'):
                 logger.info("Segmentation completed successfully")
-                return {
-                    "success": True,
-                    "result": result,
-                    "output_path": result.get('output_path'),  # Combined image
-                    "overlay_path": result.get('overlay_path'),  # Mask visualization
-                    "mask_path": result.get('mask_path'),  # Original mask
-                    "vis_path": result.get('vis_path'),  # Backward compatibility
-                    "shape": result.get('shape'),
-                    "masks": result.get('masks', [])
-                }
+                masks = result.get('masks', []) or []
+                mask_path = result.get('mask_path')
+                shape = result.get('shape')
+                if masks:
+                    summary = (
+                        f"Segmentation completed: {len(masks)} mask(s) "
+                        f"generated for {Path(image_path).name}."
+                    )
+                else:
+                    summary = (
+                        f"Segmentation completed for {Path(image_path).name}; "
+                        f"mask saved to {mask_path}."
+                    )
+                # Standardized output: ToolResult is dict-compatible; legacy
+                # result/mask_path/shape/masks keys are preserved as extras.
+                # The payload needs at least one mask carrier; a success with
+                # an empty masks list still satisfies the contract via the
+                # (present-but-empty) `masks` extra + explicit category.
+                if masks or mask_path:
+                    payload = SegmentationPayload(
+                        masks=masks if masks else None,
+                        mask_path=mask_path,
+                    )
+                    category = None  # derived from the payload
+                else:
+                    payload = None
+                    category = SEGMENTATION
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    category=category,
+                    description=summary,
+                    output_path=result.get('output_path'),  # Combined image
+                    overlay_path=result.get('overlay_path'),  # Mask visualization
+                    vis_path=result.get('vis_path'),  # Backward compatibility
+                    result=result,
+                    mask_path=mask_path,  # Original mask
+                    shape=shape,
+                    masks=masks,
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.error(f"Segmentation failed: {error_msg}")
