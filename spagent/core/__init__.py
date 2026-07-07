@@ -18,6 +18,23 @@ Prompt utilities (three-layer architecture):
 
 from .spagent import SPAgent
 from .tool import Tool, ToolRegistry
+from .tool_result import (
+    ToolResult,
+    CategoryContract,
+    CATEGORY_CONTRACTS,
+    ALL_CATEGORIES,
+    validate_payload,
+    visualization_paths,
+    DetectionPayload,
+    SegmentationPayload,
+    PointsPayload,
+    DepthPayload,
+    FlowPayload,
+    OrientationPayload,
+    PointCloudPayload,
+    MediaPayload,
+    TextPayload,
+)
 from .model import Model
 from .data_collector import DataCollector, InferenceSample, SessionData
 from .memory import AgentMemory, MemoryEntry, StepResult
@@ -46,6 +63,22 @@ __all__ = [
     'SPAgent',
     'Tool',
     'ToolRegistry',
+    # Standardized tool output
+    'ToolResult',
+    'CategoryContract',
+    'CATEGORY_CONTRACTS',
+    'ALL_CATEGORIES',
+    'validate_payload',
+    'visualization_paths',
+    'DetectionPayload',
+    'SegmentationPayload',
+    'PointsPayload',
+    'DepthPayload',
+    'FlowPayload',
+    'OrientationPayload',
+    'PointCloudPayload',
+    'MediaPayload',
+    'TextPayload',
     'Model',
     'DataCollector',
     'InferenceSample',
