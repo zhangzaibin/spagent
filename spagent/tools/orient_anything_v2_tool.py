@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import OrientationPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +140,58 @@ class OrientAnythingV2Tool(Tool):
                 image_path2=image_path2,
             )
 
+            # Standardized output: wrap in a ToolResult when the client result
+            # carries a complete ABSOLUTE euler triple. The legacy `result`
+            # key is preserved as an extra so existing consumers see the same
+            # shape. Partial results (e.g. mock 'symmetry'/'relative_rotation'
+            # outputs without a full triple) keep the legacy plain-dict shape
+            # rather than faking a payload.
+            payload = self._build_orientation_payload(result)
+            if payload is not None:
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=(
+                        f"Orient Anything V2 completed task '{task}' for "
+                        f"'{object_category}': azimuth={payload.azimuth}, "
+                        f"elevation={payload.elevation}, rotation={payload.rotation}"
+                        + (f", symmetry_order={payload.symmetry_order}"
+                           if payload.symmetry_order is not None else "")
+                        + "."
+                    ),
+                    result=result,
+                )
             return {"success": True, "result": result}
 
         except Exception as e:
             logger.error(f"OrientAnythingV2Tool error: {e}")
             return {"success": False, "error": str(e)}
+
+    @staticmethod
+    def _build_orientation_payload(result: Any) -> Optional[OrientationPayload]:
+        """Build an OrientationPayload from a client result that carries a
+        complete ABSOLUTE euler triple.
+
+        The real V2 client emits ``azimuth``/``elevation``/``rotation``
+        (plus ``symmetry_alpha``); the mock 'orientation' task emits
+        ``yaw``/``pitch``/``roll``, which have the same absolute-pose
+        semantics and are accepted as aliases.
+
+        ``rel_azimuth``/``rel_elevation``/``rel_rotation`` and the mock
+        relative ``rotation_matrix`` describe the RELATIVE pose between two
+        views — different semantics — and are deliberately never mapped onto
+        the orientation payload; they stay inside the legacy ``result`` dict.
+        """
+        if not isinstance(result, dict):
+            return None
+        for keys in (("azimuth", "elevation", "rotation"),
+                     ("yaw", "pitch", "roll")):
+            vals = [result.get(k) for k in keys]
+            if all(v is not None for v in vals):
+                return OrientationPayload(
+                    azimuth=vals[0],
+                    elevation=vals[1],
+                    rotation=vals[2],
+                    symmetry_order=result.get("symmetry_alpha"),
+                )
+        return None
