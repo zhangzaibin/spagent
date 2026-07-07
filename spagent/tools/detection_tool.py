@@ -181,7 +181,9 @@ class _BaseDetectionTool(Tool):
             )
         boxes = [d.get("bbox") for d in detections]
         labels = [d.get("label", "obj") for d in detections]
-        confidence = [d.get("confidence") for d in detections if d.get("confidence") is not None]
+        # Keep confidence index-aligned with boxes/labels (None when absent)
+        # so consumers can zip the three arrays safely.
+        confidence = [d.get("confidence") for d in detections]
         return boxes, labels, confidence
 
     def _bbox_to_pixel_xyxy(self, bbox, img_h: int, img_w: int) -> Tuple[int, int, int, int]:
