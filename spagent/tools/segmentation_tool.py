@@ -153,22 +153,31 @@ class SegmentationTool(Tool):
                     "error": f"Image file not found: {image_path}"
                 }
             
-            # Prepare arguments for segmentation
-            seg_args = {"image_path": image_path}
-            
+            # Prepare prompt arguments for segmentation
+            prompts = {}
             if point_coords is not None:
-                seg_args["point_coords"] = point_coords
+                prompts["point_coords"] = point_coords
             if point_labels is not None:
-                seg_args["point_labels"] = point_labels
+                prompts["point_labels"] = point_labels
             if box is not None:
-                seg_args["box"] = box
-            
-            # Call segmentation
+                prompts["box"] = box
+
+            # Call segmentation. The real SAM2Client signature is
+            # infer(image_path, prompts=None) with the point/box prompts
+            # nested in a dict; passing them as flat kwargs raised TypeError,
+            # so guided (point/box) segmentation never worked on the real
+            # path. Mock clients keep the flat-kwargs interface.
             if hasattr(self._client, 'infer'):
-                result = self._client.infer(**seg_args)
+                try:
+                    result = self._client.infer(
+                        image_path, prompts=prompts or None
+                    )
+                except TypeError:
+                    # Flat-kwargs client (e.g. inline mock)
+                    result = self._client.infer(image_path=image_path, **prompts)
             else:
                 # Fallback for different client interfaces
-                result = self._client.segment(**seg_args)
+                result = self._client.segment(image_path=image_path, **prompts)
             
             if result and result.get('success'):
                 logger.info("Segmentation completed successfully")
