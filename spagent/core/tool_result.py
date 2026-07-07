@@ -172,14 +172,17 @@ def validate_payload(result: Mapping, category: str) -> Tuple[bool, List[Tuple[s
     """Check a result (dict or ToolResult) against a category's raw contract.
 
     Returns ``(ok, unmet_groups)``. ``ok`` is True when any
-    ``required_one_of`` group is fully present with truthy values.
+    ``required_one_of`` group has every key present and not ``None``.
+    Emptiness does NOT fail the check: a successful detection with zero
+    boxes (``detections=[]``) or an OCR of a blank page (``text=""``) is a
+    legitimate finding — the contract requires the carrier, not content.
     """
     contract = CATEGORY_CONTRACTS.get(category)
     if contract is None:
         raise KeyError(f"Unknown category: {category!r}")
     unmet: List[Tuple[str, ...]] = []
     for group in contract.required_one_of:
-        if all(_truthy(result.get(k)) for k in group):
+        if all(k in result and result.get(k) is not None for k in group):
             return True, []
         unmet.append(group)
     return False, unmet

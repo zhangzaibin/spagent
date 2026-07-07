@@ -12,6 +12,7 @@ from typing import Dict, Any, List, Optional
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import BOX_XYXY_PIXEL, DetectionPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -161,16 +162,32 @@ class YOLO26Tool(Tool):
 
             summary = f"Detected {len(detections)} object(s) in {p.name}."
 
-            return {
-                "success": True,
-                "result": {
+            # Standardized output (first migrated tool): ToolResult is
+            # dict-compatible, and the legacy `result`/`summary` keys are
+            # kept as extras so existing consumers see the same shape.
+            orig_h, orig_w = (int(r.orig_shape[0]), int(r.orig_shape[1])) \
+                if getattr(r, "orig_shape", None) is not None else (None, None)
+            payload = DetectionPayload(
+                boxes=[d["bbox_xyxy"] for d in detections],
+                labels=[d["class_name"] for d in detections],
+                box_format=BOX_XYXY_PIXEL,
+                confidence=[d["confidence"] for d in detections],
+                image_width=orig_w,
+                image_height=orig_h,
+            )
+            return ToolResult(
+                success=True,
+                payload=payload,
+                description=summary,
+                output_path=output_path,
+                result={
                     "image_path": image_path,
                     "num_detections": len(detections),
-                    "detections": detections
+                    "detections": detections,
                 },
-                "output_path": output_path,
-                "summary": summary
-            }
+                summary=summary,
+                class_id=[d["class_id"] for d in detections],
+            )
 
         except Exception as e:
             logger.error(f"YOLO26Tool error: {e}")
