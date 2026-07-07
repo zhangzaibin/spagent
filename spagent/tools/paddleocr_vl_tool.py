@@ -17,10 +17,16 @@ from typing import Any, Dict, Optional
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import TextPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
 VALID_TASKS = ("ocr", "table", "chart", "formula", "spotting", "seal")
+
+# Keys owned by the ToolResult envelope: passed as constructor params, never
+# duplicated as extras.
+_ENVELOPE_KEYS = ("success", "description", "error", "category",
+                  "output_path", "vis_path", "overlay_path", "crop_paths")
 
 
 class PaddleOCRVLTool(Tool):
@@ -116,9 +122,31 @@ class PaddleOCRVLTool(Tool):
         try:
             self._ensure_client()
             raw = self._client.recognize(image_path=image_path, task=task)
-            if raw.get("success"):
-                raw["result"] = {"text": raw.get("text", ""), "task": task}
-            return raw
+            if not raw.get("success"):
+                return raw
+
+            raw["result"] = {"text": raw.get("text", ""), "task": task}
+            text = raw.get("text", "")
+
+            # Standardized output: TextPayload carries the extracted text;
+            # every legacy key (`task`, `result`, and anything else the
+            # client returns) is preserved so existing consumers see the
+            # same dict shape.
+            preview = text[:200].strip()
+            description = (
+                f"OCR ({task}) extracted {len(text)} chars"
+                + (f": {preview}" if preview else ".")
+            )
+            extras = {k: v for k, v in raw.items()
+                      if k not in _ENVELOPE_KEYS and k != "text"}
+            return ToolResult(
+                success=True,
+                payload=TextPayload(text=text),
+                description=description,
+                output_path=raw.get("output_path"),
+                vis_path=raw.get("vis_path"),
+                **extras,
+            )
         except Exception as exc:
             logger.exception("PaddleOCRVLTool error")
             return {"success": False, "error": str(exc)}
