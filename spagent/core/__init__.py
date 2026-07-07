@@ -35,6 +35,7 @@ from .tool_result import (
     MediaPayload,
     TextPayload,
 )
+from .render import render, RenderedOutput, resolve_projection, legacy_projection
 from .model import Model
 from .data_collector import DataCollector, InferenceSample, SessionData
 from .memory import AgentMemory, MemoryEntry, StepResult
@@ -79,6 +80,11 @@ __all__ = [
     'PointCloudPayload',
     'MediaPayload',
     'TextPayload',
+    # Render module
+    'render',
+    'RenderedOutput',
+    'resolve_projection',
+    'legacy_projection',
     'Model',
     'DataCollector',
     'InferenceSample',
