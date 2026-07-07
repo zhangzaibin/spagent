@@ -104,7 +104,7 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 Each block gives the required raw payload (one-of forms), the optional extras, *why* it's the minimal informative unit, and the honest compliance status against the **raw** bar.
 
 #### 1. Detection
-- **Required raw (one of):** `boxes`+`labels` with each box as pixel `xyxy` **or** normalized `xyxy` **or** normalized `cxcywh`. **Rendering:** annotated image / crops.
+- **Required raw (one of):** `detections: [{bbox, label, confidence?}]` **or** parallel `boxes`+`labels`; each box as pixel `xyxy` **or** normalized `xyxy` **or** normalized `cxcywh`. **Rendering:** annotated image / crops.
 - **Optional:** `confidence`, `image_width`/`image_height`, `class_id`, `crop_paths`, `masks`, `3d_coords`.
 - **Why minimal:** a labelled box is the smallest unit that says *what* + *where*; format is unconstrained so no tool is forced to convert.
 - **Canonical carrier / format (GroundingDINO tools):** the raw boxes live in the **`detections`** list — `[{id, bbox, confidence, label}]` — where `bbox` is **normalized `cxcywh` in [0,1]** (traced from `groundingdino.predict()` → `spagent/external_experts/GroundingDINO/grounding_dino_server.py:202-209`). The parallel top-level `boxes`/`labels`/`confidence` arrays are derived from `detections` via `_surface_boxes()` (**PR #228**; previously they were empty on the real path). Both carriers now agree; either satisfies the contract.
