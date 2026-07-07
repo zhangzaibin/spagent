@@ -118,17 +118,25 @@ class _MockFlowSeekClient:
     ) -> Dict[str, Any]:
         out = output_path or image1_path
         flow_path = str(Path(out).with_suffix(".npy"))
+        # Write a real (tiny) zero-flow array so flow_path is actually loadable
+        # in mock mode, mirroring the real client's .npy contract.
+        flow_shape = [2, 2, 2]
+        try:
+            import numpy as np
+            np.save(flow_path, np.zeros(flow_shape, dtype=np.float32))
+        except Exception:
+            flow_path = None
         return {
             "success": True,
             "result": {
                 "flow_magnitude_mean": 5.0,
                 "output_path": out,
                 "flow_path": flow_path,
-                "flow_shape": [0, 0, 2],
+                "flow_shape": flow_shape,
             },
             "output_path": out,
             "flow_path": flow_path,
-            "flow_shape": [0, 0, 2],
+            "flow_shape": flow_shape,
             "flow_magnitude_mean": 5.0,
             "description": f"[mock] FlowSeek estimated flow from {Path(image1_path).name} to {Path(image2_path).name}.",
         }
