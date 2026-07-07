@@ -72,9 +72,9 @@ The loop consumes the envelope + a rendering; the **raw payload is required for 
 | Field | Type | When required | Purpose |
 |-------|------|---------------|---------|
 | `success` | bool | always | gates all downstream handling |
-| `description` | str | always (may be empty) | natural-language result fed back to the VLM |
+| `description` | str | always (may be empty) | tool's *draft* natural-language summary. **Ownership:** the tool emits a draft; once the render module exists, the **renderer owns the final VLM-facing text** (default projection = pass the tool draft through; richer projections synthesize from the raw payload). |
 | `error` | str | when `success=False` | failure reason (logged + surfaced to the model) |
-| **a rendered visualization** — one of `output_path` \| `vis_path` \| `crop_paths` \| `overlay_path` | str / list | any tool that produces an image/video | how the result reaches the VLM; a *view* of the raw payload (`.mp4` allowed in `output_path`) |
+| **a rendered visualization** — one of `output_path` \| `vis_path` \| `crop_paths` \| `overlay_path` | str / list | any tool that produces an image/video | how the result reaches the VLM; a *view* of the raw payload (`.mp4` allowed in `output_path`). ⚠️ Today's agent loop consumes only `output_path`/`vis_path`/`crop_paths` — **the render module must also consume `overlay_path`** (a tool returning only `overlay_path` is contract-compliant). |
 
 ### Category Output Registry
 
@@ -82,8 +82,8 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 
 | # | Category | Tools (registered) | Required raw payload — **ONE OF** | Common optional (per-tool) |
 |---|----------|--------------------|-----------------------------------|----------------------------|
-| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det), wilddet3d 🚧 | `detections`/`boxes`+`labels`, each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
-| 2 | Segmentation | segment_image, supervision (seg) | a mask **one of** {binary array, mask file path, `polygon` coords, RLE} | `area`, `bbox`, `class_name`, `shape` |
+| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det)*, wilddet3d 🚧 | accepted carriers (normative, **one of**): (a) `detections: [{bbox, label, confidence?}]` **or** (b) parallel `boxes` + `labels` arrays; each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
+| 2 | Segmentation | segment_image, supervision (seg)* | a mask **one of** {binary array, mask file path, `polygon` coords, RLE} | `area`, `bbox`, `class_name`, `shape` |
 | 3 | Image Generation | image_generation_sana | image path **one of** {`output_path`, `image_paths[]`} | `seed`, `model`, `size`, `file_size_bytes` |
 | 4 | Video Generation | video_generation_{veo,sora,wan,vace} | `output_path` (.mp4 path) | `duration`, `resolution`, `fps`, `codec`, `result_dir`, `frame_paths` |
 | 5 | 3D Reconstruction | pi3, pi3x, mapanything, vggt | point cloud **one of** {`ply_filename` path, raw points array} | `points_count`, `view_count`, `camera_views`, `camera_poses`, `mesh_path`, `scale_info` |
@@ -95,6 +95,10 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 
 🚧 = class exists but not in `TOOL_CATALOG` (see the note at the top of this doc). The rendered visualization (envelope) is additionally expected for every visual category above.
 
+\* **Dual-category tools** (supervision): the tool's static registry `category` is its primary one (`detection`); the **effective category is resolved per call** from the `task` argument, and the result carries a `category` field so validation/rendering key off the *result*, not the static registry entry.
+
+> **This registry table is normative.** The Tool Configuration Table at the top of this doc and the per-category blocks below are explanatory reference; where they disagree with this table, this table wins.
+
 ### Per-category detail
 
 Each block gives the required raw payload (one-of forms), the optional extras, *why* it's the minimal informative unit, and the honest compliance status against the **raw** bar.
@@ -103,8 +107,8 @@ Each block gives the required raw payload (one-of forms), the optional extras, *
 - **Required raw (one of):** `boxes`+`labels` with each box as pixel `xyxy` **or** normalized `xyxy` **or** normalized `cxcywh`. **Rendering:** annotated image / crops.
 - **Optional:** `confidence`, `image_width`/`image_height`, `class_id`, `crop_paths`, `masks`, `3d_coords`.
 - **Why minimal:** a labelled box is the smallest unit that says *what* + *where*; format is unconstrained so no tool is forced to convert.
-- **Canonical carrier / format (GroundingDINO tools):** the raw boxes live in the **`detections`** list — `[{id, bbox, confidence, label}]` — where `bbox` is **normalized `cxcywh` in [0,1]** (traced from `groundingdino.predict()` → `grounding_dino_server.py:202-209`). ⚠️ The parallel top-level `boxes`/`labels`/`confidence` arrays that `zoom_object`/`localize_object` also return are populated from `raw.get("boxes"…)`, which the *real* client never provides — so **they are empty on the real path** and only filled (as pixel `xyxy`) by the missing-mock `_SimpleMock` fallback. Read `detections`, not the top-level arrays. One-line fix: derive `boxes`/`labels` from `detections` (`detection_tool.py:452-454` & `:638-640`).
-- **Status:** 🟢 yolo26 (pixel), qwenvl (normalized), yoloe, supervision. 🟢 **zoom_object & localize_object** — both *do* expose `detections[].bbox` (normalized cxcywh); the earlier "crops-only / format-unclear" call was wrong (only the redundant top-level arrays are broken). 🟢 wilddet3d 🚧 — returns structured `boxes2d` (pixel xyxy) + `boxes3d` (camera frame); see §9-style note below. Net: **all detection tools carry a raw box payload.**
+- **Canonical carrier / format (GroundingDINO tools):** the raw boxes live in the **`detections`** list — `[{id, bbox, confidence, label}]` — where `bbox` is **normalized `cxcywh` in [0,1]** (traced from `groundingdino.predict()` → `spagent/external_experts/GroundingDINO/grounding_dino_server.py:202-209`). The parallel top-level `boxes`/`labels`/`confidence` arrays are derived from `detections` via `_surface_boxes()` (**PR #228**; previously they were empty on the real path). Both carriers now agree; either satisfies the contract.
+- **Status:** 🟢 all detection tools carry a raw box payload — yolo26 (pixel), qwenvl (normalized), yoloe, supervision, zoom_object & localize_object (`detections[].bbox`, normalized cxcywh, + derived top-level arrays per PR #228), wilddet3d 🚧 (structured `boxes2d` pixel xyxy + `boxes3d` camera frame). ⚠️ **Envelope gap (separate from the raw bar):** `qwenvl_detection` returns no `description` and no rendering (`spagent/tools/qwenvl_tool.py:112-117`) — raw-compliant but envelope-non-compliant; fix during its standardize pass.
 
 #### 2. Segmentation
 - **Required raw (one of):** binary mask array **or** mask file path **or** `polygon` coords **or** RLE. **Rendering:** overlay / combined image.
@@ -134,7 +138,7 @@ Each block gives the required raw payload (one-of forms), the optional extras, *
 - **Required raw (one of):** `points`, each as normalized `(x,y)` **or** pixel `(x_px,y_px)`. **Rendering:** annotated overlay.
 - **Optional:** `confidence`, `labels`, `image_width`/`image_height`, `raw_text`.
 - **Why minimal:** the point coordinates are the payload; dims are only needed to convert between the two forms.
-- **Status:** 🟢 both. **molmo2 → pixel** coords (`point_utils.py:177-195` scale the model's 0–1000/0–100 output by width/height; the tool already loads `sizes` at `molmo2_tool.py:99-102` but doesn't surface them). **moondream → normalized [0,1]** (native Moondream format). Enrichment: molmo2 could attach `image_width`/`height` (already in hand) for free pixel↔normalized conversion.
+- **Status:** 🟢 both. **molmo2 → pixel** coords (`spagent/external_experts/Molmo2/point_utils.py:177-195` scale the model's 0–1000/0–100 output by width/height; the tool already loads `sizes` at `spagent/tools/molmo2_tool.py:99-102` but doesn't surface them). **moondream → normalized [0,1]** (native Moondream format). Enrichment: molmo2 could attach `image_width`/`height` (already in hand) for free pixel↔normalized conversion.
 
 #### 7. Depth Estimation
 - **Required raw (one of):** raw depth array (`depth_data`) **or** a depth file path (.npy/.exr). **Rendering:** `output_path` colored depth map.
@@ -152,7 +156,7 @@ Each block gives the required raw payload (one-of forms), the optional extras, *
 - **Required raw (one of):** raw `(u,v)` flow array **or** a flow file path. **Rendering:** `output_path` colorized flow.
 - **Optional:** `flow_magnitude_mean` + statistics, `motion_boundaries`, `confidence_map`.
 - **Why minimal:** the per-pixel flow field is the information; a magnitude scalar is a *summary*, not the payload.
-- **Status:** 🔴 flowseek 🚧 — the **only genuinely non-compliant tool**. Returns only `flow_magnitude_mean` + a visualization, **no raw flow field**. FIX (easy): the dense `(H,W,2)` `u,v` array already exists as `flow_np` at `flowseek_local.py:187` and is thrown away at `:201-213` — `np.save()` it and add `flow_path` to the return dict (1–3 lines, no blockers in **local** mode). Server mode adds two wrinkles: HTTP payload is ~16 MB/1080p frame (prefer a served `.npy` path or compressed `.npz` over base64 inlining), and the current `tempfile`+`os.unlink` cleanup (`flowseek_server.py:74-79`) would delete a returned path, so it needs a persistent/served dir.
+- **Status:** 🟢 **fixed in PR #229** — local + mock modes now save the dense `(H,W,2)` float32 field as a `.npy` and return `flow_path` + `flow_shape` (verified with real FlowSeek-M inference: a 12 px synthetic shift recovered as mean dx = 12.019 px). Remaining follow-up: **server mode** still transports only the PNG — raw flow over HTTP is ~16 MB/1080p frame (prefer a served `.npy`/compressed `.npz` path over base64 inlining) and the `tempfile`+`os.unlink` cleanup (`spagent/external_experts/FlowSeek/flowseek_server.py:74-79`) would delete a returned path, so it needs a persistent/served dir.
 
 #### 10. OCR / Document
 - **Required raw:** `text` (string; a structured string — Markdown/LaTeX/JSON — for table/chart/formula tasks).
@@ -164,17 +168,18 @@ Each block gives the required raw payload (one-of forms), the optional extras, *
 
 ## Summary: Standardization Roadmap (against the required-raw bar)
 
-Compliance is measured on the **raw payload**, not on whether a picture came back. After source-level verification of every tool, **the required-raw bar is met by all but one tool**:
+Compliance is measured on the **raw payload**, not on whether a picture came back. After source-level verification of every tool (and the two landed fixes), **the required-raw bar is met by every tool**:
 
-- **🔴 Genuinely non-compliant (1):**
-  - `flowseek_tool` 🚧 — returns `flow_magnitude_mean` + viz only; the dense `(u,v)` field is computed then discarded (`flowseek_local.py:187`→`:201-213`). **Easy fix**: `np.save(flow_np)` + return `flow_path` (local mode: 1–3 lines; server mode: use a served `.npy`/`.npz` path due to ~16 MB payload).
-- **🟢 Compliant (all others) — with enrichment TODOs where the raw data is present but thin:**
-  - **Detection** (yolo26, qwenvl, yoloe, supervision, zoom_object, localize_object): all carry boxes. Two follow-ups, both bugs not gaps: (1) fix the empty top-level `boxes`/`labels` arrays on the GroundingDINO path (derive from `detections`, `detection_tool.py:452-454`/`:638-640`); (2) ship a real `mock_gdino_service.py` — the current `_SimpleMock` fallback emits a *different* format (pixel `xyxy`, top-level `boxes`, no `detections`) than the real server (normalized `cxcywh` in `detections`).
-  - **wilddet3d** 🚧: already returns `boxes2d` (pixel xyxy) + `boxes3d` (camera frame) + `scores`; enrichment = stop dropping `class_ids` (labels), `scores_2d`/`scores_3d`, and per-box depth from `depth_maps` (`wilddet3d_local.py:151` unpacks all 7 model outputs, surfaces only 3).
-  - **Point grounding**: molmo2 (pixel) & moondream (normalized) both compliant; molmo2 can surface the `image_width`/`height` it already computes.
-  - **Also compliant, no action:** segment_image, supervision (seg); image_generation_sana; all video tools; all 3D tools; depth_estimation; orient_anything_v2; paddleocr_vl.
-
-> **Correction note:** an earlier draft marked `zoom_object`, `wilddet3d`, and `localize_object` as non-compliant/unclear. Source inspection disproved that — each already emits a structured box payload; the real issues are the two detection *bugs* above (empty top-level arrays, missing/inconsistent mock), not a missing category payload.
+- **✅ Landed fixes (real-run verified):**
+  - **PR #228** `fix(detection)` — top-level `boxes`/`labels`/`confidence` now derived from `detections` (`_surface_boxes`), index-aligned; verified against real GroundingDINO.
+  - **PR #229** `fix(flowseek)` — raw `(u,v)` field saved as `.npy`, `flow_path`/`flow_shape` surfaced (local + mock); verified against real FlowSeek-M. Server-mode raw transport deferred (see §9).
+- **Open follow-ups (enrichments, not gaps):**
+  - Detection: ship a real `mock_gdino_service.py` — the current `_SimpleMock` fallback (`spagent/tools/detection_tool.py:125-133`) emits a *different* format (pixel `xyxy`, top-level `boxes`, no `detections`) than the real server (normalized `cxcywh` in `detections`).
+  - Envelope: `qwenvl_detection` lacks `description` + rendering (see §1) — fix in its standardize pass.
+  - wilddet3d 🚧: stop dropping `class_ids` (labels), `scores_2d`/`scores_3d`, per-box depth (`spagent/external_experts/WildDet3D/wilddet3d_local.py:151` unpacks 7 model outputs, surfaces 3). Blocked on smoke-testability (external model at `WILDDET3D_ROOT`).
+  - Point grounding: molmo2 can surface the `image_width`/`height` it already computes (`spagent/tools/molmo2_tool.py:99-102`).
+  - FlowSeek server mode: raw-flow transport (served dir or compressed inline).
+- **Compliant, no action:** segment_image, supervision; image_generation_sana; all video tools; all 3D tools; depth_estimation; orient_anything_v2; paddleocr_vl; moondream.
 
 ### Architecture (branch goal)
 
@@ -191,21 +196,52 @@ ToolResult(envelope              select fields per user config,      formatted
  [PRODUCE: rich, lossless]       [PROJECT: filtered, formatted]
 ```
 
-- **Tools produce, they do not format for the model.** Each `tool.call()` returns a standardized `ToolResult`: the universal envelope + the category's required payload + whatever optional fields that tool can afford — as rich and lossless as possible. Tools never decide what the VLM sees.
+- **Tools produce, they do not format for the model.** Each `tool.call()` returns a standardized `ToolResult`: the universal envelope + the category's required payload + whatever optional fields that tool can afford — as rich and lossless as possible. Tools may draft a `description`; the renderer owns the final VLM-facing text.
 - **The parse/render module projects.** A single module converts a `ToolResult` into the vLLM tool-output format, **including only the fields the user configured**. Each category ships a **default projection** (a minimal, sensible field set) plus a **unified "all" preset** (dump everything). Config can override per category or per tool.
 - **Why the split:** the same rich result can be rendered thinly for cheap large-scale eval or fully for debugging, without touching tool code; required stays minimal for tests + experiments while optional gives each tool head-room.
 
+### Integration with the agent loop
+
+The render module replaces the loop's current hardcoded consumption, in one place:
+
+- **Call site:** `SPAgent`'s tool-result handling (`spagent/core/spagent.py:326-364`), which today hardcodes `result.get("output_path"/"vis_path"/"crop_paths")` + `.mp4` frame extraction, and `memory.add_tool_result()` which reads `success`/`error`/`description`. Both delegate to `render(result, config)`: the renderer returns `(text, images)` — the text goes to memory/the continuation prompt, the images (now **including `overlay_path`** and extracted video frames) go into `iteration_additional_images`.
+- **Config plumbing:** `SPAgent(render_config=...)` constructor arg (an object/dict, optionally loaded from file); overridable per `solve_problem()`/`step()` call via a `render_config=` kwarg. No global state.
+- **Backward compatibility / migration:** `ToolResult` is **dict-compatible** (a `Mapping` — `.get()`/`[]`/`in` all work), so existing consumers and un-migrated dict-returning tools keep working unchanged. The renderer accepts both: a plain dict routes through a **legacy projection** that reproduces today's exact behavior (description passthrough + output_path/vis_path/crop_paths). Tools migrate to `ToolResult` **one at a time**; a mixed iteration (some dict, some ToolResult) is fully supported. No consumer change is required until the last tool migrates.
+
+### Render config: precedence & shape
+
+Precedence (most specific wins): **per-tool > per-category > global preset**. Field lists **replace** (not merge) at whichever level is set — predictable over clever.
+
+```python
+render_config = {
+    "preset": "default",                # "default" | "all"  (global fallback)
+    "categories": {
+        "detection": {"fields": ["labels", "boxes", "confidence"], "coords": "pixel_xyxy"},
+        "depth":     {"fields": []},    # image-only projection for cheap eval
+    },
+    "tools": {
+        "zoom_object_tool": {"fields": ["labels", "crop_paths"]},   # beats "detection"
+    },
+}
+```
+
+The projection controls: which payload fields appear in the text block, coordinate format conversion (via payload helpers), which visualizations attach, and whether `description` is the tool draft (default) or synthesized from the payload.
+
 ### Registry implementation sketch
-1. **One `ToolResult` envelope** dataclass (`success`, `description`, `error`, visualization fields) shared by every tool.
-2. **Per-category typed payload** (`DetectionPayload`, `Mask`, `Points`, `Orientation`, …) whose constructor accepts *any one of* the allowed forms and exposes computed helpers (area from mask, dims from array, pixel↔normalized).
-3. **Required raw payload gates category compliance**; optional fields live on the payload but never gate `success`.
-4. **Parse/render module is separate & config-driven:** `render(result, config)` → vLLM message; per-category default projection + a unified all-fields preset; drives both the text summary and which visualizations attach.
-5. **Registry** maps `category → {tools, required contract, optional fields, default projection}` — the single source of truth this doc's tables describe.
+
+**Extend the existing `TOOL_CATALOG` — do not build a parallel registry.** `spagent/tools/catalog.py` already registers construction metadata (`ToolCatalogEntry`: `key`/`cls`/`group`/`tool_name`/`default_kwargs`/`accepts_use_mock`). The coarse `group` (4 values: `2d_perception`/`vlm`/`3d`/`generation`) stays — it drives prompt-grouping. The fine **`category`** (10 values, this doc's registry table) is added for output contracts; e.g. molmo2 keeps `group="vlm"` and gains `category="point_grounding"`.
+
+1. **`ToolCatalogEntry` gains a `category: str` field** (one of the 10 registry categories; supervision's static entry says `detection`, per-call resolution per the registry-table note). Register flowseek / paddleocr_vl / wilddet3d while at it (in scope for this branch).
+2. **`CATEGORY_CONTRACTS: Dict[str, CategoryContract]`** in a new `spagent/core/tool_result.py` (or sibling): `CategoryContract(required_one_of, optional_fields, default_projection)` — the code form of this doc's registry table, single source of truth for validation + the renderer's defaults.
+3. **One `ToolResult` envelope** (dict-compatible, see Integration) + **per-category typed payload** (`DetectionPayload`, `Mask`, `Points`, `Orientation`, …) whose constructor accepts *any one of* the allowed forms and exposes computed helpers (area from mask, dims from array, pixel↔normalized).
+4. **Required raw payload gates category compliance**; optional fields never gate `success`.
+5. **Parse/render module** (`spagent/core/render.py`): `render(result, config) -> (text, images)`; consumes `CATEGORY_CONTRACTS` defaults; legacy projection for plain dicts.
 
 Guiding principle: **required = the category's raw informative payload (in any one accepted form) + the universal envelope; optional = everything else; the render module decides what of that reaches the model.**
 
 ### Validation plan
 - **During dev — smoke tests only, < 10 GB VRAM.** Exercise the envelope/payload/render plumbing with (a) `use_mock=True` tools (zero VRAM) and (b) one tiny real local tool — **`yolo26_tool`** (local YOLO, no server, ~1–2 GB, `accepts_use_mock=False`) — to prove the real→standardized→render path end-to-end without disturbing GPU jobs.
+- **What the smoke tests assert:** (1) per category: required payload present in one accepted form, envelope fields present, payload helpers round-trip (pixel↔normalized, mask↔bbox); (2) render path: default projection emits exactly the contract's `default_projection` fields, `"all"` preset emits every populated field, per-tool override beats per-category; (3) legacy: a plain-dict result renders byte-identical to today's loop output; (4) mixed iteration (dict tool + ToolResult tool) completes.
 - **Gate:** full dev + **design review by the maintainer** before any broad run.
 - **After sign-off — full matrix.** Run the complete `test/test_tool.py` suite across **all** tools (spinning up the heavier expert servers as needed).
 
