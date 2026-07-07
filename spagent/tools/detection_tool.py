@@ -25,6 +25,12 @@ from typing import Dict, Any, List, Optional, Tuple
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import (
+    BOX_CXCYWH_NORM,
+    BOX_XYXY_PIXEL,
+    DetectionPayload,
+    ToolResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +192,60 @@ class _BaseDetectionTool(Tool):
         confidence = [d.get("confidence") for d in detections]
         return boxes, labels, confidence
 
+    @staticmethod
+    def _image_dims(image_path: str) -> Tuple[Optional[int], Optional[int]]:
+        """Cheap (header-only) image dimensions; (None, None) on failure."""
+        try:
+            from PIL import Image
+            with Image.open(image_path) as im:
+                return im.size  # (width, height)
+        except Exception:
+            return None, None
+
+    def _standardized_result(
+        self,
+        image_path: str,
+        raw: Dict[str, Any],
+        detections: List[Dict[str, Any]],
+        msg: str,
+        output_path: Optional[str] = None,
+        vis_path: Optional[str] = None,
+        crop_paths: Optional[List[str]] = None,
+    ) -> ToolResult:
+        """Build the standardized ToolResult shared by the detection tools.
+
+        Legacy keys (``result``, ``message`` and the parallel arrays via the
+        payload) are preserved, so pre-migration consumers see the same shape.
+        The real GroundingDINO path emits normalized cxcywh; the box format is
+        inferred with the same heuristic ``_bbox_to_pixel_xyxy`` uses, so a
+        pixel-emitting client is labelled correctly too.
+        """
+        boxes, labels, confidence = self._surface_boxes(raw, detections)
+        if confidence and len(confidence) != len(boxes):
+            confidence = None  # unaligned legacy arrays: drop rather than lie
+        box_format = BOX_CXCYWH_NORM
+        if boxes and max(abs(v) for b in boxes for v in b) > 2.0:
+            box_format = BOX_XYXY_PIXEL
+        width, height = self._image_dims(image_path)
+        payload = DetectionPayload(
+            boxes=boxes,
+            labels=labels,
+            box_format=box_format,
+            confidence=confidence,
+            image_width=width,
+            image_height=height,
+        )
+        return ToolResult(
+            success=True,
+            payload=payload,
+            description=msg,
+            output_path=output_path,
+            vis_path=vis_path,
+            crop_paths=crop_paths or [],
+            result=raw,
+            message=msg,
+        )
+
     def _bbox_to_pixel_xyxy(self, bbox, img_h: int, img_w: int) -> Tuple[int, int, int, int]:
         """Convert normalized cxcywh → pixel xyxy (or passthrough if already pixel)."""
         a, b, c, d = bbox
@@ -307,13 +367,16 @@ class _BaseDetectionTool(Tool):
             f"(e.g. 'motorbike' for 'motorcycle', 'luggage' for 'suitcase')."
         )
         logger.warning(msg)
-        return {
-            "success": True,
-            "detections": [],
-            "crop_paths": [],
-            "message": msg,
-            "description": msg,
-        }
+        # Zero detections is a legitimate finding: standardized result with
+        # an empty payload (carriers present-but-empty satisfy the contract).
+        return ToolResult(
+            success=True,
+            payload=DetectionPayload(boxes=[], labels=[],
+                                     box_format=BOX_CXCYWH_NORM),
+            description=msg,
+            crop_paths=[],
+            message=msg,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -471,20 +534,12 @@ class ZoomObjectTool(_BaseDetectionTool):
                 f"{len(crop_paths)} close-up crop(s) provided for attribute inspection."
             )
             logger.info(msg)
-            boxes, labels, confidence = self._surface_boxes(raw, detections)
-            return {
-                "success": True,
-                "result": raw,
-                "detections": detections,
-                "boxes": boxes,
-                "labels": labels,
-                "confidence": confidence,
-                "output_path": raw.get("output_path"),
-                "vis_path": raw.get("vis_path"),
-                "crop_paths": crop_paths,
-                "message": msg,
-                "description": msg,
-            }
+            return self._standardized_result(
+                image_path, raw, detections, msg,
+                output_path=raw.get("output_path"),
+                vis_path=raw.get("vis_path"),
+                crop_paths=crop_paths,
+            )
 
         except Exception as e:
             logger.error(f"zoom_object_tool error: {e}")
@@ -658,20 +713,12 @@ class LocalizeObjectTool(_BaseDetectionTool):
                 f"Annotated full image provided. Positions:\n{text_summary}"
             )
             logger.info(msg)
-            boxes, labels, confidence = self._surface_boxes(raw, detections)
-            return {
-                "success": True,
-                "result": raw,
-                "detections": detections,
-                "boxes": boxes,
-                "labels": labels,
-                "confidence": confidence,
-                "output_path": anno_path,       # annotated full image
-                "vis_path": anno_path,
-                "crop_paths": [],               # no crops for localize mode
-                "message": msg,
-                "description": msg,
-            }
+            return self._standardized_result(
+                image_path, raw, detections, msg,
+                output_path=anno_path,          # annotated full image
+                vis_path=anno_path,
+                crop_paths=[],                  # no crops for localize mode
+            )
 
         except Exception as e:
             logger.error(f"localize_object_tool error: {e}")
