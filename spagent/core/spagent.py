@@ -29,6 +29,7 @@ from .prompts import (
 import json as _json
 from .data_collector import DataCollector
 from .render import render as render_tool_result
+from .tool_result import CATEGORY_CONTRACTS
 
 logger = logging.getLogger(__name__)
 
@@ -339,14 +340,23 @@ class SPAgent:
                 # Standardized results (known category) follow the configured
                 # projection; plain dicts take the legacy projection, which
                 # reproduces the historical inline behavior exactly.
-                # tool_name may carry a duplicate suffix ("<name>_2") — strip
-                # it so per-tool render config still matches.
-                base_tool_name = re.sub(r"_\d+$", "", tool_name)
+                # Duplicate tool calls get suffixed result keys ("<name>_2");
+                # strip the suffix for per-tool render-config matching, but
+                # only when the stripped name is actually a registered tool
+                # (a tool literally named e.g. "stage_2" must not be mangled).
+                base_tool_name = tool_name
+                stripped = re.sub(r"_\d+$", "", tool_name)
+                if stripped != tool_name and self.tool_registry.get(stripped):
+                    base_tool_name = stripped
                 rendered = render_tool_result(
                     result, config=effective_render_config,
                     tool_name=base_tool_name,
                 )
-                is_standardized = bool(result.get("category"))
+                # Match render()'s own routing predicate: only a KNOWN category
+                # renders standardized (an unknown category string falls back
+                # to the legacy projection, so memory must use the tool's
+                # description in that case too).
+                is_standardized = result.get("category") in CATEGORY_CONTRACTS
 
                 output_images: List[str] = []
                 if result.get("success"):

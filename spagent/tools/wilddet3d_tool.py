@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Keys owned by the ToolResult envelope: passed as constructor params, never
 # duplicated as extras.
-_ENVELOPE_KEYS = ("success", "description", "error", "category",
+_ENVELOPE_KEYS = ("success", "description", "error", "category", "payload",
                   "output_path", "vis_path", "overlay_path", "crop_paths")
 
 

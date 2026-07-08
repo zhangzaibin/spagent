@@ -108,7 +108,11 @@ _MAX_TEXT_CHARS = 2000
 
 
 def _fmt(value: Any) -> str:
-    if hasattr(value, "shape") and hasattr(value, "dtype"):  # numpy array
+    if hasattr(value, "shape") and hasattr(value, "dtype"):  # numpy array/scalar
+        if getattr(value, "ndim", 1) == 0:
+            # 0-d numpy scalar (real clients often emit np.float32 confidences)
+            # — show the value, not "<array shape=()>".
+            return _fmt(value.item())
         return f"<array shape={tuple(value.shape)} dtype={value.dtype}>"
     if isinstance(value, float):
         return f"{value:.4g}"
@@ -128,13 +132,19 @@ def _fmt(value: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def legacy_projection(result: Mapping) -> RenderedOutput:
-    """Reproduce today's agent-loop consumption exactly.
+    """Reproduce the historical agent-loop consumption.
 
-    Order and semantics mirror ``SPAgent`` (spagent/core/spagent.py:326-348):
+    Order and semantics mirror the pre-render SPAgent loop:
     ``output_path`` (existence-checked; ``.mp4`` kept as-is for the caller's
     frame extraction), then ``vis_path`` (existence-checked, NOT deduped
     against output_path), then each of ``crop_paths``. Failures contribute no
     images. Text is the tool's ``description`` (or empty).
+
+    One deliberate generalization: the caller now applies ``.mp4`` frame
+    extraction to ANY returned image path, not just ``output_path``. No tool
+    emits video outside ``output_path``, so observed behavior is unchanged;
+    previously a video in ``vis_path``/``crop_paths`` would have been
+    attached raw as an "image" (arguably a bug).
     """
     text = result.get("description") or ""
     images: List[str] = []

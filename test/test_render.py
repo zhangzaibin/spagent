@@ -151,6 +151,16 @@ def test_resolve_projection_shape():
     assert p == {"preset": "default", "fields": None, "coords": None}
 
 
+def test_fmt_numpy_scalar_shows_value():
+    try:
+        import numpy as np
+    except ImportError:
+        return  # numpy not present; nothing to check
+    from core.render import _fmt
+    assert _fmt(np.float32(3.14159)) == "3.142"
+    assert "<array" in _fmt(np.zeros((2, 2)))
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

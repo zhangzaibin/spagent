@@ -139,6 +139,34 @@ def test_visualization_paths_dedup_and_overlay(tmp_path=None):
     assert visualization_paths(res) == [a, b]
 
 
+def test_dict_subclass_json_and_isinstance():
+    import json
+    p = DetectionPayload(boxes=[[1, 2, 3, 4]], labels=["a"],
+                         box_format=BOX_XYXY_PIXEL, confidence=[0.5])
+    r = ToolResult(success=True, payload=p, description="d")
+    # real dict: isinstance checks (DataCollector, eval trace cleaners) work
+    assert isinstance(r, dict)
+    # JSON-serializable at the type level (values permitting)
+    parsed = json.loads(json.dumps(r))
+    assert parsed["labels"] == ["a"] and parsed["success"] is True
+    # attribute views stay consistent with the mapping
+    assert r.description == "d" and r.category == DETECTION
+    # payload lists are copied: mutating the mapping doesn't corrupt payload
+    r["boxes"].append([9, 9, 9, 9])
+    assert len(p.boxes) == 1
+
+
+def test_empty_string_path_carrier_rejected():
+    from core.tool_result import IMAGE_GENERATION, OCR
+    ok, _ = validate_payload({"output_path": ""}, IMAGE_GENERATION)
+    assert not ok, "empty path must not satisfy a path carrier"
+    ok, _ = validate_payload({"ply_filename": ""}, "3d_reconstruction")
+    assert not ok
+    # text is the one carrier where empty string is a legitimate finding
+    ok, _ = validate_payload({"text": ""}, OCR)
+    assert ok
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

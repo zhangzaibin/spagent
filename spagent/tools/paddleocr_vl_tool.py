@@ -25,7 +25,7 @@ VALID_TASKS = ("ocr", "table", "chart", "formula", "spotting", "seal")
 
 # Keys owned by the ToolResult envelope: passed as constructor params, never
 # duplicated as extras.
-_ENVELOPE_KEYS = ("success", "description", "error", "category",
+_ENVELOPE_KEYS = ("success", "description", "error", "category", "payload",
                   "output_path", "vis_path", "overlay_path", "crop_paths")
 
 

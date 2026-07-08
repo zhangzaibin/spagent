@@ -23,7 +23,7 @@ import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -180,9 +180,24 @@ def validate_payload(result: Mapping, category: str) -> Tuple[bool, List[Tuple[s
     contract = CATEGORY_CONTRACTS.get(category)
     if contract is None:
         raise KeyError(f"Unknown category: {category!r}")
+
+    def carrier_present(k: str) -> bool:
+        if k not in result:
+            return False
+        v = result.get(k)
+        if v is None:
+            return False
+        # An empty string is a missing artifact for path-like carriers
+        # (ply_filename="", flow_path="", …) — not a legitimate empty
+        # finding. Only `text` may legitimately be the empty string
+        # (e.g. OCR of a blank page).
+        if isinstance(v, str) and v == "" and k != "text":
+            return False
+        return True
+
     unmet: List[Tuple[str, ...]] = []
     for group in contract.required_one_of:
-        if all(k in result and result.get(k) is not None for k in group):
+        if all(carrier_present(k) for k in group):
             return True, []
         unmet.append(group)
     return False, unmet
@@ -519,13 +534,18 @@ class TextPayload(Payload):
 # ToolResult — the dict-compatible envelope
 # ---------------------------------------------------------------------------
 
-class ToolResult(Mapping):
-    """Standardized tool result: envelope + typed payload, dict-compatible.
+class ToolResult(dict):
+    """Standardized tool result: envelope + typed payload, a ``dict`` subclass.
 
-    ``result.get("boxes")`` / ``result["success"]`` / ``"labels" in result``
-    all work, so existing consumers need no change. New code can use
-    ``result.payload`` for the typed view and ``result.validate()`` for
-    contract checking.
+    Being a real ``dict`` keeps every existing consumer working unchanged:
+    ``result.get("boxes")`` / ``result["success"]`` / ``"labels" in result``,
+    ``isinstance(result, dict)`` checks (DataCollector, eval trace cleaners),
+    and ``json.dumps(result)`` (subject to the *values* being serializable,
+    same as plain-dict tools). New code can use ``result.payload`` for the
+    typed view and ``result.validate()`` for contract checking.
+
+    The mapping content is the single source of truth; the envelope
+    attributes (``success``, ``description``, …) are read-only views over it.
     """
 
     def __init__(
@@ -541,25 +561,18 @@ class ToolResult(Mapping):
         crop_paths: Optional[Sequence[str]] = None,
         **extras: Any,
     ):
-        self.success = success
-        self.payload = payload
-        self.category = category or (payload.category if payload else None)
-        self.description = description
-        self.error = error
-        self.output_path = output_path
-        self.vis_path = vis_path
-        self.overlay_path = overlay_path
-        self.crop_paths = list(crop_paths) if crop_paths else []
-        self.extras = dict(extras)
-
         data: Dict[str, Any] = {}
         if payload is not None:
-            data.update(payload.to_fields())
-        data.update(self.extras)
+            # Shallow-copy list-valued payload fields so later mutation of the
+            # mapping cannot corrupt the typed payload (and vice versa).
+            for k, v in payload.to_fields().items():
+                data[k] = list(v) if isinstance(v, list) else v
+        data.update(extras)
         data["success"] = success
         data["description"] = description
-        if category or self.category:
-            data["category"] = self.category
+        resolved_category = category or (payload.category if payload else None)
+        if resolved_category:
+            data["category"] = resolved_category
         if error is not None:
             data["error"] = error
         if output_path is not None:
@@ -568,27 +581,55 @@ class ToolResult(Mapping):
             data["vis_path"] = vis_path
         if overlay_path is not None:
             data["overlay_path"] = overlay_path
-        if self.crop_paths:
-            data["crop_paths"] = self.crop_paths
-        self._data = data
+        if crop_paths:
+            data["crop_paths"] = list(crop_paths)
+        super().__init__(data)
+        self._payload = payload
 
-    # -- Mapping interface -------------------------------------------------
-    def __getitem__(self, key: str) -> Any:
-        return self._data[key]
+    # -- read-only envelope views over the mapping ---------------------------
+    @property
+    def payload(self) -> Optional[Payload]:
+        return self._payload
 
-    def __iter__(self) -> Iterator[str]:
-        return iter(self._data)
+    @property
+    def success(self) -> bool:
+        return self.get("success", False)
 
-    def __len__(self) -> int:
-        return len(self._data)
+    @property
+    def category(self) -> Optional[str]:
+        return self.get("category")
+
+    @property
+    def description(self) -> str:
+        return self.get("description", "")
+
+    @property
+    def error(self) -> Optional[str]:
+        return self.get("error")
+
+    @property
+    def output_path(self) -> Optional[str]:
+        return self.get("output_path")
+
+    @property
+    def vis_path(self) -> Optional[str]:
+        return self.get("vis_path")
+
+    @property
+    def overlay_path(self) -> Optional[str]:
+        return self.get("overlay_path")
+
+    @property
+    def crop_paths(self) -> List[str]:
+        return self.get("crop_paths", [])
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return (f"ToolResult(success={self.success}, "
-                f"category={self.category!r}, keys={sorted(self._data)})")
+                f"category={self.category!r}, keys={sorted(self)})")
 
     # -- convenience ---------------------------------------------------------
     def to_dict(self) -> Dict[str, Any]:
-        return dict(self._data)
+        return dict(self)
 
     def validate(self) -> Tuple[bool, List[Tuple[str, ...]]]:
         """Validate the raw payload against this result's category contract."""
