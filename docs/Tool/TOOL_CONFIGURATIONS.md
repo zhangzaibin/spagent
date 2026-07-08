@@ -11,11 +11,7 @@ The SPAgent system uses a **three-layer prompt architecture**:
 - **Tool Parameters**: Each tool defines a JSON schema for its inputs via the `parameters` property
 ---
 ## Tool Configuration Table
-> **Registered names & catalog status** (verified against `spagent/tools/catalog.py`):
-> - The **Tool Name** column below is the *registered* name (`ToolCatalogEntry.tool_name`) exposed to the model, not the Python class or filename.
-> - The four generation video tools and the Sana image tool are registered under **namespaced** names: `image_generation_sana_tool`, `video_generation_veo_tool`, `video_generation_sora_tool`, `video_generation_wan_tool`, `video_generation_vace_tool`.
-> - **`flowseek_tool`, `paddleocr_vl_tool`, and `wilddet3d_tool` are NOT in `TOOL_CATALOG`** — their classes exist and are exported from `spagent/tools/__init__.py`, but they are not imported into `catalog.py`, so `build_all_tools()` never constructs them. They are documented here for completeness and marked 🚧 **unregistered** in the table.
-> - `detect_objects_tool` (`ObjectDetectionTool`) **is** registered and is included below.
+> The **Tool Name** column is the *registered* name (`ToolCatalogEntry.tool_name` in `spagent/tools/catalog.py`) exposed to the model — not the Python class or filename. The generation tools are registered under **namespaced** names (`image_generation_sana_tool`, `video_generation_{veo,sora,wan,vace}_tool`).
 
 | Tool Name | Category | Description (Shown to Model) | Input Image | Input Image 2 | Text/Query Inputs | Other Arguments | Output/Returns | Potential Enhancements |
 |-----------|----------|------------------------------|-------------|---------------|-------------------|-----------------|----------------|------------------------|
@@ -36,12 +32,12 @@ The SPAgent system uses a **three-layer prompt architecture**:
 | **video_generation_sora_tool** | Video Generation | Generate video from text prompt using OpenAI Sora. | ❌ None | ❌ None | **prompt** (required, string): Video description | **image_path** (optional, string): Reference image<br>**duration** (optional, default=10, 5-20)<br>**resolution** (optional, default='1080p')<br>**aspect_ratio** (optional, default='16:9') | ✅ **output_path** (string): Generated .mp4 video path | ⚠️ Frame-by-frame images, video quality metrics, generation metadata |
 | **video_generation_wan_tool** | Video Generation | Generate video from text prompt using Alibaba Wan (DashScope). | ❌ None | ❌ None | **prompt** (required, string): Video description | **image_path** (optional, string): Reference image<br>**duration** (optional, default=5, integer, range 3–10)<br>**aspect_ratio** (optional, default='16:9', enum: ['16:9', '9:16', '1:1']) | ✅ **output_path** (string): Generated .mp4 video path | ⚠️ Frame extraction, motion analysis, scene transitions |
 | **video_generation_vace_tool** | Video Generation | Generate video from reference image via local VACE first-frame pipeline. | **image_path** (required, string): First-frame reference | ❌ None | **prompt** (required, string): Motion prompt | **base** (optional, default='wan')<br>**task** (optional, default='frameref')<br>**mode** (optional, default='firstframe') | ✅ **output_path** (string): Generated .mp4 video<br>✅ **description** (string) — note: `result_dir` is nested inside the `result` sub-dict, not top-level | ⚠️ Frame sequence as images, camera trajectory data, intermediate results<br>⚠️ **Very slow (minutes)** |
-| **flowseek_tool** 🚧 | Optical Flow *(unregistered — not in TOOL_CATALOG)* | Optical flow estimation between two images. | **image1_path** (required, string) | **image2_path** (required, string) | ❌ None | **output_path** (optional, string): Save path | ✅ **flow_magnitude_mean** (float): Average pixel motion<br>✅ **output_path** (string): Colorized flow visualization | ⚠️ Raw flow vectors (u,v per pixel), flow arrows overlay, motion boundaries, dominant direction, object motion masks |
+| **flowseek_tool** | Optical Flow | Optical flow estimation between two images. | **image1_path** (required, string) | **image2_path** (required, string) | ❌ None | **output_path** (optional, string): Save path | ✅ **flow_magnitude_mean** (float): Average pixel motion<br>✅ **output_path** (string): Colorized flow visualization | ⚠️ Raw flow vectors (u,v per pixel), flow arrows overlay, motion boundaries, dominant direction, object motion masks |
 | **mapanything_tool** | 3D Reconstruction | 3D reconstruction using MapAnything. Similar to Pi3. | **image_path** (required, list of strings) | ❌ None | ❌ None | **azimuth_angle** (optional, -180 to 180; only `image_path` is `required` in the schema)<br>**elevation_angle** (optional, -90 to 90)<br>**rotation_reference_camera** (optional, default=1)<br>**camera_view** (optional, default=false) | ✅ Same as pi3_tool: **ply_filename**, **points_count**, **camera_views** | ⚠️ All pi3_tool enhancements + semantic labels per point, structure-from-motion metadata |
 | **moondream_tool** | Point Grounding | Lightweight vision-language: pointing to objects. | **image_path** (required, string) | ❌ None | **object_name** (required, string): Single or comma-separated multiple objects | **task** (required, enum: ['point']) | ✅ **Single**: points [{x,y,confidence}], output_path<br>✅ **Multiple**: all_points {obj:[{x,y,confidence}]}, color_mapping, total_points, output_path<br>✅ Normalized coords [0-1] | ⚠️ Bounding boxes from points, crops around each point, distance metrics between objects |
-| **paddleocr_vl_tool** 🚧 | OCR/Document *(unregistered — not in TOOL_CATALOG)* | Document-level OCR and structured recognition using PaddleOCR-VL-1.5. | **image_path** (required, string) | ❌ None | ❌ None | **task** (optional, default='ocr', enum: ['ocr', 'table', 'chart', 'formula', 'spotting', 'seal']) | ✅ **text** (string): Extracted text/structured output (format varies by task)<br>✅ **task** (string): Task mode used | ⚠️ Text bounding boxes, confidence scores, structured JSON for tables/charts, reading order, font/style metadata |
+| **paddleocr_vl_tool** | OCR/Document | Document-level OCR and structured recognition using PaddleOCR-VL-1.5. | **image_path** (required, string) | ❌ None | ❌ None | **task** (optional, default='ocr', enum: ['ocr', 'table', 'chart', 'formula', 'spotting', 'seal']) | ✅ **text** (string): Extracted text/structured output (format varies by task)<br>✅ **task** (string): Task mode used | ⚠️ Text bounding boxes, confidence scores, structured JSON for tables/charts, reading order, font/style metadata |
 | **yoloe_detection_tool** | Detection | Detect objects with YOLO-E using custom class names. | **image_path** (required, string) | ❌ None | ❌ None | **task** (required, enum: ['image', 'video'])<br>**class_names** (required, array of strings) | ✅ **boxes** (list): Bbox coordinates<br>✅ **labels** (list): Detected class names<br>✅ **confidence** (list): Scores<br>✅ **class_names** (list): Input classes<br>✅ **vis_path** (string): Annotated visualization | ⚠️ Cropped object images, normalized coords, multiple format options (COCO, YOLO, Pascal VOC) |
-| **wilddet3d_tool** 🚧 | Detection (3D) *(unregistered — not in TOOL_CATALOG)* | Promptable 3D object detection from single RGB image. | **image_path** (required, string) | ❌ None | **prompt_text** (optional, default='object', string): Object description; ignored when input_boxes/input_points given | **input_boxes** (optional, list): takes priority over prompt_text<br>**input_points** (optional, list): takes priority over prompt_text | ✅ Annotated image with 2D and 3D bounding boxes<br>✅ 3D location estimates | ⚠️ Structured 3D coordinates, depth estimates per object, 3D mesh generation, relative spatial positions |
+| **wilddet3d_tool** | Detection (3D) | Promptable 3D object detection from single RGB image. | **image_path** (required, string) | ❌ None | **prompt_text** (optional, default='object', string): Object description; ignored when input_boxes/input_points given | **input_boxes** (optional, list): takes priority over prompt_text<br>**input_points** (optional, list): takes priority over prompt_text | ✅ Annotated image with 2D and 3D bounding boxes<br>✅ 3D location estimates | ⚠️ Structured 3D coordinates, depth estimates per object, 3D mesh generation, relative spatial positions |
 | **vggt_tool** | 3D Reconstruction | 3D reconstruction using VGGT. | **image_path** (required, list of strings) | ❌ None | ❌ None | **azimuth_angle** (optional, -180 to 180; only `image_path` is `required` in the schema)<br>**elevation_angle** (optional, -90 to 90)<br>**rotation_reference_camera** (optional, default=1)<br>**camera_view** (optional, default=false) | ✅ Same as pi3_tool: **ply_filename**, **points_count**, **camera_views** | ⚠️ All pi3_tool enhancements |
 
 ---
@@ -63,7 +59,7 @@ This section defines the **minimal output contract** per tool category. The goal
 |----------|-------|
 | Agent loop (`spagent/core/spagent.py:326-402`) | `success`; `description` (→ text shown to the VLM); a visualization among `output_path` / `vis_path` / `crop_paths` (`.mp4` in `output_path` is auto-frame-extracted) |
 | Memory (`spagent/core/memory.py:229-243`) | `success`, `error`, `description` |
-| Tests (`test/test_tool.py`) | today lenient (payload **or** a vis path) — the required-raw contract below is the *intended* bar the tests should tighten toward |
+| Tests (`test/test_tool.py`) | lenient (payload **or** a vis path) — the required-raw contract below is the bar the tests tighten toward |
 
 The loop consumes the envelope + a rendering; the **raw payload is required for downstream analysis, chaining, and reproducible large-scale experiments**, even where the current tests don't yet assert it.
 
@@ -82,7 +78,7 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 
 | # | Category | Tools (registered) | Required raw payload — **ONE OF** | Common optional (per-tool) |
 |---|----------|--------------------|-----------------------------------|----------------------------|
-| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det)*, wilddet3d 🚧 | accepted carriers (normative, **one of**): (a) `detections: [{bbox, label, confidence?}]` **or** (b) parallel `boxes` + `labels` arrays; each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
+| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det)*, wilddet3d | accepted carriers (normative, **one of**): (a) `detections: [{bbox, label, confidence?}]` **or** (b) parallel `boxes` + `labels` arrays; each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
 | 2 | Segmentation | segment_image, supervision (seg)* | a mask **one of** {binary array, mask file path, `polygon` coords, RLE} | `area`, `bbox`, `class_name`, `shape` |
 | 3 | Image Generation | image_generation_sana | image path **one of** {`output_path`, `image_paths[]`} | `seed`, `model`, `size`, `file_size_bytes` |
 | 4 | Video Generation | video_generation_{veo,sora,wan,vace} | `output_path` (.mp4 path) | `duration`, `resolution`, `fps`, `codec`, `result_dir`, `frame_paths` |
@@ -90,10 +86,10 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 | 6 | Point Grounding | molmo2, moondream | `points`, each **one of** {normalized `(x,y)`, pixel `(x_px,y_px)`} | `confidence`, `labels`, `image_width`/`height`, `raw_text` |
 | 7 | Depth | depth_estimation | depth field **one of** {raw array (`depth_data`), depth file path (.npy/.exr)} | `shape`, `value_range`, `confidence_map`, `normal_map` |
 | 8 | Orientation | orient_anything_v2 | orientation **one of** {euler {`azimuth`,`elevation`,`rotation`}, `rotation_matrix`, `quaternion`} | `symmetry_order`, `confidence`, axes overlay |
-| 9 | Optical Flow | flowseek 🚧 | flow field **one of** {raw `(u,v)` array, flow file path} | `flow_magnitude_mean` + stats, `motion_boundaries`, `confidence_map` |
-| 10 | OCR / Document | paddleocr_vl 🚧 | `text` (string; structured string for table/chart/formula) | `text_boxes`, `confidence`, `structured_data`, `reading_order` |
+| 9 | Optical Flow | flowseek | flow field **one of** {raw `(u,v)` array, flow file path} | `flow_magnitude_mean` + stats, `motion_boundaries`, `confidence_map` |
+| 10 | OCR / Document | paddleocr_vl | `text` (string; structured string for table/chart/formula) | `text_boxes`, `confidence`, `structured_data`, `reading_order` |
 
-🚧 = class exists but not in `TOOL_CATALOG` (see the note at the top of this doc). The rendered visualization (envelope) is additionally expected for every visual category above.
+The rendered visualization (envelope) is additionally expected for every visual category above.
 
 \* **Dual-category tools** (supervision): the tool's static registry `category` is its primary one (`detection`); the **effective category is resolved per call** from the `task` argument, and the result carries a `category` field so validation/rendering key off the *result*, not the static registry entry.
 
@@ -101,89 +97,66 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 
 ### Per-category detail
 
-Each block gives the required raw payload (one-of forms), the optional extras, *why* it's the minimal informative unit, and the honest compliance status against the **raw** bar.
+Each block gives the required raw payload (one-of forms), the optional extras, and *why* it's the minimal informative unit.
 
 #### 1. Detection
 - **Required raw (one of):** `detections: [{bbox, label, confidence?}]` **or** parallel `boxes`+`labels`; each box as pixel `xyxy` **or** normalized `xyxy` **or** normalized `cxcywh`. **Rendering:** annotated image / crops.
 - **Optional:** `confidence`, `image_width`/`image_height`, `class_id`, `crop_paths`, `masks`, `3d_coords`.
 - **Why minimal:** a labelled box is the smallest unit that says *what* + *where*; format is unconstrained so no tool is forced to convert.
-- **Canonical carrier / format (GroundingDINO tools):** the raw boxes live in the **`detections`** list — `[{id, bbox, confidence, label}]` — where `bbox` is **normalized `cxcywh` in [0,1]** (traced from `groundingdino.predict()` → `spagent/external_experts/GroundingDINO/grounding_dino_server.py:202-209`). The parallel top-level `boxes`/`labels`/`confidence` arrays are derived from `detections` via `_surface_boxes()` (**PR #228**; previously they were empty on the real path). Both carriers now agree; either satisfies the contract.
-- **Status:** 🟢 all detection tools carry a raw box payload — yolo26 (pixel), qwenvl (normalized), yoloe, supervision, zoom_object & localize_object (`detections[].bbox`, normalized cxcywh, + derived top-level arrays per PR #228), wilddet3d 🚧 (structured `boxes2d` pixel xyxy + `boxes3d` camera frame). ⚠️ **Envelope gap (separate from the raw bar):** `qwenvl_detection` returns no `description` and no rendering (`spagent/tools/qwenvl_tool.py:112-117`) — raw-compliant but envelope-non-compliant; fix during its standardize pass.
+- **Canonical carrier / format (GroundingDINO tools):** the raw boxes live in the **`detections`** list — `[{id, bbox, confidence, label}]` — where `bbox` is **normalized `cxcywh` in [0,1]** (traced from `groundingdino.predict()` → `spagent/external_experts/GroundingDINO/grounding_dino_server.py:202-209`). The parallel top-level `boxes`/`labels`/`confidence` arrays are derived from `detections` via `_surface_boxes()`, so both carriers always agree; either satisfies the contract.
 
 #### 2. Segmentation
 - **Required raw (one of):** binary mask array **or** mask file path **or** `polygon` coords **or** RLE. **Rendering:** overlay / combined image.
 - **Optional:** `area`, `bbox`, `class_name`, `shape`.
 - **Why minimal:** the mask (in any form) is the information; area/bbox are computable from it.
-- **Status:** 🟢 segment_image (`mask_path`/array), supervision (masks).
 
 #### 3. Image Generation
 - **Required raw (one of):** `output_path` **or** `image_paths[]`.
 - **Optional:** `seed`, `model`, `size`, `file_size_bytes`.
 - **Why minimal:** the generated image *is* the payload; `seed`/`model` aid reproducibility but don't gate success.
-- **Status:** 🟢 image_generation_sana (path + rich metadata).
 
 #### 4. Video Generation
 - **Required raw:** `output_path` (`.mp4` path).
 - **Optional:** `duration`, `resolution`, `fps`, `codec`, `result_dir`, `frame_paths`.
 - **Why minimal:** the file is the payload; the loop auto-extracts frames from it (`spagent.py:331-337`).
-- **Status:** 🟢 veo, sora, wan, vace. Enrichment TODO: probe the file for real `fps`/`codec`/`resolution`.
 
 #### 5. 3D Reconstruction
 - **Required raw (one of):** `ply_filename` (point cloud path) **or** a raw points array. **Rendering:** `output_path` rendered view(s).
 - **Optional:** `points_count`, `view_count`, `camera_views`, `camera_poses`, `mesh_path`, `scale_info`.
 - **Why minimal:** the point cloud is the reconstruction; poses/mesh are enrichments.
-- **Status:** 🟢 pi3, pi3x, mapanything, vggt (all emit `ply_filename`).
 
 #### 6. Point Grounding
 - **Required raw (one of):** `points`, each as normalized `(x,y)` **or** pixel `(x_px,y_px)`. **Rendering:** annotated overlay.
 - **Optional:** `confidence`, `labels`, `image_width`/`image_height`, `raw_text`.
 - **Why minimal:** the point coordinates are the payload; dims are only needed to convert between the two forms.
-- **Status:** 🟢 both. **molmo2 → pixel** coords (`spagent/external_experts/Molmo2/point_utils.py:177-195` scale the model's 0–1000/0–100 output by width/height; the tool already loads `sizes` at `spagent/tools/molmo2_tool.py:99-102` but doesn't surface them). **moondream → normalized [0,1]** (native Moondream format). Enrichment: molmo2 could attach `image_width`/`height` (already in hand) for free pixel↔normalized conversion.
+- **Formats in this repo:** molmo2 emits **pixel** coords (`point_utils.py` scales the model output by image size); moondream emits **normalized [0,1]** (native format). Both are accepted forms.
 
 #### 7. Depth Estimation
 - **Required raw (one of):** raw depth array (`depth_data`) **or** a depth file path (.npy/.exr). **Rendering:** `output_path` colored depth map.
 - **Optional:** `shape`, `value_range`, `confidence_map`, `normal_map`.
 - **Why minimal:** the depth *field* is the information — the colored map is only a rendering of it, so the array/file is required, not the picture.
-- **Status:** 🟢 depth_estimation (returns `depth_data` + `shape`).
 
 #### 8. Orientation Estimation
 - **Required raw (one of):** euler {`azimuth`, `elevation`, `rotation`} **or** `rotation_matrix` **or** `quaternion` (also echoed in `description`).
 - **Optional:** `symmetry_order`, `confidence`, axes overlay.
 - **Why minimal:** a single rotation, in any standard parametrization, is the payload.
-- **Status:** 🟢 orient_anything_v2 (euler + symmetry).
 
 #### 9. Optical Flow
 - **Required raw (one of):** raw `(u,v)` flow array **or** a flow file path. **Rendering:** `output_path` colorized flow.
 - **Optional:** `flow_magnitude_mean` + statistics, `motion_boundaries`, `confidence_map`.
 - **Why minimal:** the per-pixel flow field is the information; a magnitude scalar is a *summary*, not the payload.
-- **Status:** 🟢 **fixed in PR #229** — local + mock modes now save the dense `(H,W,2)` float32 field as a `.npy` and return `flow_path` + `flow_shape` (verified with real FlowSeek-M inference: a 12 px synthetic shift recovered as mean dx = 12.019 px). Remaining follow-up: **server mode** still transports only the PNG — raw flow over HTTP is ~16 MB/1080p frame (prefer a served `.npy`/compressed `.npz` path over base64 inlining) and the `tempfile`+`os.unlink` cleanup (`spagent/external_experts/FlowSeek/flowseek_server.py:74-79`) would delete a returned path, so it needs a persistent/served dir.
+- **Design note (server mode):** the raw field is large (~16 MB per 1080p frame as float32), so HTTP transport should return a served `.npy`/compressed `.npz` path rather than inline base64 — and the server needs a persistent output dir (its temp files are unlinked after the response).
 
 #### 10. OCR / Document
 - **Required raw:** `text` (string; a structured string — Markdown/LaTeX/JSON — for table/chart/formula tasks).
 - **Optional:** `text_boxes`, `confidence`, `structured_data`, `reading_order`, `font_metadata`.
 - **Why minimal:** extracted text is the deliverable; boxes/order are enrichments.
-- **Status:** 🟢 paddleocr_vl 🚧 (returns `text`).
 
 ---
 
-## Summary: Standardization Roadmap (against the required-raw bar)
+### Architecture
 
-Compliance is measured on the **raw payload**, not on whether a picture came back. After source-level verification of every tool (and the two landed fixes), **the required-raw bar is met by every tool**:
-
-- **✅ Landed fixes (real-run verified):**
-  - **PR #228** `fix(detection)` — top-level `boxes`/`labels`/`confidence` now derived from `detections` (`_surface_boxes`), index-aligned; verified against real GroundingDINO.
-  - **PR #229** `fix(flowseek)` — raw `(u,v)` field saved as `.npy`, `flow_path`/`flow_shape` surfaced (local + mock); verified against real FlowSeek-M. Server-mode raw transport deferred (see §9).
-- **Open follow-ups (enrichments, not gaps):**
-  - Detection: ship a real `mock_gdino_service.py` — the current `_SimpleMock` fallback (`spagent/tools/detection_tool.py:125-133`) emits a *different* format (pixel `xyxy`, top-level `boxes`, no `detections`) than the real server (normalized `cxcywh` in `detections`).
-  - Envelope: `qwenvl_detection` lacks `description` + rendering (see §1) — fix in its standardize pass.
-  - wilddet3d 🚧: stop dropping `class_ids` (labels), `scores_2d`/`scores_3d`, per-box depth (`spagent/external_experts/WildDet3D/wilddet3d_local.py:151` unpacks 7 model outputs, surfaces 3). Blocked on smoke-testability (external model at `WILDDET3D_ROOT`).
-  - Point grounding: molmo2 can surface the `image_width`/`height` it already computes (`spagent/tools/molmo2_tool.py:99-102`).
-  - FlowSeek server mode: raw-flow transport (served dir or compressed inline).
-- **Compliant, no action:** segment_image, supervision; image_generation_sana; all video tools; all 3D tools; depth_estimation; orient_anything_v2; paddleocr_vl; moondream.
-
-### Architecture (branch goal)
-
-The branch delivers four things: (1) tools **categorized & modularized**, (2) a **unified per-category output format** (required + optional), (3) a **clear registry** tying category → tools → contract, and (4) a **separate parse/render module** that projects a standardized result into the vLLM-facing message.
+The design delivers four things: (1) tools **categorized & modularized**, (2) a **unified per-category output format** (required + optional), (3) a **clear registry** tying category → tools → contract, and (4) a **separate parse/render module** that projects a standardized result into the vLLM-facing message.
 
 **Two-stage data flow — produce vs. project:**
 
@@ -204,9 +177,9 @@ ToolResult(envelope              select fields per user config,      formatted
 
 The render module replaces the loop's current hardcoded consumption, in one place:
 
-- **Call site:** `SPAgent`'s tool-result handling (`spagent/core/spagent.py:326-364`), which today hardcodes `result.get("output_path"/"vis_path"/"crop_paths")` + `.mp4` frame extraction, and `memory.add_tool_result()` which reads `success`/`error`/`description`. Both delegate to `render(result, config)`: the renderer returns `(text, images)` — the text goes to memory/the continuation prompt, the images (now **including `overlay_path`** and extracted video frames) go into `iteration_additional_images`.
+- **Call site:** `SPAgent`'s tool-result handling (the step loop in `spagent/core/spagent.py`) delegates to `render(result, config)` instead of hardcoding `result.get("output_path"/"vis_path"/"crop_paths")` reads: the renderer returns `(text, images)` — the text goes to memory/the continuation prompt, the images (now **including `overlay_path`** and extracted video frames) go into `iteration_additional_images`.
 - **Config plumbing:** `SPAgent(render_config=...)` constructor arg (an object/dict, optionally loaded from file); overridable per `solve_problem()`/`step()` call via a `render_config=` kwarg. No global state.
-- **Backward compatibility / migration:** `ToolResult` is **dict-compatible** (a `Mapping` — `.get()`/`[]`/`in` all work), so existing consumers and un-migrated dict-returning tools keep working unchanged. The renderer accepts both: a plain dict routes through a **legacy projection** that reproduces today's exact behavior (description passthrough + output_path/vis_path/crop_paths). Tools migrate to `ToolResult` **one at a time**; a mixed iteration (some dict, some ToolResult) is fully supported. No consumer change is required until the last tool migrates.
+- **Backward compatibility / migration:** `ToolResult` is **dict-compatible** (a `Mapping` — `.get()`/`[]`/`in` all work), so existing consumers and un-migrated dict-returning tools keep working unchanged. The renderer accepts both: a plain dict routes through a **legacy projection** that reproduces the legacy behavior exactly (description passthrough + output_path/vis_path/crop_paths). Tools migrate to `ToolResult` **one at a time**; a mixed iteration (some dict, some ToolResult) is fully supported. No consumer change is required until the last tool migrates.
 
 ### Render config: precedence & shape
 
@@ -241,7 +214,7 @@ Guiding principle: **required = the category's raw informative payload (in any o
 
 ### Validation plan
 - **During dev — smoke tests only, < 10 GB VRAM.** Exercise the envelope/payload/render plumbing with (a) `use_mock=True` tools (zero VRAM) and (b) one tiny real local tool — **`yolo26_tool`** (local YOLO, no server, ~1–2 GB, `accepts_use_mock=False`) — to prove the real→standardized→render path end-to-end without disturbing GPU jobs.
-- **What the smoke tests assert:** (1) per category: required payload present in one accepted form, envelope fields present, payload helpers round-trip (pixel↔normalized, mask↔bbox); (2) render path: default projection emits exactly the contract's `default_projection` fields, `"all"` preset emits every populated field, per-tool override beats per-category; (3) legacy: a plain-dict result renders byte-identical to today's loop output; (4) mixed iteration (dict tool + ToolResult tool) completes.
+- **What the smoke tests assert:** (1) per category: required payload present in one accepted form, envelope fields present, payload helpers round-trip (pixel↔normalized, mask↔bbox); (2) render path: default projection emits exactly the contract's `default_projection` fields, `"all"` preset emits every populated field, per-tool override beats per-category; (3) legacy: a plain-dict result renders byte-identical to the legacy loop output; (4) mixed iteration (dict tool + ToolResult tool) completes.
 - **Gate:** full dev + **design review by the maintainer** before any broad run.
 - **After sign-off — full matrix.** Run the complete `test/test_tool.py` suite across **all** tools (spinning up the heavier expert servers as needed).
 
