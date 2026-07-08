@@ -160,6 +160,32 @@ class _BaseDetectionTool(Tool):
             for i, b in enumerate(boxes)
         ]
 
+    def _surface_boxes(
+        self, raw: Dict[str, Any], detections: List[Dict[str, Any]]
+    ) -> Tuple[List, List, List]:
+        """Return parallel ``(boxes, labels, confidence)`` arrays for the result.
+
+        The real GroundingDINO client returns coordinates only inside
+        ``detections`` (each ``bbox`` is normalized ``cxcywh`` in ``[0, 1]``); it
+        never populates top-level ``boxes``/``labels``/``confidence``. Reading
+        ``raw.get("boxes")`` therefore yielded empty arrays on the real path —
+        only the mock fallback filled them. Derive the arrays from
+        ``detections`` when raw doesn't provide them, so both paths expose the
+        boxes. ``boxes`` mirror ``detections[i]["bbox"]`` (normalized cxcywh).
+        """
+        if raw.get("boxes"):
+            return (
+                raw.get("boxes", []),
+                raw.get("labels", []),
+                raw.get("confidence", []),
+            )
+        boxes = [d.get("bbox") for d in detections]
+        labels = [d.get("label", "obj") for d in detections]
+        # Keep confidence index-aligned with boxes/labels (None when absent)
+        # so consumers can zip the three arrays safely.
+        confidence = [d.get("confidence") for d in detections]
+        return boxes, labels, confidence
+
     def _bbox_to_pixel_xyxy(self, bbox, img_h: int, img_w: int) -> Tuple[int, int, int, int]:
         """Convert normalized cxcywh → pixel xyxy (or passthrough if already pixel)."""
         a, b, c, d = bbox
@@ -445,13 +471,14 @@ class ZoomObjectTool(_BaseDetectionTool):
                 f"{len(crop_paths)} close-up crop(s) provided for attribute inspection."
             )
             logger.info(msg)
+            boxes, labels, confidence = self._surface_boxes(raw, detections)
             return {
                 "success": True,
                 "result": raw,
                 "detections": detections,
-                "boxes": raw.get("boxes", []),
-                "labels": raw.get("labels", []),
-                "confidence": raw.get("confidence", []),
+                "boxes": boxes,
+                "labels": labels,
+                "confidence": confidence,
                 "output_path": raw.get("output_path"),
                 "vis_path": raw.get("vis_path"),
                 "crop_paths": crop_paths,
@@ -631,13 +658,14 @@ class LocalizeObjectTool(_BaseDetectionTool):
                 f"Annotated full image provided. Positions:\n{text_summary}"
             )
             logger.info(msg)
+            boxes, labels, confidence = self._surface_boxes(raw, detections)
             return {
                 "success": True,
                 "result": raw,
                 "detections": detections,
-                "boxes": raw.get("boxes", []),
-                "labels": raw.get("labels", []),
-                "confidence": raw.get("confidence", []),
+                "boxes": boxes,
+                "labels": labels,
+                "confidence": confidence,
                 "output_path": anno_path,       # annotated full image
                 "vis_path": anno_path,
                 "crop_paths": [],               # no crops for localize mode
