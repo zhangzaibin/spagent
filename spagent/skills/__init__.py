@@ -11,8 +11,10 @@ Layers:
 - ``spagent.skills.generate`` — R1: generate skill folders + INDEX (idempotent)
 - ``spagent.skills`` CLI       — R2: ``list | show <name> | sync``
 - ``spagent.skills.run``       — R3: execution backend (ToolResult JSON on stdout)
+- ``spagent.skills.agent``     — R4: SkillAgent orchestrator (opt-in; SPAgent
+  and the ``<tool_call>`` path are untouched)
 
-The existing tool-call path is unchanged; skills mode is opt-in.
+The existing tool-call path is unchanged; users choose SkillAgent explicitly.
 """
 
 import sys
@@ -26,9 +28,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 from .registry import Skill, SkillRegistry, load_skill_file, default_skills_dir  # noqa: E402
 from .spec import SkillSpec, build_skill_specs, render_skill_md, render_index_md  # noqa: E402
 from .run import SkillRunError, run_skill, sanitize_for_json  # noqa: E402
+from .agent import SkillAgent  # noqa: E402
 
 __all__ = [
     "Skill",
+    "SkillAgent",
     "SkillRegistry",
     "SkillRunError",
     "SkillSpec",
