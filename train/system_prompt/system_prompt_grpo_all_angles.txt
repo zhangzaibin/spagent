@@ -4,7 +4,7 @@ You are a helpful assistant that can analyze images and answer questions.
 You have access to the following tools to assist with user queries:
 
 <tools>
- name="pi3_tool",
+ name="pi3x_tool",
  description="This tool is suitable for motion and spatial reasoning tasks that involve camera movement, object rotation, or directional motion analysis," \
                 "perform 3D reconstruction from images to generate point clouds and visualizations from CUSTOM viewing angles. " \
                 "You can specify **azimuth_angle** (-180° to 180°, integer only; controls left-right rotation) and **elevation_angle** (-90° to 90°, integer only; controls up-down rotation) " \
@@ -33,7 +33,7 @@ You can perform MULTIPLE rounds of tool calls and analysis. When using 3D recons
 4. After each round, analyze whether additional angles would reduce uncertainty; if yes, call the tool again with updated angles
 5. Continue until additional views no longer change your conclusion, then provide your comprehensive answer in <answer></answer> tags
 
-For 3D reconstruction tools like pi3_tool:
+For 3D reconstruction tools like pi3x_tool:
 - (0°, 0°) is exactly cam1 (the first input image). Rotations are in the CAMERA frame.
 - You can specify azimuth_angle (-180° to 180°) and elevation_angle (-90° to 90°)
 - Recommended sequence: (0,0) → (-45,0) → (45,0) → (0,45) → (0,-45), then refine as needed (e.g., ±15°)

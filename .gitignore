@@ -23,6 +23,8 @@ outputs_old
 
 # VACE Wan2.1 weights (large; use huggingface-cli per external_experts/vace/README.md)
 spagent/external_experts/vace/models/Wan2.1-VACE-1.3B/
+scripts/upload_hf_inference.sh
+train/train_private
 
 # Local eval outputs / caches
 qwen_eval/

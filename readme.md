@@ -28,6 +28,7 @@
 | **[Tool Reference](docs/Tool/TOOL_USING.md)** | External expert tools API and deployment guide |
 | **[External Experts](docs/Tool/EXTERNAL_EXPERTS.md)** | Full list of supported expert models and default ports |
 | **[Advanced Examples](docs/Examples/ADVANCED_EXAMPLES.md)** | `step()` API, AgentMemory, video/image gen, RL training, testing |
+| **[RL Training](docs/RL_TRAINING.md)** | GRPO training pipeline: dataset prep, offline Pi3X cache, rewards, launch |
 | **[Reproduce Results](docs/Evaluation/REPRODUCE.md)** | End-to-end recipe to reproduce benchmark numbers |
 | **[Quick Eval](docs/Evaluation/QUICK_EVAL.md)** | `quick_eval.py` reference and shell-script shortcuts |
 | **[Dataset Preparation](docs/Evaluation/EVALUATION.md)** | Per-benchmark dataset download and JSONL conversion |
@@ -43,7 +44,7 @@
 - **Customizable System Prompt** — Per-agent templates; built-in 3D spatial and general vision presets
 - **Multimodal Agent Memory** — `AgentMemory` records every turn: text, images, tool calls, and results
 - **Multi-turn Stateful Conversations** — Pass `AgentMemory` across `step()` calls; save/load sessions
-- **Reinforcement Learning** — GRPO training support via ms-swift
+- **Reinforcement Learning** — GRPO training via ms-swift with multi-turn tool calling and an **offline Pi3X cache** (no expert servers needed in the training loop) → see [RL Training](docs/RL_TRAINING.md)
 
 ## 🛠️ Installation & Setup
 
@@ -156,6 +157,28 @@ python scripts/quick_eval.py \
 ```
 
 Full recipes → **[REPRODUCE.md](docs/Evaluation/REPRODUCE.md)** · **[QUICK_EVAL.md](docs/Evaluation/QUICK_EVAL.md)** · **[EVALUATION.md](docs/Evaluation/EVALUATION.md)**
+
+## 🎯 Reinforcement Learning
+
+SPAgent now supports **GRPO** reinforcement learning of the policy VLM with multi-turn tool calling, powered by [ms-swift](https://github.com/modelscope/ms-swift). The Pi3X expert runs **offline** during rollouts: point clouds are pre-computed once and cached to disk, so training needs no live expert servers or network calls.
+
+```bash
+# 1. Fix dataset image paths
+python scripts/build_rl_dataset.py \
+    --input "dataset/crossviewQA_train_rl (1).jsonl" \
+    --output dataset/crossviewQA_train_rl_fixed.jsonl
+
+# 2. Pre-compute the Pi3X point-cloud cache (run once)
+python train/precompute_pi3x_cache.py \
+    --dataset dataset/crossviewQA_train_rl_fixed.jsonl \
+    --cache-dir dataset/pi3x_cache \
+    --checkpoint checkpoints/pi3x/model.safetensors
+
+# 3. Launch GRPO training
+cd train && bash train_grpo.sh
+```
+
+Full guide (dataset prep, caching, reward functions, scheduler, post-training) → **[RL Training](docs/RL_TRAINING.md)**
 
 ## ⚠️ Important Notes
 
