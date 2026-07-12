@@ -20,14 +20,33 @@ project_root = os.path.dirname(current_dir)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from swift.llm import PtEngine, RequestConfig, RolloutInferRequest, Template, to_device
-from swift.llm.infer.protocol import ChatCompletionResponse, ChatCompletionResponseChoice
-from swift.plugin import ORM, orms, rm_plugins
-# register context manager(used in gym training)
-from swift.plugin.context_manager import ContextManager, context_managers
-from swift.plugin.env import Env, envs
-from swift.plugin.multi_turn import MultiTurnScheduler, multi_turns
-from swift.plugin.rm_plugin import DefaultRMPlugin
+try:
+    # ms-swift >= 4.x new module layout
+    from swift.infer_engine import TransformersEngine as PtEngine, RequestConfig
+    from swift.infer_engine.protocol import (
+        RolloutInferRequest, ChatCompletionResponse, ChatCompletionResponseChoice
+    )
+    from swift.template import Template
+    from swift.utils import to_device
+    from swift.rewards import ORM, orms, rm_plugins
+    from swift.rewards.rm_plugin import DefaultRMPlugin
+    from swift.rollout import MultiTurnScheduler, multi_turns
+    from swift.rollout.gym_env import Env, envs
+    try:
+        from swift.rollout.gym_env import ContextManager, context_managers
+    except ImportError:
+        class ContextManager:
+            pass
+        context_managers: dict = {}
+except ImportError:
+    # ms-swift 3.x legacy layout
+    from swift.llm import PtEngine, RequestConfig, RolloutInferRequest, Template, to_device
+    from swift.llm.infer.protocol import ChatCompletionResponse, ChatCompletionResponseChoice
+    from swift.plugin import ORM, orms, rm_plugins
+    from swift.plugin.context_manager import ContextManager, context_managers
+    from swift.plugin.env import Env, envs
+    from swift.plugin.multi_turn import MultiTurnScheduler, multi_turns
+    from swift.plugin.rm_plugin import DefaultRMPlugin
 from swift.utils import get_logger
 
 logger = get_logger()
@@ -1332,12 +1351,22 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
         registered_count = 0
         failed_tools = []
         
+        # Register Pi3XOfflineTool (reads pre-computed .npz cache, no GPU/server needed)
+        try:
+            from spagent.tools.pi3x_offline_tool import Pi3XOfflineTool
+            pi3x_offline = Pi3XOfflineTool()
+            self.tool_registry.register(pi3x_offline)
+            registered_count += 1
+            self.logger.info("✓ Registered pi3x_tool (offline cache mode)")
+        except Exception as e:
+            failed_tools.append('pi3x_tool')
+            self.logger.warning(f"✗ Failed to register Pi3XOfflineTool: {e}")
+
         # Try to register each tool individually with error handling
         tool_classes = [
             ('DepthEstimationTool', 'depth_estimation_tool'),
             ('SegmentationTool', 'segmentation_tool'),
             ('ObjectDetectionTool', 'object_detection_tool'),
-            ('Pi3Tool', 'pi3_tool'),
         ]
         
         for tool_class_name, tool_name in tool_classes:
@@ -1346,16 +1375,10 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                 from spagent import tools as tools_module
                 if hasattr(tools_module, tool_class_name):
                     ToolClass = getattr(tools_module, tool_class_name)
-                    # Use real tools instead of mock for training
-                    if tool_class_name == 'Pi3Tool':
-                        # Configure Pi3Tool with real server
-                        tool = ToolClass(use_mock=False, server_url="http://127.0.0.1:20030", mode='train')
-                    else:
-                        # Other tools still use mock for now
-                        tool = ToolClass(use_mock=True)
+                    tool = ToolClass(use_mock=True)
                     self.tool_registry.register(tool)
                     registered_count += 1
-                    self.logger.debug(f"✓ Registered {tool_name} (real: {not tool.use_mock})")
+                    self.logger.debug(f"✓ Registered {tool_name}")
                 else:
                     failed_tools.append(tool_name)
                     self.logger.debug(f"✗ Tool class {tool_class_name} not found")
@@ -1469,8 +1492,8 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                 fixed_calls.append(call)
                 continue
             
-            # Validate and fix image_path for pi3_tool (fallback if model provides wrong paths)
-            if tool_name == 'pi3_tool':
+            # Validate and fix image_path for pi3_tool / pi3x_tool (fallback if model provides wrong paths)
+            if tool_name in ('pi3_tool', 'pi3x_tool'):
                 # Extract real image paths from infer_request
                 real_image_paths = []
 
@@ -1528,8 +1551,8 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
                 else:
                     self.logger.warning(f"Could not find real image paths for {tool_name}, tool call may fail")
             
-            # Add default angles if missing for pi3_tool
-            if tool_name == 'pi3_tool':
+            # Add default angles if missing for pi3_tool / pi3x_tool
+            if tool_name in ('pi3_tool', 'pi3x_tool'):
                 if 'azimuth_angle' not in arguments:
                     arguments['azimuth_angle'] = 0
                 if 'elevation_angle' not in arguments:
@@ -1575,7 +1598,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
             other_calls = {}
             
             for tool_name, calls in tool_groups.items():
-                if tool_name in ['pi3_tool', 'pi3_multiimg_tool']:
+                if tool_name in ['pi3_tool', 'pi3_multiimg_tool', 'pi3x_tool']:
                     pi3_calls.extend(calls)
                 else:
                     other_calls[tool_name] = calls
@@ -1795,62 +1818,34 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
         if is_second_to_last_turn:
             next_steps_section = f"""=== Next Steps ===
 
-⚠️ **WARNING: This is turn {current_turn}/{max_turns} - Next turn will be the FINAL turn**
+⚠️ This is turn {current_turn}/{max_turns} — next turn is the FINAL turn.
 
-You have only 1 more turn available. You MUST provide your final answer now, as next turn is the final turn.
+Before another call, state the unresolved geometric quantity: heading, lateral displacement sign, target projection, or depth ordering.
 
-Instructions:
-- Output your reasoning in <think></think> tags
-- Then provide your final comprehensive answer in <answer></answer> tags
-- Reference the specific viewpoints and tools that helped you understand the structure
+- Exact stated rotations: stop using tools and show the modular heading sum.
+- Named orbit views: remember labels are camera positions looking inward; ego-right follows front-position -> left-position -> back-position -> right-position.
+- Ambiguous view1->view2 lateral sign: request a second GLOBAL view with camera_view=false, rotation_reference_camera=1, and a substantially different nonzero angle. Reproject C2-C1 into cam1's frame; never use page-left/page-right.
+- Object depth: use camera_view=false with the named reference camera. Greater depth is sufficient for "behind" even with lateral offset; invisibility may be occlusion.
+- After a modular heading sum, do not apply the queried relation again in the matched image; inspect the forward central ray and far scene boundary.
+- Never use (0,0) and never repeat an equivalent projection.
 
-IMPORTANT: You MUST start your response with <think>...</think> tags to explain your reasoning!
+Then verify the selected option against original-image object identity. Output analysis in <think></think> and only the option letter/number in <answer></answer>.
 """
         else:
             next_steps_section = f"""=== Next Steps ===
 
-You have {remaining} more turn(s) available. You can:
+You have {remaining} more turn(s) available.
 
-# **Continue investigating** - Call tools with DIFFERENT parameters:
-   - **IMPORTANT**: Your original input images are already at (azimuth=0°, elevation=0°). DO NOT call Pi3 tools with (0°, 0°) again!
-   - For Pi3 tools: Try NEW viewing angles to understand the 3D structure better
-   - Recommended NEW angles (NOT 0°,0°!):
-     * Left: (-45°, 0°) or (-90°, 0°)
-     * Right: (45°, 0°) or (90°, 0°)
-     * Top: (0°, 45°) or (0°, 60°)
-     * Bottom: (0°, -45°)
-     * Back: (180°, 0°) or (±135°, 0°)
-     * Diagonal: (45°, 30°) or (-45°, 30°)
-   - Each NEW angle reveals different aspects of the 3D structure
-   - You can just call Pi3 tool **once** in this turn.
+Before another call, state the unresolved geometric quantity: heading, lateral displacement sign, target projection, or depth ordering.
 
-   **Advanced Pi3 Parameters**:
-   - **rotation_reference_camera** (integer, 1-based): When you have multiple input images, try DIFFERENT camera positions as rotation centers
-     * Default is 1 (first camera), Set to 2, 3, etc. to rotate around different camera positions
-     * Example: rotation_reference_camera=2 rotates around the second camera's viewpoint
-     * Useful for analyzing different parts of the scene from various perspectives
-   
-   - **camera_view** (boolean): Control the visualization perspective
-     * False (default): Global bird's-eye view showing the entire scene
-     * True: First-person camera view - see the scene from the selected camera's perspective (as if standing at that camera)
-     * Combine with rotation_reference_camera to experience different camera viewpoints
-     * Example: camera_view=True with rotation_reference_camera=2 shows first-person view from camera 2
-     * Useful for understanding what each camera can see and spatial relationships
+- Exact stated rotations: stop using tools and show the modular heading sum.
+- Named orbit views: remember labels are camera positions looking inward; ego-right follows front-position -> left-position -> back-position -> right-position.
+- Ambiguous view1->view2 lateral sign: request a second GLOBAL view with camera_view=false, rotation_reference_camera=1, and a substantially different nonzero angle. Reproject C2-C1 into cam1's frame; never use page-left/page-right.
+- Object depth: use camera_view=false with the named reference camera. Greater depth is sufficient for "behind" even with lateral offset; invisibility may be occlusion.
+- After a modular heading sum, do not apply the queried relation again in the matched image; inspect the forward central ray and far scene boundary.
+- Never use (0,0) and never repeat an equivalent projection.
 
-Instructions:
-- Think: Do you need to see the object from another NEW angle (NOT 0°,0°!) to answer the question better?
-- If YES: Use <tool_call></tool_call> to request a DIFFERENT viewing angle (avoid 0°,0° as you already have it!)
-- If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put letters of option in <answer></answer> tags, do not put any other text.
-- **Do not request the same angle as before.**
-
-Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
-You can examine the image to understand what is around cam1.
-The 3D reconstruction provides relative positional information, so you should reason interactively and complementarily between the 2D image and the 3D reconstruction to form a complete understanding.
-
-# **Provide final answer** - If you have sufficient information from current viewpoints:
-   - Output your comprehensive analysis in <think></think> tags
-   - Reference the specific viewpoints that helped you understand the structure
-   - if you want to provide final answer, the reasoning process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., <think> reasoning process here </think><answer> answer here </answer>
+Then verify the selected option against original-image object identity. Output analysis in <think></think> and only the option letter/number in <answer></answer>.
 """
         
         if is_second_to_last_turn:

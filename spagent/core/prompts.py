@@ -30,66 +30,119 @@ import json
 
 # ─── Reusable workflow instruction blocks ────────────────────────────────────
 
-SPATIAL_3D_WORKFLOW = """# Multi-Step Workflow
-You can perform MULTIPLE rounds of tool calls and analysis. When using 3D reconstruction tools (Pi3), autonomously explore viewpoints:
+SPATIAL_3D_WORKFLOW = """# Spatial Reasoning Protocol
+Use original images for object identity and Pi3X only for missing geometry. camN always
+corresponds to image N. Never call Pi3X at (azimuth=0, elevation=0).
 
-**IMPORTANT: The input image(s) already show the scene at (azimuth=0°, elevation=0°) viewpoint. DO NOT call Pi3 tools with (0°, 0°) as it will just return the same view you already have!
-The camera is visualized as a pyramid frustum, where the apex represents the camera's position and viewing direction.**
+# 1. Route the question before reasoning
+Choose exactly one solver below and follow its checks. Do not mix page coordinates,
+world coordinates, and a camera's ego coordinates.
 
+## A. Orbit views named front/left/back/right
+These labels describe CAMERA POSITIONS around a common subject, not camera headings.
+If the prompt explicitly calls views front/left/back/right around an object, ALWAYS use
+this solver and NEVER use the fixed-heading image1=0/image2=90 rule. Every camera looks
+inward toward the subject. Therefore never assign the position label "right view" to an
+ego turn right. Determine ego directions while looking inward:
+    front-view camera: ego-right leads around the subject toward the left-view camera;
+    left-view camera: ego-right leads toward the back-view camera;
+    back-view camera: ego-right leads toward the right-view camera;
+    right-view camera: ego-right leads toward the front-view camera.
+Ego-left follows the reverse cycle. Use the reconstructed camera centers to verify this
+inward-looking orbit convention. For turn-and-move questions, move along that ego
+direction and compare distance to the target; do not infer direction solely from the
+name of the view containing the target.
+Perspective sanity check: while an observer at the front-view camera looks inward,
+their ego-right points toward the subject's LEFT side, not toward the camera position
+called the right view. If your reasoning maps front-view + ego-right to right-view,
+discard it and recompute in the observer's frame.
 
-# Recommended NEW viewing angles to explore:
-- Left views: azimuth=-45° or -90° (see scenes from right view)
-- Right views: azimuth=45° or 90° (see scenes from left view)
-- Top views: elevation=30° to 60° (see scenes from top view, better capture the object relation and relatifve position of cam and objects.)
-- Back views: azimuth=180° or ±135° (see scenes from back view)
-- Diagonal views: combine azimuth and elevation (e.g., 45°, 30°)
+## B. Exact heading composition
+Use this whenever the question states exact turns. Explicitly compute:
+    query_heading = (start_heading + body_turn + queried_direction) mod 360
+Use clockwise-positive headings:
+    image1=0; each stated 90-degree right view adds 90; opposite image=180.
+Use offsets:
+    right=+90, left=-90, behind=+180, front=0.
+The body turn and queried direction are TWO separate operations; never collapse them.
+In <think>, fill all five worksheet fields before interpreting any object:
+    start=__; body_turn=__; queried_relation=__; sum=__; matching_view=__.
+If the question says "turn left, then what is left", -90 MUST appear twice. If a field
+is missing, the calculation is invalid. If the text already
+defines the view sequence, trust this arithmetic over noisy reconstructed camera poses.
+After finding the query heading, use all original images and geometry to identify which
+option lies on that camera's OPTICAL AXIS. Follow the ray to the far surface/object near
+the image center. Never choose a large close foreground object intruding from an image
+edge merely because it is visually dominant.
+The computed query_heading ALREADY includes "what is left/right/behind." At the matching
+view, identify what lies along its forward central ray; do NOT apply left/right/behind
+a second time within that matching image. Once the sum is computed, do not reinterpret
+or reverse it in prose.
 
-Workflow:
-1. Analyze the current view(s) you have
-2. Decide which NEW angles (NOT 0°,0°!) would help answer the question
-3. Call tools with specific angles that are DIFFERENT from (0°,0°)
-4. **If you have multiple input images**: Try different rotation_reference_camera values (1, 2, 3, etc.) to see the scene from different camera positions base on your analysis on the question.
-5. **Consider using camera_view=true** to get first-person perspective from specific camera positions, especially useful for understanding spatial relationships and what each camera can actually see
-6. After each round, analyze whether additional angles, camera positions, or perspective modes would reduce uncertainty
-8. Continue until additional views no longer change your conclusion
-9. Only put number (like 1,2,3) or Options in <answer></answer> tags, do not put any other text.
+## C. Camera translation from view 1 to view 2
+Use cam1's ego frame. Let C1 and C2 be camera centers and let O be the common subject or
+scene center. Approximate cam1-forward by O-C1, then assess displacement C2-C1:
+    dot(C2-C1, cam1-forward) gives forward/backward;
+    the signed lateral component gives left/right.
+Reason from the frustum apex, forward axis, and scene center—not raw left/right position
+on the rendered page. If the lateral sign is not unmistakable, request a second global
+elevated view from a substantially different azimuth and verify the same ego-frame sign.
+Changing render azimuth only rotates the display and is not independent evidence unless
+you explicitly track cam1's forward/right axes. Cross-check with motion parallax in the
+original pair: camera motion right makes a common foreground subject shift left relative
+to the distant background; camera motion left makes it shift right. Do not answer
+confidently from ambiguous page coordinates.
 
+## D. Turn and move closer/farther
+Form the post-turn movement vector in the starting camera's ego frame. Compare distance
+to the target before and after a small conceptual step, or equivalently check whether
+the movement has a positive projection toward the target. Do not infer target direction
+merely from which named view contains it.
 
-Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
-You can examine the image to understand what is around cam1.
-The 3D reconstruction provides relative positional information, so you should reason interactively and complementarily between the 2D image and the 3D reconstruction to form a complete understanding.
-You need to analyze deeply the camera, its orientation, and the content captured in the frame.
+## E. Viewpoint-relative object relation
+Use the named camera as origin. For left/right, compare lateral coordinates in that
+camera frame. For behind/in-front, compare depth from that camera: target B is behind A
+when B is farther along the viewing direction. Depth ordering is primary; do not require
+perfect occlusion, exact collinearity, or visibility in the queried image. If B is absent
+in that view but appears in a side view at greater depth, it may be occluded by A—this
+supports rather than refutes "behind." For qualitative multiple-choice relations,
+lateral offset does not cancel a clear positive depth difference. Reject "behind" only
+when B has no meaningful greater depth.
+Operational rule: never require or argue about being "directly behind." Compute only
+whether depth(B) > depth(A) in the named camera frame.
 
-TIPS: For questions related to orientation or relative positioning, it is recommended to choose top view."""
+# 2. Pi3X view policy
+- Layout, camera motion, or depth: use camera_view=false, elevation=60, and set
+  rotation_reference_camera to the named viewpoint (cam1 for view1->view2 motion).
+- Ego-view confirmation: use camera_view=true with the named camera and a nonzero
+  azimuth/elevation selected to test a specific uncertainty.
+- The rendered page axes are display axes, not semantic left/right. A second rendering
+  may rotate or mirror page appearance while leaving the 3D relation unchanged.
+
+# 3. Final verification
+Check the chosen option against the solver's computed direction/depth and the original
+images. If prose intuition conflicts with the numeric heading calculation, redo the
+calculation. Put only the option letter/number in <answer></answer>."""
 
 # ─── Continuation hints (injected into the multi-step iteration prompt) ──────
 
-SPATIAL_3D_CONTINUATION_HINT = """1. **Continue investigating** - Call tools with DIFFERENT parameters:
-   - **IMPORTANT**: Your original input images are already at (azimuth=0°, elevation=0°). DO NOT call Pi3 tools with (0°, 0°) again!
-   - For Pi3 tools: Try NEW viewing angles to understand the 3D structure better
-   - Recommended NEW angles (NOT 0°,0°!):
-     * Left: (-45°, 0°) or (-90°, 0°)
-     * Right: (45°, 0°) or (90°, 0°)
-     * Top: (0°, 45°) or (0°, 60°)
-     * Bottom: (0°, -45°)
-     * Back: (180°, 0°) or (±135°, 0°)
-     * Diagonal: (45°, 30°) or (-45°, 30°)
-   - Each NEW angle reveals different aspects of the 3D structure
+SPATIAL_3D_CONTINUATION_HINT = """Before another call, state the unresolved geometric
+quantity: heading, lateral displacement sign, target projection, or depth ordering.
 
-   **Advanced Pi3 Parameters**:
-   - **rotation_reference_camera** (integer, 1-based): When you have multiple input images, try DIFFERENT camera positions as rotation centers
-     * Default is 1 (first camera), Set to 2, 3, etc. to rotate around different camera positions
-   - **camera_view** (boolean): False = global bird's-eye view; True = first-person camera view
+- Exact stated rotations: stop using tools and show the modular heading sum.
+- Named orbit views: remember labels are camera positions looking inward; ego-right
+  follows front-position -> left-position -> back-position -> right-position.
+- Ambiguous view1->view2 lateral sign: request a second GLOBAL view with
+  camera_view=false, rotation_reference_camera=1, and a substantially different
+  nonzero angle. Reproject C2-C1 into cam1's frame; never use page-left/page-right.
+- Object depth: use camera_view=false with the named reference camera. Greater depth is
+  sufficient for "behind" even with lateral offset; invisibility may be occlusion.
+- After a modular heading sum, do not apply the queried relation again in the matched
+  image; inspect the forward central ray and far scene boundary.
+- Never use (0,0) and never repeat an equivalent projection.
 
-2. **Provide final answer** - If you have sufficient information, output your analysis in <think></think> and final answer in <answer></answer>.
-
-Instructions:
-- Think: Do you need to see the object from another NEW angle (NOT 0°,0°!) to answer the question better?
-- If YES: Use <tool_call></tool_call> to request a DIFFERENT viewing angle (avoid 0°,0° as you already have it!)
-- If NO: output your thinking process in <think></think> and your final answer in <answer></answer>. Only put Options in <answer></answer> tags, do not put any other text.
-
-Note that in 3D reconstruction, the camera numbering corresponds directly to the image numbering — cam1 represents the first frame.
-The 3D reconstruction provides relative positional information, so reason interactively and complementarily between 2D images and the 3D reconstruction."""
+Then verify the selected option against original-image object identity. Output analysis
+in <think></think> and only the option letter/number in <answer></answer>."""
 
 # ─── Per-tool guidance entries for the general-vision continuation hint ───────
 #
