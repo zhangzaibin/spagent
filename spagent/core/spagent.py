@@ -29,7 +29,7 @@ from .prompts import (
 import json as _json
 from .data_collector import DataCollector
 from .render import render as render_tool_result
-from .tool_result import CATEGORY_CONTRACTS
+from .tool_result import CATEGORY_CONTRACTS, validate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -357,6 +357,22 @@ class SPAgent:
                 # to the legacy projection, so memory must use the tool's
                 # description in that case too).
                 is_standardized = result.get("category") in CATEGORY_CONTRACTS
+
+                # Runtime contract check — warn-only, never gates execution.
+                # Surfaces tools that drift from their category's required
+                # raw payload instead of failing silently until an offline
+                # audit notices.
+                if is_standardized and result.get("success"):
+                    contract_ok, unmet = validate_payload(
+                        result, result["category"]
+                    )
+                    if not contract_ok:
+                        logger.warning(
+                            f"Tool result [{tool_name}] does not satisfy the "
+                            f"'{result['category']}' output contract "
+                            f"(no required carrier group present; expected one "
+                            f"of: {unmet}). Proceeding anyway."
+                        )
 
                 output_images: List[str] = []
                 if result.get("success"):

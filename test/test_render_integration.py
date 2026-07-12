@@ -173,6 +173,52 @@ def test_mixed_iteration_dict_and_toolresult():
     assert set(res.additional_images) == {out, crop, ov}
 
 
+class ContractViolatingTool(Tool):
+    """Claims the detection category but carries no required payload."""
+
+    def __init__(self):
+        super().__init__(name="violating_tool", description="bad")
+
+    @property
+    def parameters(self):
+        return {"type": "object", "properties": {}, "required": []}
+
+    def call(self, **kw):
+        # dict with a known category but neither `detections` nor boxes+labels
+        return {"success": True, "category": "detection",
+                "description": "i promised boxes and delivered none"}
+
+
+def test_contract_violation_warns_but_never_gates():
+    import logging as _logging
+
+    class _Capture(_logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.records = []
+
+        def emit(self, record):
+            self.records.append(record.getMessage())
+
+    cap = _Capture()
+    spagent_logger = _logging.getLogger("core.spagent")
+    spagent_logger.addHandler(cap)
+    prev_disable = _logging.root.manager.disable
+    _logging.disable(_logging.NOTSET)  # this test needs warnings enabled
+    try:
+        res = _run_step(
+            [ContractViolatingTool()],
+            [_tool_call("violating_tool"), "<answer>done</answer>"],
+        )
+    finally:
+        _logging.disable(prev_disable)
+        spagent_logger.removeHandler(cap)
+    # never gates: the step completes and the result is recorded
+    assert res.answer and len(res.tool_results) == 1
+    # but the drift is surfaced
+    assert any("does not satisfy" in m and "detection" in m for m in cap.records), cap.records
+
+
 if __name__ == "__main__":
     import logging
     logging.disable(logging.CRITICAL)
