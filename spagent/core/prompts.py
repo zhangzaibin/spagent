@@ -34,6 +34,7 @@ SPATIAL_3D_WORKFLOW = """# Spatial Reasoning Protocol
 Use original images for object identity and Pi3X only for missing geometry. camN always
 corresponds to image N. Never call Pi3X at (azimuth=0, elevation=0).
 
+
 # 1. Route the question before reasoning
 Choose exactly one solver below and follow its checks. Do not mix page coordinates,
 world coordinates, and a camera's ego coordinates.

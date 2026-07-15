@@ -8,9 +8,9 @@
 #             with annotated output overlays
 #
 #  Usage:
-#    bash scripts/eval_molmo2_only.sh
-#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval_molmo2_only.sh
-#    DATASETS="VStarBench MMStar" bash scripts/eval_molmo2_only.sh
+#    bash scripts/eval/eval_molmo2_only.sh
+#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval/eval_molmo2_only.sh
+#    DATASETS="VStarBench MMStar" bash scripts/eval/eval_molmo2_only.sh
 # ============================================================
 
 source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"

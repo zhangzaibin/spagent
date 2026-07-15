@@ -21,6 +21,64 @@ from core.tool import Tool
 logger = logging.getLogger(__name__)
 
 
+# Default (inference) tool description — dynamically generated schema used by the
+# online eval / SPAgent path.
+_PI3X_DEFAULT_DESCRIPTION = (
+    "This tool is suitable for motion and spatial reasoning tasks that involve camera movement, "
+    "object rotation, or directional motion analysis. It performs 3D reconstruction from images "
+    "to generate point clouds and visualizations from CUSTOM viewing angles.\n\n"
+
+    "**Important Note**: The 0° azimuth angle and 0° elevation angle corresponds to the first "
+    "input image viewpoint (cam1). Do not use this angle.\n\n"
+
+    "**Angle Parameters**:\n"
+    "- **azimuth_angle** (-180° to 180°, integer only): Controls left-right rotation.\n"
+    "- **elevation_angle** (-90° to 90°, integer only): Controls up-down rotation.\n"
+    "By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input image "
+    "viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: "
+    "azimuth rotates left/right around the camera's vertical axis; elevation rotates up/down "
+    "around the camera's right axis.\n\n"
+
+    "**rotation_reference_camera** (must be output, 1-based):This parameter is used to rotate around a specific input image's "
+    "camera. By picking an image you pick its camera (e.g., set rotation_reference_camera=3 for "
+    "the third image's viewpoint; defaults to 1).\n\n"
+
+    "**camera_view** (must be output, boolean): This parameter is used to generate first-person perspective from "
+    "the selected camera position (as if standing at that camera looking at the scene), "
+    "instead of the default global bird's-eye view. This is especially useful for understanding "
+    "what each camera can see and analyzing spatial relationships from specific viewpoints. "
+    "Combine with rotation_reference_camera to experience the scene from different camera positions.\n\n"
+    "Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false."
+
+    "**Usage Strategy**: You can call this tool MULTIPLE times with DIFFERENT angles and "
+    "different camera views to analyze the 3D structure comprehensively. The MLLM is encouraged "
+    "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. "
+    "The generated visualization uses cone-shaped markers to indicate camera positions, "
+    "numbered from 1 (cam1, cam2, etc.).\n"
+)
+
+
+# RL-trained tool description — MUST stay byte-for-byte identical to the
+# `<tools>` block baked into train/system_prompt/system_prompt_grpo.txt so that
+# models trained with GRPO see exactly the same tool schema at eval time.
+# Using this avoids the (azimuth=0, elevation=0) fallback that appears when the
+# eval schema advertises 0 as an optional default.
+_PI3X_RL_DESCRIPTION = (
+    "3D reconstruction and novel-view synthesis tool for spatial reasoning. "
+    "Given one or more images of a scene, renders the scene from a new viewpoint "
+    "specified by azimuth and elevation angles.\n\n"
+    "IMPORTANT: azimuth=0 AND elevation=0 repeats the first input image \u2014 never use this combination.\n\n"
+    "Angle guide:\n"
+    "- Top-down layout (best for left/right/behind reasoning): elevation=60, azimuth=0\n"
+    "- Left side view: azimuth=-90, elevation=0\n"
+    "- Right side view: azimuth=90, elevation=0\n"
+    "- Back view: azimuth=180, elevation=0\n"
+    "- Diagonal views: azimuth=\u00b145, elevation=0 or 30\n\n"
+    "For 'from camera N / image N viewpoint' questions: set rotation_reference_camera=N, camera_view=true, elevation=30~45.\n\n"
+    "Camera positions in the rendered image are shown as numbered cone frustums (cam1, cam2, \u2026)."
+)
+
+
 def extract_scene_id(image_path: str) -> str:
     """
     从图片路径中提取scene ID，适配多种数据集格式
@@ -72,53 +130,22 @@ class Pi3XTool(Tool):
         Args:
             use_mock: Whether to use mock client for testing
             server_url: URL of the Pi3 server
+            mode: Schema/description variant to expose.
+                - 'inference' (default): dynamically generated eval schema
+                  (angles optional, description mentions "Default is 0").
+                - 'train': minimal schema (image_path/azimuth/elevation only).
+                - 'rl': schema identical to train/system_prompt/system_prompt_grpo.txt,
+                  used to eval GRPO-trained models with the exact prompt they saw.
         """
+        self.mode = mode
         super().__init__(
             name="pi3x_tool",
-            description=(
-                "This tool is suitable for motion and spatial reasoning tasks that involve camera movement, "
-                "object rotation, or directional motion analysis. It performs 3D reconstruction from images "
-                "to generate point clouds and visualizations from CUSTOM viewing angles.\n\n"
-                
-                "**Important Note**: The 0° azimuth angle and 0° elevation angle corresponds to the first "
-                "input image viewpoint (cam1). Do not use this angle.\n\n"
-                
-                "**Angle Parameters**:\n"
-                "- **azimuth_angle** (-180° to 180°, integer only): Controls left-right rotation.\n"
-                "- **elevation_angle** (-90° to 90°, integer only): Controls up-down rotation.\n"
-                "By convention, (azimuth=0, elevation=0) corresponds EXACTLY to the first input image "
-                "viewpoint (cam1). All rotations are defined in the INPUT CAMERA coordinate frame: "
-                "azimuth rotates left/right around the camera's vertical axis; elevation rotates up/down "
-                "around the camera's right axis.\n\n"
-                
-                "**rotation_reference_camera** (must be output, 1-based):This parameter is used to rotate around a specific input image's "
-                "camera. By picking an image you pick its camera (e.g., set rotation_reference_camera=3 for "
-                "the third image's viewpoint; defaults to 1).\n\n"
-                
-                "**camera_view** (must be output, boolean): This parameter is used to generate first-person perspective from "
-                "the selected camera position (as if standing at that camera looking at the scene), "
-                "instead of the default global bird's-eye view. This is especially useful for understanding "
-                "what each camera can see and analyzing spatial relationships from specific viewpoints. "
-                "Combine with rotation_reference_camera to experience the scene from different camera positions.\n\n"
-                "Note that default camera_view is false. You must output camera_view = true if you want to set ego-view. If you want to set global-view, you must output camera_view = false."
-                
-                "**Usage Strategy**: You can call this tool MULTIPLE times with DIFFERENT angles and "
-                "different camera views to analyze the 3D structure comprehensively. The MLLM is encouraged "
-                "to autonomously explore angles (coarse-to-fine) until sufficient evidence is gathered. "
-                "The generated visualization uses cone-shaped markers to indicate camera positions, "
-                "numbered from 1 (cam1, cam2, etc.).\n"
-
-
-
-                
-
-            )
+            description=_PI3X_RL_DESCRIPTION if mode == 'rl' else _PI3X_DEFAULT_DESCRIPTION,
         )
         
         self.use_mock = use_mock
         self.server_url = server_url
         self._client = None
-        self.mode = mode
         
         # Initialize client
         self._init_client()
@@ -275,6 +302,38 @@ class Pi3XTool(Tool):
                 },
                 "required": ["image_path"]
             }
+        elif self.mode == 'rl':
+            # Byte-for-byte identical to the schema in
+            # train/system_prompt/system_prompt_grpo.txt so GRPO-trained models
+            # see the exact same tool signature they were optimized against
+            # (angles REQUIRED, no "Default is 0" wording).
+            return {
+                "type": "object",
+                "properties": {
+                    "image_path": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of input image file paths"
+                    },
+                    "azimuth_angle": {
+                        "type": "number",
+                        "description": "Horizontal rotation in degrees. 0=front, 90=right, -90=left, 180=back."
+                    },
+                    "elevation_angle": {
+                        "type": "number",
+                        "description": "Vertical rotation in degrees. 0=horizontal, 60=top-down, negative=below."
+                    },
+                    "camera_view": {
+                        "type": "boolean",
+                        "description": "If true, render from the reference camera's ego perspective. Default false."
+                    },
+                    "rotation_reference_camera": {
+                        "type": "integer",
+                        "description": "1-indexed camera to use as rotation origin. Default 1."
+                    }
+                },
+                "required": ["image_path", "azimuth_angle", "elevation_angle"]
+            }
     
     def call(
         self, 
@@ -375,10 +434,12 @@ class Pi3XTool(Tool):
                 
                 # Save generated images and get output path
                 # Use first image path for naming consistency
-                if self.mode == 'inference':
-                    output_path = self._save_generated_images(result, image_path[0], rotation_reference_camera, camera_view)
-                elif self.mode == 'train':
+                if self.mode == 'train':
                     output_path = self._save_generated_images(result, image_path[0])
+                else:
+                    # 'inference', 'rl', or any other mode: the schema exposes
+                    # rotation_reference_camera + camera_view, so save with the full signature.
+                    output_path = self._save_generated_images(result, image_path[0], rotation_reference_camera, camera_view)
                 
                 response = {
                     "success": True,

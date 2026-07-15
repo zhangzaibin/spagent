@@ -247,6 +247,11 @@ def make_tools(tool_names: List[str], args) -> List[Any]:
                 kwargs = dict(use_mock=False, server_url=server_url)
                 if name == "vace":
                     kwargs["timeout_seconds"] = getattr(args, "vace_timeout", 480)
+                # For GRPO-trained models, expose the exact pi3x tool schema the
+                # model was trained on (angles required, no "default 0" wording)
+                # so it stops falling back to the meaningless (0,0) view.
+                if name == "pi3x" and getattr(args, "rl_trained", False):
+                    kwargs["mode"] = "rl"
                 tools.append(cls(**kwargs))
             else:
                 tools.append(cls(use_mock=False))
@@ -336,6 +341,7 @@ def load_dataset(
     limit: Optional[int],
     local_path: Optional[str] = None,
     per_category: Optional[int] = None,
+    task_filter: Optional[List[str]] = None,
 ):
     # ── Local JSONL (MindCube, VSIBench, or any explicit --data-path) ──────────
     jsonl_path = local_path or LOCAL_DATASET_PATHS.get(name)
@@ -349,6 +355,17 @@ def load_dataset(
             )
         print(f"  Loading local JSONL: {full}")
         ds = _LocalDataset(name, str(full))
+
+        # ── Optional task filter (applied before sampling/limits) ──────────────
+        if task_filter:
+            allowed_tasks = set(task_filter)
+            selected = [
+                i for i, item in enumerate(ds.raw_items)
+                if item.get("task", "") in allowed_tasks
+            ]
+            ds.raw_items = [ds.raw_items[i] for i in selected]
+            ds.data = ds.data.iloc[selected].reset_index(drop=True)
+            print(f"  Task filter {sorted(allowed_tasks)}: {len(selected)} rows")
 
         # ── Per-category sampling (takes precedence over --limit for local datasets) ──
         if per_category is not None:
@@ -1106,12 +1123,26 @@ def main():
                             "task category instead of a flat head-limit. Overrides --limit for "
                             "local datasets when set."
                         ))
+    parser.add_argument("--task-filter", nargs="+", default=None, metavar="TASK",
+                        help=(
+                            "For local JSONL datasets: keep only the named task categories "
+                            "before applying --per-category or --limit."
+                        ))
     parser.add_argument("--prompt", default="general", choices=["spatial", "general"],
                         help=(
                             "System prompt style. "
                             "'spatial' uses the built-in SPATIAL_3D_ROLE + SPATIAL_3D_WORKFLOW + "
                             "SPATIAL_3D_CONTINUATION_HINT (best for 3D reconstruction tools). "
                             "'general' (default) uses a concise tool-hint prompt."
+                        ))
+    parser.add_argument("--rl-trained", action="store_true",
+                        help=(
+                            "Evaluate a GRPO/RL-trained checkpoint. Exposes the pi3x_tool "
+                            "schema exactly as it appeared in train/system_prompt/"
+                            "system_prompt_grpo.txt (azimuth_angle/elevation_angle REQUIRED, "
+                            "no 'default 0' wording). This prevents the model from emitting the "
+                            "meaningless (azimuth=0, elevation=0) call it never used during "
+                            "training. Recommended together with --prompt spatial."
                         ))
     parser.add_argument("--trace-dir", default="outputs/spagent_traces")
     parser.add_argument("--work-dir",  default="outputs/vlmeval_runs")
@@ -1179,6 +1210,7 @@ def main():
     print(f"  Limit    : {args.limit or 'defaults'}")
     print(f"  Per-cat  : {args.per_category or '(none)'}")
     print(f"  Prompt   : {args.prompt}")
+    print(f"  RL-tuned : {args.rl_trained}")
     print(f"  Tag      : {model_tag}")
     print(f"{'='*65}\n")
 
@@ -1262,7 +1294,8 @@ def main():
 
         try:
             ds = load_dataset(ds_name, limit, local_path=local_path,
-                              per_category=args.per_category)
+                              per_category=args.per_category,
+                              task_filter=args.task_filter)
         except Exception as exc:
             print(f"  [ERROR] Load failed: {exc}")
             all_results[ds_name] = {"error": str(exc)}

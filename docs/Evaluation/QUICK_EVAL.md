@@ -67,6 +67,8 @@ python scripts/quick_eval.py \
 | `--max-iterations` | `3` | Max agent iterations per question (including tool calls) |
 | `--temperature` | `0.0` | LLM sampling temperature |
 | `--seed` | `42` | Random seed for reproducibility |
+| `--prompt` | `general` | System prompt style: `general` (concise tool hints) or `spatial` (SPATIAL_3D role + workflow + continuation hint, best for 3D tools) |
+| `--rl-trained` | _(off)_ | Evaluate a GRPO/RL-trained checkpoint. Exposes the `pi3x_tool` schema exactly as used in training (see [Evaluating RL-Trained Models](#evaluating-rl-trained-models)) |
 
 ### Scoring & Output
 
@@ -222,6 +224,44 @@ python scripts/quick_eval.py \
     --datasets MMStar VStarBench \
     --no-score
 ```
+
+### Evaluating RL-Trained Models
+
+Models fine-tuned with GRPO (see [RL_TRAINING.md](../RL_TRAINING.md)) were optimized
+against the exact tool schema baked into `train/system_prompt/system_prompt_grpo.txt`.
+That schema marks `azimuth_angle` / `elevation_angle` as **required** and never
+mentions a "default 0".
+
+By default, the eval path rebuilds the `pi3x_tool` schema dynamically from the tool
+class (`mode='inference'`), where the angles are **optional** and their descriptions
+say *"Default is 0"*. This mismatch makes an RL-trained model fall back to the
+meaningless `(azimuth=0, elevation=0)` call — a viewpoint it never used during
+training (it just repeats the first input image).
+
+Add `--rl-trained` to make the eval expose the **exact** training schema
+(`mode='rl'`), which eliminates the `(0,0)` fallback. Recommended together with
+`--prompt spatial`:
+
+```bash
+python scripts/quick_eval.py \
+    --model /path/to/spagent-grpo-ckpt \
+    --model-backend qwen-vllm \
+    --tools pi3x \
+    --datasets MindCube \
+    --prompt spatial \
+    --rl-trained
+```
+
+Or via the shell wrapper (extra flags after `--` pass straight through to `quick_eval.py`):
+
+```bash
+MODEL=/path/to/spagent-grpo-ckpt TEMPERATURE=0.0 DATASETS=MindCube \
+    bash scripts/eval/eval_pi3x_only.sh --prompt spatial --rl-trained
+```
+
+> **Note**: `--rl-trained` only changes the `pi3x_tool` schema; it leaves every other
+> tool and the rest of the eval logic untouched. Omit it for non-RL / API models to
+> keep the original behavior.
 
 ### All 15 Benchmarks
 
