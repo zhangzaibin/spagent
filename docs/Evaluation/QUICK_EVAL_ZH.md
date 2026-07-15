@@ -67,6 +67,8 @@ python scripts/quick_eval.py \
 | `--max-iterations` | `3` | Agent 每道题最多迭代几轮（含工具调用） |
 | `--temperature` | `0.0` | LLM 生成温度 |
 | `--seed` | `42` | 随机种子，用于结果复现 |
+| `--prompt` | `general` | 系统提示风格：`general`（简洁的工具提示）或 `spatial`（SPATIAL_3D 角色 + workflow + 续写提示，最适合 3D 工具） |
+| `--rl-trained` | _(关闭)_ | 评测 GRPO/RL 训练的 checkpoint，使 `pi3x_tool` 的 schema 与训练时完全一致（见[评测 RL 训练的模型](#评测-rl-训练的模型)） |
 
 ### 评分与输出
 
@@ -222,6 +224,39 @@ python scripts/quick_eval.py \
     --datasets MMStar VStarBench \
     --no-score
 ```
+
+### 评测 RL 训练的模型
+
+用 GRPO 微调的模型（见 [RL_TRAINING.md](../RL_TRAINING.md)）是针对
+`train/system_prompt/system_prompt_grpo.txt` 中固定的工具 schema 优化的。该 schema 把
+`azimuth_angle` / `elevation_angle` 标记为**必填**，且完全不含 "default 0" 这类描述。
+
+默认情况下，评测路径会从工具类动态重建 `pi3x_tool` 的 schema（`mode='inference'`），
+此时这两个角度是**可选**的，且描述里写着 *"Default is 0"*。这种不一致会让 RL 训练的模型
+退化成调用毫无意义的 `(azimuth=0, elevation=0)`——这是它训练时从没用过的视角（只会重复第一张输入图）。
+
+加上 `--rl-trained` 即可让评测暴露与训练时**完全一致**的 schema（`mode='rl'`），从而消除
+`(0,0)` 的退化行为。建议与 `--prompt spatial` 一起使用：
+
+```bash
+python scripts/quick_eval.py \
+    --model /path/to/spagent-grpo-ckpt \
+    --model-backend qwen-vllm \
+    --tools pi3x \
+    --datasets MindCube \
+    --prompt spatial \
+    --rl-trained
+```
+
+也可以通过 shell 包装脚本调用（`--` 之后的额外参数会原样传给 `quick_eval.py`）：
+
+```bash
+MODEL=/path/to/spagent-grpo-ckpt TEMPERATURE=0.0 DATASETS=MindCube \
+    bash scripts/eval/eval_pi3x_only.sh --prompt spatial --rl-trained
+```
+
+> **注意**：`--rl-trained` 只改变 `pi3x_tool` 的 schema，其它工具和整体评测逻辑都不受影响。
+> 评测非 RL 模型 / API 模型时不要加此标志，以保持原有行为。
 
 ### 场景三：全量 15 个 benchmark
 

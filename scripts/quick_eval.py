@@ -247,6 +247,11 @@ def make_tools(tool_names: List[str], args) -> List[Any]:
                 kwargs = dict(use_mock=False, server_url=server_url)
                 if name == "vace":
                     kwargs["timeout_seconds"] = getattr(args, "vace_timeout", 480)
+                # For GRPO-trained models, expose the exact pi3x tool schema the
+                # model was trained on (angles required, no "default 0" wording)
+                # so it stops falling back to the meaningless (0,0) view.
+                if name == "pi3x" and getattr(args, "rl_trained", False):
+                    kwargs["mode"] = "rl"
                 tools.append(cls(**kwargs))
             else:
                 tools.append(cls(use_mock=False))
@@ -1130,6 +1135,15 @@ def main():
                             "SPATIAL_3D_CONTINUATION_HINT (best for 3D reconstruction tools). "
                             "'general' (default) uses a concise tool-hint prompt."
                         ))
+    parser.add_argument("--rl-trained", action="store_true",
+                        help=(
+                            "Evaluate a GRPO/RL-trained checkpoint. Exposes the pi3x_tool "
+                            "schema exactly as it appeared in train/system_prompt/"
+                            "system_prompt_grpo.txt (azimuth_angle/elevation_angle REQUIRED, "
+                            "no 'default 0' wording). This prevents the model from emitting the "
+                            "meaningless (azimuth=0, elevation=0) call it never used during "
+                            "training. Recommended together with --prompt spatial."
+                        ))
     parser.add_argument("--trace-dir", default="outputs/spagent_traces")
     parser.add_argument("--work-dir",  default="outputs/vlmeval_runs")
     parser.add_argument("--judge-model", default="gpt-4o-mini")
@@ -1196,6 +1210,7 @@ def main():
     print(f"  Limit    : {args.limit or 'defaults'}")
     print(f"  Per-cat  : {args.per_category or '(none)'}")
     print(f"  Prompt   : {args.prompt}")
+    print(f"  RL-tuned : {args.rl_trained}")
     print(f"  Tag      : {model_tag}")
     print(f"{'='*65}\n")
 

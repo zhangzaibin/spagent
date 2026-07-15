@@ -216,6 +216,14 @@ swift export \
 The merged/full checkpoint can then be served or evaluated like any other
 SPAgent model (see [Quick Eval](Evaluation/QUICK_EVAL.md)).
 
+> **Important**: when evaluating a GRPO-trained checkpoint, pass `--rl-trained`
+> to `quick_eval.py` (or the eval wrapper scripts). This exposes the `pi3x_tool`
+> schema exactly as it appeared in `train/system_prompt/system_prompt_grpo.txt`
+> (angles **required**, no "default 0"). Without it, the default eval schema makes
+> the angles optional and advertises 0 as the default, causing the model to emit
+> the meaningless `(azimuth=0, elevation=0)` view it never used in training. See
+> [Evaluating RL-Trained Models](Evaluation/QUICK_EVAL.md#evaluating-rl-trained-models).
+
 ## File reference
 
 | Path | Role |
