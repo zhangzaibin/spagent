@@ -32,7 +32,21 @@ import json
 
 SPATIAL_3D_WORKFLOW = """# Spatial Reasoning Protocol
 Use original images for object identity and Pi3X only for missing geometry. camN always
-corresponds to image N. Never call Pi3X at (azimuth=0, elevation=0).
+corresponds to image N.
+
+*** IMPORTANT: azimuth=0 AND elevation=0 repeats the first input image ***
+Calling Pi3X with (azimuth=0, elevation=0) — for ANY rotation_reference_camera and
+ANY camera_view value — just re-renders a view you ALREADY have and gives you ZERO new
+information. It is NOT a valid "baseline", "anchor", or "camera N viewpoint" step; that
+view is already provided as image N. NEVER call Pi3X at (azimuth=0, elevation=0). To
+look from a specific camera, use rotation_reference_camera=N together with a NON-ZERO
+azimuth and/or elevation. Every Pi3X call MUST have azimuth != 0 OR elevation != 0.
+- camera_view=true with azimuth=0 and elevation=0 is FORBIDDEN: this does NOT give a
+  new ego-view, it just re-shows camera N's original input image.
+- camera_view=false with azimuth=0 and elevation=0 is ALSO FORBIDDEN: this does NOT
+  give a new global view, it just re-shows the same reconstruction with no rotation.
+This restriction applies REGARDLESS of camera_view being true or false — azimuth=0 and
+elevation=0 must never both appear together in the same call, under any setting.
 
 # 1. Route the question before reasoning
 Choose exactly one solver below and follow its checks. Do not mix page coordinates,
@@ -139,7 +153,10 @@ quantity: heading, lateral displacement sign, target projection, or depth orderi
   sufficient for "behind" even with lateral offset; invisibility may be occlusion.
 - After a modular heading sum, do not apply the queried relation again in the matched
   image; inspect the forward central ray and far scene boundary.
-- Never use (0,0) and never repeat an equivalent projection.
+- IMPORTANT: azimuth=0 AND elevation=0 repeats the first input image and gives ZERO new
+  information — this holds for camera_view=true (re-shows camera N's original image) AND
+  for camera_view=false (re-shows the same reconstruction with no rotation). NEVER use
+  (0,0) under ANY camera_view setting, and never repeat an equivalent projection.
 
 Then verify the selected option against original-image object identity. Output analysis
 in <think></think> and only the option letter/number in <answer></answer>."""

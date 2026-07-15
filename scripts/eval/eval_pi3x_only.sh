@@ -10,10 +10,10 @@
 #  Defaults : MindCube (per-category) + VSIBench, spatial prompt
 #
 #  Usage:
-#    bash scripts/eval_pi3x_only.sh
-#    MODEL=gpt-4.1 bash scripts/eval_pi3x_only.sh
-#    DATASETS="MindCube" PER_CATEGORY=100 bash scripts/eval_pi3x_only.sh
-#    DATASETS="VStarBench" PROMPT=general LIMIT=50 bash scripts/eval_pi3x_only.sh
+#    bash scripts/eval/eval_pi3x_only.sh
+#    MODEL=gpt-4.1 bash scripts/eval/eval_pi3x_only.sh
+#    DATASETS="MindCube" PER_CATEGORY=100 bash scripts/eval/eval_pi3x_only.sh
+#    DATASETS="VStarBench" PROMPT=general LIMIT=50 bash scripts/eval/eval_pi3x_only.sh
 #
 #  VSI-Bench data prep (run once before evaluating VSIBench):
 #    python spagent/utils/download_vsibench.py

@@ -336,6 +336,7 @@ def load_dataset(
     limit: Optional[int],
     local_path: Optional[str] = None,
     per_category: Optional[int] = None,
+    task_filter: Optional[List[str]] = None,
 ):
     # ── Local JSONL (MindCube, VSIBench, or any explicit --data-path) ──────────
     jsonl_path = local_path or LOCAL_DATASET_PATHS.get(name)
@@ -349,6 +350,17 @@ def load_dataset(
             )
         print(f"  Loading local JSONL: {full}")
         ds = _LocalDataset(name, str(full))
+
+        # ── Optional task filter (applied before sampling/limits) ──────────────
+        if task_filter:
+            allowed_tasks = set(task_filter)
+            selected = [
+                i for i, item in enumerate(ds.raw_items)
+                if item.get("task", "") in allowed_tasks
+            ]
+            ds.raw_items = [ds.raw_items[i] for i in selected]
+            ds.data = ds.data.iloc[selected].reset_index(drop=True)
+            print(f"  Task filter {sorted(allowed_tasks)}: {len(selected)} rows")
 
         # ── Per-category sampling (takes precedence over --limit for local datasets) ──
         if per_category is not None:
@@ -1106,6 +1118,11 @@ def main():
                             "task category instead of a flat head-limit. Overrides --limit for "
                             "local datasets when set."
                         ))
+    parser.add_argument("--task-filter", nargs="+", default=None, metavar="TASK",
+                        help=(
+                            "For local JSONL datasets: keep only the named task categories "
+                            "before applying --per-category or --limit."
+                        ))
     parser.add_argument("--prompt", default="general", choices=["spatial", "general"],
                         help=(
                             "System prompt style. "
@@ -1262,7 +1279,8 @@ def main():
 
         try:
             ds = load_dataset(ds_name, limit, local_path=local_path,
-                              per_category=args.per_category)
+                              per_category=args.per_category,
+                              task_filter=args.task_filter)
         except Exception as exc:
             print(f"  [ERROR] Load failed: {exc}")
             all_results[ds_name] = {"error": str(exc)}

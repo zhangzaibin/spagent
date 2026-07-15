@@ -10,10 +10,10 @@
 #                for spatial / counting questions
 #
 #  Usage:
-#    bash scripts/eval_detection_only.sh
-#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval_detection_only.sh
-#    TOOLS="zoom" bash scripts/eval_detection_only.sh            # zoom only
-#    DATASETS="VStarBench HRBench4K HRBench8K" bash scripts/eval_detection_only.sh
+#    bash scripts/eval/eval_detection_only.sh
+#    MODEL=gpt-4.1 LIMIT=50 bash scripts/eval/eval_detection_only.sh
+#    TOOLS="zoom" bash scripts/eval/eval_detection_only.sh            # zoom only
+#    DATASETS="VStarBench HRBench4K HRBench8K" bash scripts/eval/eval_detection_only.sh
 # ============================================================
 
 source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"

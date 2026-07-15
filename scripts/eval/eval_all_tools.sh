@@ -14,9 +14,9 @@
 #    vace         → VaceTool            (port 20034)
 #
 #  Usage:
-#    bash scripts/eval_all_tools.sh
-#    MODEL=gpt-4.1 DATASETS="MindCube MMStar" LIMIT=100 bash scripts/eval_all_tools.sh
-#    TOOLS="pi3x zoom localize" bash scripts/eval_all_tools.sh   # subset
+#    bash scripts/eval/eval_all_tools.sh
+#    MODEL=gpt-4.1 DATASETS="MindCube MMStar" LIMIT=100 bash scripts/eval/eval_all_tools.sh
+#    TOOLS="pi3x zoom localize" bash scripts/eval/eval_all_tools.sh   # subset
 # ============================================================
 
 source "$(dirname "${BASH_SOURCE[0]}")/_eval_common.sh"

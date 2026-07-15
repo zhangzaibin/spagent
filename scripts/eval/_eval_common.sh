@@ -11,8 +11,8 @@
 #
 # Every value uses `${VAR:-default}`, so any setting can be
 # overridden from the command line, e.g.:
-#   MODEL=gpt-4.1 LIMIT=100 bash scripts/eval_all_tools.sh
-#   DETECTION_URL=http://10.7.8.94:20022 bash scripts/eval_detection_only.sh
+#   MODEL=gpt-4.1 LIMIT=100 bash scripts/eval/eval_all_tools.sh
+#   DETECTION_URL=http://10.7.8.94:20022 bash scripts/eval/eval_detection_only.sh
 #
 # Wrappers that need a different *default* for a knob (e.g. a
 # baseline with MAX_ITER=1) should set it BEFORE sourcing this
@@ -21,9 +21,9 @@
 
 set -euo pipefail
 
-# ── Project root (this file lives in scripts/) ──────────────
+# ── Project root (this file lives in scripts/eval/) ─────────
 _COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${_COMMON_DIR}/.." && pwd)"
+PROJECT_ROOT="$(cd "${_COMMON_DIR}/../.." && pwd)"
 cd "${PROJECT_ROOT}"
 
 # ── Common run configuration ────────────────────────────────
