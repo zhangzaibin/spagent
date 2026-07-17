@@ -219,10 +219,15 @@ class AgentMemory:
         output_images: Optional[List[str]] = None,
         iteration: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        rendered_text: Optional[str] = None,
     ) -> MemoryEntry:
         """
         Record the result returned by a tool, including any output images
         (depth maps, segmentation overlays, point-cloud renders, etc.).
+
+        ``rendered_text``: when the render module produced a projected text
+        for this result, it replaces the tool's raw ``description`` here.
+        ``None`` preserves the legacy description-based behavior exactly.
         """
         meta: Dict[str, Any] = {
             "tool_name": tool_name,
@@ -239,7 +244,8 @@ class AgentMemory:
         if metadata:
             meta.update(metadata)
 
-        description = result.get("description") or ""
+        description = (rendered_text if rendered_text is not None
+                       else result.get("description")) or ""
         text = f"Tool result [{tool_name}]: {description}" if description else f"Tool result [{tool_name}]"
         return self._make_entry(
             "tool", "tool_result",

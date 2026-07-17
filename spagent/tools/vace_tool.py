@@ -13,6 +13,7 @@ from typing import Any, Dict
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import MediaPayload, ToolResult, VIDEO_GENERATION
 
 logger = logging.getLogger(__name__)
 
@@ -143,12 +144,22 @@ class VaceTool(Tool):
             )
 
             if result and result.get("success"):
-                return {
-                    "success": True,
-                    "result": result,
-                    "output_path": result.get("output_path"),
-                    "description": "VACE firstframe video generated successfully.",
-                }
+                output_path = result.get("output_path")
+                # Standardized output: MediaPayload carries the .mp4 path;
+                # the legacy `result` key (with `result_dir` nested inside,
+                # exactly as returned by the service) is preserved as an
+                # extra so existing consumers see the same dict shape.
+                payload = MediaPayload(
+                    category=VIDEO_GENERATION,
+                    output_path=output_path,
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description="VACE firstframe video generated successfully.",
+                    output_path=output_path,
+                    result=result,
+                )
 
             error_msg = result.get("error", "Unknown error") if result else "No result returned"
             return {"success": False, "error": f"VACE generation failed: {error_msg}"}

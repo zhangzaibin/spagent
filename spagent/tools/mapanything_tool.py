@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional, List
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import PointCloudPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -367,28 +368,36 @@ class MapAnythingTool(Tool):
                 elif self.mode == 'train':
                     output_path = self._save_generated_images(result, image_path[0])
                 
-                response = {
-                    "success": True,
-                    "result": result,
-                    "points_count": points_count,
-                    "ply_filename": ply_filename,
-                    "view_count": len(camera_views),
-                    "azimuth_angle": azimuth_angle,
-                    "elevation_angle": elevation_angle,
-                    "view_type": "custom_angle",
-                    "input_images_count": len(image_path),
-                    "output_path": output_path,
-                    "description": (
-                        f"MapAnything tool has completed 3D reconstruction, generating a point cloud visualization "
-                        f"with {len(image_path)} input images producing {len(image_path)} camera viewpoints. In the point cloud visualization, "
-                        f"camera positions are indicated by cone-shaped markers, with their shooting direction "
-                        f"pointing from the base towards the apex. The first input image corresponds to cam1 "
-                        f"camera view, the second image corresponds to cam2 camera view, and so on. The generated "
-                        f"multi-view renderings showcase the reconstructed 3D scene from different viewing angles."
-                    )
-                }
-                
-                return response
+                description = (
+                    f"MapAnything tool has completed 3D reconstruction, generating a point cloud visualization "
+                    f"with {len(image_path)} input images producing {len(image_path)} camera viewpoints. In the point cloud visualization, "
+                    f"camera positions are indicated by cone-shaped markers, with their shooting direction "
+                    f"pointing from the base towards the apex. The first input image corresponds to cam1 "
+                    f"camera view, the second image corresponds to cam2 camera view, and so on. The generated "
+                    f"multi-view renderings showcase the reconstructed 3D scene from different viewing angles."
+                )
+
+                # Standardized output: ToolResult is dict-compatible, and every
+                # legacy key is kept as an extra so existing consumers (e.g. the
+                # agent loop reading azimuth_angle/elevation_angle into memory
+                # metadata) see the same shape.
+                payload = PointCloudPayload(
+                    ply_filename=ply_filename,
+                    points_count=points_count,
+                    camera_views=camera_views,
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=description,
+                    output_path=output_path,
+                    result=result,
+                    view_count=len(camera_views),
+                    azimuth_angle=azimuth_angle,
+                    elevation_angle=elevation_angle,
+                    view_type="custom_angle",
+                    input_images_count=len(image_path),
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.info(f"Not found azimuth{azimuth_angle} and elevation{elevation_angle} in {str(image_path)}.")
@@ -452,37 +461,42 @@ class MapAnythingTool(Tool):
                 img_base64 = base64.b64encode(img_data).decode('utf-8')
             
             # Construct result in the same format as normal execution
-            result = {
+            # (standardized ToolResult; legacy keys preserved as extras)
+            camera_views = [{
+                "camera": 1,
+                "view": f"custom_azim_{int(azimuth_angle)}_elev_{int(elevation_angle)}",
+                "azimuth_angle": int(azimuth_angle),
+                "elevation_angle": int(elevation_angle),
+                "image": img_base64
+            }]
+            raw_result = {
                 "success": True,
-                "result": {
-                    "success": True,
-                    "ply_filename": f"cached_mapanything_result_{scene_id}.ply",
-                    "points_count": 50000,
-                    "camera_views": [{
-                        "camera": 1,
-                        "view": f"custom_azim_{int(azimuth_angle)}_elev_{int(elevation_angle)}",
-                        "azimuth_angle": int(azimuth_angle),
-                        "elevation_angle": int(elevation_angle),
-                        "image": img_base64
-                    }]
-                },
-                "points_count": 50000,
                 "ply_filename": f"cached_mapanything_result_{scene_id}.ply",
-                "view_count": 1,
-                "azimuth_angle": azimuth_angle,
-                "elevation_angle": elevation_angle,
-                "view_type": "custom_angle",
-                "input_images_count": 1,
-                "output_path": cache_path,
-                "cached": True,
-                "description": (
+                "points_count": 50000,
+                "camera_views": camera_views
+            }
+            payload = PointCloudPayload(
+                ply_filename=raw_result["ply_filename"],
+                points_count=raw_result["points_count"],
+                camera_views=camera_views,
+            )
+            return ToolResult(
+                success=True,
+                payload=payload,
+                description=(
                     f"Using cached MapAnything visualization from previous reconstruction "
                     f"(azimuth={int(azimuth_angle)}°, elevation={int(elevation_angle)}°). "
                     f"The cached result shows the reconstructed 3D scene from the requested viewing angle."
-                )
-            }
-            
-            return result
+                ),
+                output_path=cache_path,
+                result=raw_result,
+                view_count=1,
+                azimuth_angle=azimuth_angle,
+                elevation_angle=elevation_angle,
+                view_type="custom_angle",
+                input_images_count=1,
+                cached=True,
+            )
             
         except Exception as e:
             logger.error(f"Error checking cache: {e}")

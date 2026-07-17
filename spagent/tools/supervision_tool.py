@@ -14,6 +14,13 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import (
+    BOX_XYXY_PIXEL,
+    SEGMENTATION,
+    DetectionPayload,
+    SegmentationPayload,
+    ToolResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,15 +144,69 @@ class SupervisionTool(Tool):
             
             if result and result.get('success'):
                 logger.info("Supervision task completed successfully")
-                return {
-                    "success": True,
-                    "result": result,
-                    "boxes": result.get('boxes', []),
-                    "labels": result.get('labels', []),
-                    "confidence": result.get('confidence', []),
-                    "masks": result.get('masks', []),
-                    "vis_path": result.get('vis_path')
-                }
+                boxes = result.get('boxes', []) or []
+                labels = result.get('labels', []) or []
+                confidence = result.get('confidence', []) or []
+                masks = result.get('masks', []) or []
+
+                # Guard against unaligned legacy arrays: DetectionPayload
+                # requires parallel boxes/labels/confidence.
+                payload_labels = labels
+                if len(payload_labels) != len(boxes):
+                    payload_labels = [f"obj_{i}" for i in range(len(boxes))]
+                conf_arg = confidence if len(confidence) == len(boxes) else None
+
+                # Standardized output with per-call category: detection payload
+                # for 'image_det', segmentation payload for 'image_seg'. All
+                # legacy keys (result/boxes/labels/confidence/masks/vis_path)
+                # are preserved so existing consumers see the same shape.
+                # Box coordinates are pixel xyxy (the client emits e.g.
+                # [100, 100, 200, 200]; it never returns normalized coords).
+                if task == "image_seg":
+                    summary = (
+                        f"Supervision segmentation completed: {len(masks)} mask(s) "
+                        f"and {len(boxes)} box(es) found."
+                    )
+                    if masks:
+                        payload = SegmentationPayload(masks=masks)
+                        category = None  # derived from the payload
+                    else:
+                        # Zero masks is a legitimate finding: the empty
+                        # `masks` extra keeps the contract carrier present.
+                        payload = None
+                        category = SEGMENTATION
+                    return ToolResult(
+                        success=True,
+                        payload=payload,
+                        category=category,
+                        description=summary,
+                        vis_path=result.get('vis_path'),
+                        result=result,
+                        boxes=boxes,
+                        labels=labels,
+                        confidence=confidence,
+                        masks=masks,
+                    )
+
+                summary = f"Supervision detection found {len(boxes)} object(s)"
+                if payload_labels:
+                    summary += f": {', '.join(str(l) for l in payload_labels)}"
+                summary += "."
+                payload = DetectionPayload(
+                    boxes=boxes,
+                    labels=payload_labels,
+                    box_format=BOX_XYXY_PIXEL,
+                    confidence=conf_arg,
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=summary,
+                    vis_path=result.get('vis_path'),
+                    result=result,
+                    confidence=confidence,
+                    masks=masks,
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.error(f"Supervision task failed: {error_msg}")

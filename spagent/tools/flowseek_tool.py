@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Union
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import FlowPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +96,31 @@ class FlowSeekTool(Tool):
                 image2_path=image2_path,
                 output_path=output_path,
             )
-            if raw.get("success"):
-                raw["result"] = {
-                    "flow_magnitude_mean": raw.get("flow_magnitude_mean", 0.0),
-                    "output_path": raw.get("output_path", ""),
-                    "flow_path": raw.get("flow_path"),
-                    "flow_shape": raw.get("flow_shape"),
-                }
+            if not raw.get("success"):
+                return raw
+
+            legacy_result = {
+                "flow_magnitude_mean": raw.get("flow_magnitude_mean", 0.0),
+                "output_path": raw.get("output_path", ""),
+                "flow_path": raw.get("flow_path"),
+                "flow_shape": raw.get("flow_shape"),
+            }
+            # Standardized output; server mode may not transport the raw
+            # field yet, so fall back to a legacy dict when flow_path is
+            # absent instead of failing the optical-flow contract.
+            if raw.get("flow_path"):
+                return ToolResult(
+                    success=True,
+                    payload=FlowPayload(
+                        flow_path=raw["flow_path"],
+                        flow_shape=raw.get("flow_shape"),
+                        flow_magnitude_mean=raw.get("flow_magnitude_mean"),
+                    ),
+                    description=raw.get("description", ""),
+                    output_path=raw.get("output_path"),
+                    result=legacy_result,
+                )
+            raw["result"] = legacy_result
             return raw
         except Exception as e:
             logger.exception("FlowSeekTool error")

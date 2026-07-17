@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import PointsPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +168,78 @@ class MoondreamTool(Tool):
             "required": ["image_path", "task", "object_name"]
         }
     
+    @staticmethod
+    def _image_dims(image_path: str):
+        """Cheap header-only read of image dimensions; None on any failure."""
+        try:
+            from PIL import Image
+            with Image.open(image_path) as im:
+                return im.size
+        except Exception:
+            return None, None
+
+    def _standardized_point_result(
+        self,
+        image_path: str,
+        result: Dict[str, Any],
+        task: str,
+        is_multi_object: bool,
+        object_names: List[str],
+    ) -> "ToolResult":
+        """Build the standardized ToolResult for a successful point task.
+
+        Moondream points are NORMALIZED [0,1] (native Moondream format).
+        Single object → the client's `points` list; multiple objects → the
+        `all_points` dict values are flattened into one list with a parallel
+        `labels` list (the object name for each point). Legacy keys
+        (`result`, `task`, `is_multi_object`, `objects`, and the multi-object
+        `all_points`/`color_mapping`/`total_points`) are kept as extras.
+        """
+        width, height = self._image_dims(image_path)
+
+        labels: Optional[List[str]] = None
+        extras: Dict[str, Any] = {}
+        if result.get('all_points') is not None:
+            all_points = result['all_points']
+            points: List[Dict[str, Any]] = []
+            labels = []
+            for obj_name, obj_points in all_points.items():
+                for pt in obj_points:
+                    points.append(pt)
+                    labels.append(obj_name)
+            extras['all_points'] = all_points
+            if result.get('color_mapping') is not None:
+                extras['color_mapping'] = result['color_mapping']
+            if result.get('total_points') is not None:
+                extras['total_points'] = result['total_points']
+        else:
+            points = result.get('points') or []
+
+        payload = PointsPayload(
+            points=points,
+            normalized=True,
+            image_width=width,
+            image_height=height,
+            labels=labels,
+        )
+        description = (
+            f"Moondream pointed to {len(points)} location(s) for "
+            f"'{', '.join(object_names)}'."
+        )
+        return ToolResult(
+            success=True,
+            payload=payload,
+            description=description,
+            output_path=result.get('output_path'),
+            result=result,
+            task=task,
+            is_multi_object=is_multi_object,
+            objects=object_names,
+            **extras,
+        )
+
     def call(
-        self, 
+        self,
         image_path: str,
         task: str,
         object_name: str
@@ -220,14 +291,9 @@ class MoondreamTool(Tool):
             
             if result and result.get('success'):
                 logger.info(f"Moondream {task} task completed successfully")
-                return {
-                    "success": True,
-                    "result": result,
-                    "task": task,
-                    "is_multi_object": is_multi_object,
-                    "objects": object_names,
-                    "output_path": result.get('output_path')
-                }
+                return self._standardized_point_result(
+                    image_path, result, task, is_multi_object, object_names
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.error(f"Moondream {task} task failed: {error_msg}")

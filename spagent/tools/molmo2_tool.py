@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import PointsPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -127,15 +128,30 @@ class Molmo2Tool(Tool):
             if points
             else "Molmo2 found no parseable point coordinates in the model output."
         )
-        return {
-            "success": True,
-            "result": result,
-            "output_path": output_path,
-            "vis_path": output_path,
-            "crop_paths": saved[1:] if len(saved) > 1 else [],
-            "description": description,
-            "response_text": raw_text[:500],
-        }
+        # Standardized output: point_utils scales the model's 0-1000/0-100
+        # output by image width/height, so points are PIXEL coordinates.
+        # The payload surfaces the FIRST image's dims (single-image is the
+        # common case); `points_by_image` stays as an extra for multi-image.
+        flat_points = [pt for group in grouped for pt in group["points"]]
+        first_w, first_h = sizes[0] if sizes else (None, None)
+        payload = PointsPayload(
+            points=flat_points,
+            normalized=False,
+            image_width=first_w,
+            image_height=first_h,
+        )
+        return ToolResult(
+            success=True,
+            payload=payload,
+            description=description,
+            output_path=output_path,
+            vis_path=output_path,
+            crop_paths=saved[1:] if len(saved) > 1 else [],
+            result=result,
+            response_text=raw_text[:500],
+            raw_text=raw_text,
+            points_by_image=grouped,
+        )
 
     @property
     def parameters(self) -> Dict[str, Any]:
