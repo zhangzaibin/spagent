@@ -241,6 +241,38 @@ class ToolCallFormat(ORM):
 orms['external_tool_call_format'] = ToolCallFormat
 
 
+class PureCoTFormat(ORM):
+    """
+    Format reward for the pure single-turn, no-tool CoT setting.
+
+    Unlike ToolCallFormat, this does NOT accept a <tool_call> block as a valid
+    format. Only one format is rewarded:
+        <think>...</think><answer>...</answer>
+    Any completion containing <tool_call> (whether or not it also has
+    <answer>) gets 0.0, so the policy is never rewarded for pretending to
+    call a tool it doesn't have.
+
+    Usage:
+        swift rlhf --reward_funcs external_r1v_acc external_cot_format \
+            --system .../system_prompt_grpo_wotool.txt
+        (no --multi_turn_scheduler / --max_turns needed)
+    """
+
+    _PATTERN = re.compile(r'^<think>.*?</think>\s*<answer>.*?</answer>(?![\s\S])', re.DOTALL | re.MULTILINE)
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        rewards = []
+        for content in completions:
+            if '<tool_call>' in content or '</tool_call>' in content:
+                rewards.append(0.0)
+                continue
+            rewards.append(1.0 if self._PATTERN.match(content) else 0.0)
+        return rewards
+
+
+orms['external_cot_format'] = PureCoTFormat
+
+
 class MultiTurnToolCallFormat(ORM):
     """
     Simplified multi-turn format reward that only checks if the completion has <answer>...</answer> format.
@@ -400,6 +432,106 @@ class MultiTurnToolCallFormatProgressive(ORM):
 
 
 orms['external_multiturn_format_progressive'] = MultiTurnToolCallFormatProgressive
+
+
+class ZeroAngleToolCallPenalty(ORM):
+    """
+    Penalizes pi3x_tool / pi3_tool calls that request a "wasted" viewpoint,
+    i.e. azimuth_angle == 0 and elevation_angle == 0 (mod 360), or that omit
+    one/both angles entirely (the scheduler defaults missing angles to 0, so
+    those calls execute as (0, 0) anyway).
+
+    Such calls simply re-render the original viewpoint and add no new
+    geometric information, yet the policy tends to over-use them. This reward
+    inspects the *entire* trajectory (all turns), not just the final
+    completion, since tool calls only appear in intermediate turns.
+
+    Reward: 0.0 if the trajectory has no wasted pi3x calls, otherwise
+    -0.5 per wasted call, floored at -1.0.
+
+    Usage:
+        swift rlhf --reward_funcs external_angle_penalty ... --max_turns 3
+    """
+
+    PI3X_TOOL_NAMES = ('pi3_tool', 'pi3x_tool')
+    PENALTY_PER_CALL = -0.5
+    MIN_REWARD = -1.0
+
+    _TOOL_CALL_PATTERN = re.compile(r'<tool_call>\s*({.*?})\s*</tool_call>', re.DOTALL)
+
+    def _extract_tool_calls(self, content: str) -> List[Dict[str, Any]]:
+        calls = []
+        for m in self._TOOL_CALL_PATTERN.findall(content or ''):
+            try:
+                call = json.loads(m)
+                if isinstance(call, dict) and 'name' in call:
+                    calls.append(call)
+            except json.JSONDecodeError:
+                continue
+        return calls
+
+    def _is_wasted_angle_call(self, call: Dict[str, Any]) -> bool:
+        if call.get('name') not in self.PI3X_TOOL_NAMES:
+            return False
+
+        arguments = call.get('arguments') or {}
+        azimuth = arguments.get('azimuth_angle')
+        elevation = arguments.get('elevation_angle')
+
+        # Missing angles default to 0 in the scheduler, so treat them as wasted too.
+        if azimuth is None or elevation is None:
+            return True
+
+        try:
+            return float(azimuth) % 360 == 0 and float(elevation) % 360 == 0
+        except (TypeError, ValueError):
+            return False
+
+    def _count_wasted_calls(self, content: str) -> int:
+        return sum(1 for call in self._extract_tool_calls(content) if self._is_wasted_angle_call(call))
+
+    def _reward_from_wasted_count(self, wasted_count: int) -> float:
+        if wasted_count <= 0:
+            return 0.0
+        return max(self.MIN_REWARD, self.PENALTY_PER_CALL * wasted_count)
+
+    def __call__(self, completions, **kwargs) -> List[float]:
+        trajectory_ids: List[str] = kwargs.get('request_id', [])
+        global_trajectories: Dict[str, List[Dict]] = kwargs.get('trajectory_inputs', {})
+
+        if not trajectory_ids or not global_trajectories:
+            logger.warning(
+                "No trajectory information available for zero-angle penalty; "
+                "falling back to checking only the final completion (tool calls "
+                "won't be visible there in most rollouts)."
+            )
+            rewards = []
+            for content in completions:
+                wasted_count = self._count_wasted_calls(content)
+                rewards.append(self._reward_from_wasted_count(wasted_count))
+            return rewards
+
+        rewards = []
+        for local_tra_id in trajectory_ids:
+            trajectory = global_trajectories.get(local_tra_id)
+            if not trajectory:
+                rewards.append(0.0)
+                continue
+
+            wasted_count = 0
+            for turn in trajectory:
+                messages = turn.get('messages', [])
+                for message in messages:
+                    if message.get('role') != 'assistant':
+                        continue
+                    wasted_count += self._count_wasted_calls(message.get('content', ''))
+
+            rewards.append(self._reward_from_wasted_count(wasted_count))
+
+        return rewards
+
+
+orms['external_angle_penalty'] = ZeroAngleToolCallPenalty
 
 
 class MultiTurnThinkingTips(ORM):

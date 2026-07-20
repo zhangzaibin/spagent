@@ -11,11 +11,11 @@ export LANG=en_US.UTF-8
 SPAGENT_DIR=spagent
 
 MAX_PIXELS=262144 \
-MASTER_PORT=29600 \
+MASTER_PORT=29601 \
 NPROC_PER_NODE=8 \
 swift rlhf \
     --rlhf_type grpo \
-    --model /data/hf/hub/models--Qwen--Qwen3-VL-8B-Instruct/snapshots/0c351dd01ed87e9c1b53cbc748cba10e6187ff3b \
+    --model /data/hf/hub/models--Qwen--Qwen3-VL-30B-A3B-Instruct/snapshots/9c4b90e1e4ba969fd3b5378b57d966d725f1b86c \
     --external_plugins ${SPAGENT_DIR}/plugin/plugin.py \
     --multi_turn_scheduler spagent_tool_call_scheduler \
     --max_turns 3 \
@@ -35,10 +35,10 @@ swift rlhf \
     --save_strategy 'steps' \
     --eval_strategy 'steps' \
     --eval_steps 400 \
-    --save_steps 90 \
+    --save_steps 60 \
     --save_total_limit 3 \
     --logging_steps 1 \
-    --output_dir ${SPAGENT_DIR}/output/grpo_1111 \
+    --output_dir ${SPAGENT_DIR}/output/grpo_1111_30b \
     --warmup_ratio 0.05 \
     --num_generations 8 \
     --temperature 0.6 \
@@ -57,8 +57,4 @@ swift rlhf \
     # --vllm_gpu_memory_utilization 0.8 \
     # --vllm_max_model_len 32768 \
     # --completion_length_limit_scope total \
-    # --vllm_tensor_parallel_size 1 
-    
-
-
-
+    # --vllm_tensor_parallel_size 1
