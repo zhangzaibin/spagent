@@ -33,7 +33,7 @@ are needed inside the training loop.
 | **Algorithm** | GRPO via `swift rlhf --rlhf_type grpo` |
 | **Policy model** | A VLM (default: `Qwen3-VL-8B-Instruct`) |
 | **Interaction** | Multi-turn: the model can call tools for up to `--max_turns` turns before answering |
-| **Reward** | `external_r1v_acc` (answer correctness) + `external_multiturn_format` (format), equally weighted |
+| **Reward** | `external_r1v_acc` (answer correctness) + `external_multiturn_format` (format) + `external_angle_penalty` (penalizes wasted (0°, 0°) tool calls), equally weighted |
 | **Expert tool** | `Pi3XOfflineTool` — renders novel viewpoints from a **pre-computed** point-cloud cache |
 
 The key design choice for RL is that the Pi3X expert runs **offline**: instead of
@@ -146,8 +146,8 @@ swift rlhf \
     --external_plugins spagent/plugin/plugin.py \
     --multi_turn_scheduler spagent_tool_call_scheduler \
     --max_turns 3 \
-    --reward_funcs external_r1v_acc external_multiturn_format \
-    --reward_weights 1.0 1.0 \
+    --reward_funcs external_r1v_acc external_multiturn_format external_angle_penalty \
+    --reward_weights 1.0 1.0 1.0 \
     --tuner_type full \
     --dataset spagent/dataset/crossviewQA_train_rl_fixed.jsonl \
     --system spagent/train/system_prompt/system_prompt_grpo.txt \
@@ -170,13 +170,14 @@ written to `--output_dir`; TensorBoard event files live under
 ## Reward functions
 
 Rewards are implemented in [`plugin/plugin.py`](../plugin/plugin.py) and
-registered into swift's `orms` registry. The default recipe uses two, equally
+registered into swift's `orms` registry. The default recipe uses three, equally
 weighted:
 
 | `--reward_funcs` name | Class | What it rewards |
 |-----------------------|-------|-----------------|
 | `external_r1v_acc` | accuracy reward | correctness of the final `<answer>` against the ground truth |
 | `external_multiturn_format` | multi-turn format reward | valid `<think>` / `<tool_call>` / `<answer>` structure across turns |
+| `external_angle_penalty` | `ZeroAngleToolCallPenalty` | penalizes `pi3_tool`/`pi3x_tool` calls that request a "wasted" `(azimuth=0, elevation=0)` view (or omit the angles, which default to 0) — such calls just re-render the original viewpoint and add no new geometric information. `-0.5` per wasted call, floored at `-1.0`, across the whole trajectory |
 
 Additional reward functions are available in the same file (e.g.
 `external_multiturn_format` progressive variant, tool-use format/length/correctness

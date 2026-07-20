@@ -29,3 +29,6 @@ train/train_private
 # Local eval outputs / caches
 qwen_eval/
 third_party/*
+
+.env_backup
+

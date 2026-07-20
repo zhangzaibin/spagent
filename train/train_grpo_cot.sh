@@ -1,5 +1,5 @@
-export PI3X_CACHE_DIR=spagent/dataset/pi3x_cache
-export CUDA_HOME=cuda_merged
+export spagent/dataset/pi3x_cache
+export CUDA_HOME=xxx/cuda_merged
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
 # Fix UnicodeDecodeError in huggingface_hub model card template (non-ASCII chars)
@@ -10,17 +10,25 @@ export LANG=en_US.UTF-8
 
 SPAGENT_DIR=spagent
 
+# Pure single-turn GRPO, zero tool calling:
+# - No --multi_turn_scheduler / --max_turns at all: swift falls back to the
+#   plain single-turn RolloutScheduler (one prompt -> one generation -> done).
+#   SPAgentToolCallingScheduler / pi3x_tool are never loaded or invoked.
+# - --system points to the wotool prompt: plain "think step by step, then
+#   answer" instructions, no tool/schema mentioned anywhere.
+# - --reward_funcs: external_r1v_acc (answer correctness) +
+#   external_cot_format (rewards ONLY "<think>...</think><answer>...</answer>";
+#   any completion containing a <tool_call> tag gets 0, so the policy is never
+#   rewarded for pretending to call a tool it doesn't have).
 MAX_PIXELS=262144 \
-MASTER_PORT=29600 \
+MASTER_PORT=29602 \
 NPROC_PER_NODE=8 \
 swift rlhf \
     --rlhf_type grpo \
     --model /data/hf/hub/models--Qwen--Qwen3-VL-8B-Instruct/snapshots/0c351dd01ed87e9c1b53cbc748cba10e6187ff3b \
     --external_plugins ${SPAGENT_DIR}/plugin/plugin.py \
-    --multi_turn_scheduler spagent_tool_call_scheduler \
-    --max_turns 3 \
-    --reward_funcs external_r1v_acc external_multiturn_format external_angle_penalty \
-    --reward_weights 1.0 1.0 1.0 \
+    --reward_funcs external_r1v_acc external_cot_format \
+    --reward_weights 1.0 1.0 \
     --tuner_type full \
     --torch_dtype bfloat16 \
     --dataset ${SPAGENT_DIR}/dataset/crossviewQA_train_rl_4k.jsonl \
@@ -38,12 +46,12 @@ swift rlhf \
     --save_steps 90 \
     --save_total_limit 3 \
     --logging_steps 1 \
-    --output_dir ${SPAGENT_DIR}/output/grpo_1111 \
+    --output_dir ${SPAGENT_DIR}/output/grpo_cot_pure \
     --warmup_ratio 0.05 \
     --num_generations 8 \
     --temperature 0.6 \
     --repetition_penalty 1.1 \
-    --system ${SPAGENT_DIR}/train/system_prompt/system_prompt_grpo.txt \
+    --system ${SPAGENT_DIR}/train/system_prompt/system_prompt_grpo_wotool.txt \
     --log_completions true \
     --report_to tensorboard \
     --num_iterations 1 \
@@ -59,6 +67,5 @@ swift rlhf \
     # --completion_length_limit_scope total \
     # --vllm_tensor_parallel_size 1 
     
-
 
 
