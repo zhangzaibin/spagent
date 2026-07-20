@@ -10,7 +10,7 @@
 
 set -eo pipefail
 
-export CUDA_HOME=/home/jovyan/cuda_merged
+export CUDA_HOME=xxx/cuda_merged
 export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 export PYTHONUTF8=1
@@ -18,7 +18,7 @@ export PYTHONIOENCODING=utf-8
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-SPAGENT_DIR=/home/jovyan/zaibin/embodied_project/spagent
+SPAGENT_DIR=xxx/spagent
 GPU=${GPU:-0}
 
 cd "$SPAGENT_DIR"
