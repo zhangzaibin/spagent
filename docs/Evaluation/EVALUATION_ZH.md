@@ -40,12 +40,15 @@ python examples/evaluation/evaluate_img.py \
 | VSI-Bench | `python spagent/utils/download_vsibench.py` | `dataset/VSI_Bench.jsonl` |
 | VLM4D | `python spagent/utils/download_vlm4d.py` | `dataset/VLM4D*.jsonl` |
 | Omni-Perspective | `python spagent/utils/download_Omni-Perspective.py` | `dataset/Omni_Perspective_All.jsonl` |
-| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI*.jsonl` |
+| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI_All_Tasks.jsonl` |
+| OmniSpatial | `python spagent/utils/download_omnispatial.py` | `dataset/OmniSpatial_All.jsonl` |
 
-> **说明**：`MindCube` 和 `VSIBench` 已直接接入 `scripts/quick_eval.py`
-> （用 `--datasets MindCube` / `--datasets VSIBench`）。标准的 VLMEvalKit benchmark
-> （MMStar、VStarBench、BLINK 等）会在首次使用时由 VLMEvalKit 自动下载，
-> 详见 [QUICK_EVAL_ZH.md](QUICK_EVAL_ZH.md)。
+> **说明**：`MindCube`、`VSIBench`、`MMSI`、`OmniSpatial` 均已直接接入
+> `scripts/quick_eval.py`（用 `--datasets MindCube` / `--datasets VSIBench` /
+> `--datasets MMSI` / `--datasets OmniSpatial`，也可用 `--mindcube-path` /
+> `--vsibench-path` / `--mmsi-path` / `--omnispatial-path` 覆盖路径）。标准的
+> VLMEvalKit benchmark（MMStar、VStarBench、BLINK 等）会在首次使用时由 VLMEvalKit
+> 自动下载，详见 [QUICK_EVAL_ZH.md](QUICK_EVAL_ZH.md)。
 
 ## 1. BLINK数据集
 
@@ -134,16 +137,13 @@ python spagent/utils/download_Omni-Perspective.py \
 ## 8. MMSI-Bench数据集
 
 MMSI-Bench 是一个多模态空间推理基准数据集。
+数据集地址：https://huggingface.co/datasets/RunsenXu/MMSI-Bench
 
 ```bash
-# 第一步：下载 MMSI_Bench.parquet 文件
-# 数据集地址https://huggingface.co/datasets/RunsenXu/MMSI-Bench
-# 需要将 parquet 文件保存到本地
-
-# 第二步：转换为 JSONL 格式
+# 自动从 HuggingFace 下载并转换为 JSONL 格式（推荐，无需手动下载 parquet 文件）
 python spagent/utils/download_mmsi.py
 
-# 使用自定义参数
+# 备选：转换已经手动下载好的 parquet 文件
 python spagent/utils/download_mmsi.py \
     --parquet_path /path/to/MMSI_Bench.parquet \
     --output_dir dataset \
@@ -151,6 +151,52 @@ python spagent/utils/download_mmsi.py \
 ```
 
 **参数说明**:
-- `--parquet_path`: MMSI_Bench.parquet 文件路径（默认: `/home/ubuntu/datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet`）
+- `--parquet_path`: 本地 MMSI_Bench.parquet 文件路径；若不存在，脚本会自动从
+  HuggingFace 下载（除非指定 `--no_auto_download`）
+  （默认: `datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet`）
 - `--output_dir`: 输出目录（默认: `dataset`）
 - `--image_folder_name`: 图片文件夹名称（默认: `MMSI_images`）
+- `--hf_repo`: HuggingFace 数据集仓库名（默认: `RunsenXu/MMSI-Bench`）
+- `--no_auto_download`: 禁用自动下载；本地 parquet 文件不存在时直接报错
+
+**运行评测**（已作为本地数据集 `MMSI` 接入 `scripts/quick_eval.py`）：
+
+```bash
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets MMSI --limit 20
+# 或使用 shell 封装脚本，例如：
+DATASETS=MMSI bash scripts/eval/eval_pi3x_only.sh --prompt spatial --per-category 1000
+DATASETS=MMSI bash scripts/eval/eval_no_tools.sh
+```
+
+## 9. OmniSpatial数据集
+
+OmniSpatial 是一个综合空间推理基准数据集，覆盖四大类任务（动态推理、复杂空间逻辑、
+空间交互、视角转换）。
+数据集地址：https://huggingface.co/datasets/nv-njb/OmniSpatial-Test
+（官方 `qizekun/OmniSpatial` test split 的自包含重新打包版本，可直接通过
+`datasets.load_dataset` 一次性拉取）。
+
+```bash
+# 自动从 HuggingFace 下载并转换为 JSONL 格式
+python spagent/utils/download_omnispatial.py
+
+# 使用自定义参数
+python spagent/utils/download_omnispatial.py \
+    --output_dir dataset \
+    --image_folder_name OmniSpatial_images
+```
+
+**参数说明**:
+- `--output_dir`: 输出目录（默认: `dataset`）
+- `--image_folder_name`: 图片文件夹名称（默认: `OmniSpatial_images`）
+- `--hf_repo`: HuggingFace 数据集仓库名（默认: `nv-njb/OmniSpatial-Test`）
+- `--split`: 数据集 split 名称（默认: `test`）
+
+**运行评测**（已作为本地数据集 `OmniSpatial` 接入 `scripts/quick_eval.py`）：
+
+```bash
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets OmniSpatial --limit 20
+# 或使用 shell 封装脚本，例如：
+DATASETS=OmniSpatial bash scripts/eval/eval_pi3x_only.sh --prompt spatial --per-category 1000
+DATASETS=OmniSpatial bash scripts/eval/eval_no_tools.sh
+```

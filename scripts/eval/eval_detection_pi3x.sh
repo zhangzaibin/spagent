@@ -39,6 +39,10 @@ python scripts/quick_eval.py \
     --seed             "${SEED}" \
     --work-dir         "${WORK_DIR}" \
     --trace-dir        "${TRACE_DIR}" \
+    --mindcube-path    "${MINDCUBE_PATH}" \
+    --vsibench-path    "${VSIBENCH_PATH}" \
+    --mmsi-path        "${MMSI_PATH}" \
+    --omnispatial-path "${OMNISPATIAL_PATH}" \
     --detection-url    "${DETECTION_URL}" \
     --pi3x-url         "${PI3X_URL}" \
     "$@"
