@@ -29,6 +29,7 @@ train/train_private
 # Local eval outputs / caches
 qwen_eval/
 third_party/*
+run_good_night.sh
 
 .env_backup
 

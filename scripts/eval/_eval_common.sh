@@ -35,6 +35,9 @@ SEED="${SEED:-42}"
 WORK_DIR="${WORK_DIR:-outputs/vlmeval_runs}"
 TRACE_DIR="${TRACE_DIR:-outputs/spagent_traces}"
 MINDCUBE_PATH="${MINDCUBE_PATH:-dataset/MindCube_data.jsonl}"
+VSIBENCH_PATH="${VSIBENCH_PATH:-dataset/VSI_Bench.jsonl}"
+MMSI_PATH="${MMSI_PATH:-dataset/MMSI_All_Tasks.jsonl}"
+OMNISPATIAL_PATH="${OMNISPATIAL_PATH:-dataset/OmniSpatial_All.jsonl}"
 
 # ── Tool-server URLs (default to localhost) ─────────────────
 # Ports match docs/Tool/TOOL_USING.md. Override for remote

@@ -41,12 +41,15 @@ python examples/evaluation/evaluate_img.py \
 | VSI-Bench | `python spagent/utils/download_vsibench.py` | `dataset/VSI_Bench.jsonl` |
 | VLM4D | `python spagent/utils/download_vlm4d.py` | `dataset/VLM4D*.jsonl` |
 | Omni-Perspective | `python spagent/utils/download_Omni-Perspective.py` | `dataset/Omni_Perspective_All.jsonl` |
-| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI*.jsonl` |
+| MMSI-Bench | `python spagent/utils/download_mmsi.py` | `dataset/MMSI_All_Tasks.jsonl` |
+| OmniSpatial | `python spagent/utils/download_omnispatial.py` | `dataset/OmniSpatial_All.jsonl` |
 
-> **Note**: `MindCube` and `VSIBench` are wired into `scripts/quick_eval.py` directly
-> (use `--datasets MindCube` / `--datasets VSIBench`). The standard VLMEvalKit benchmarks
-> (MMStar, VStarBench, BLINK, …) are downloaded automatically by VLMEvalKit on first use —
-> see [QUICK_EVAL.md](QUICK_EVAL.md).
+> **Note**: `MindCube`, `VSIBench`, `MMSI`, and `OmniSpatial` are all wired into
+> `scripts/quick_eval.py` directly as local JSONL datasets (use `--datasets MindCube` /
+> `--datasets VSIBench` / `--datasets MMSI` / `--datasets OmniSpatial`, or override the
+> path with `--mindcube-path` / `--vsibench-path` / `--mmsi-path` / `--omnispatial-path`).
+> The standard VLMEvalKit benchmarks (MMStar, VStarBench, BLINK, …) are downloaded
+> automatically by VLMEvalKit on first use — see [QUICK_EVAL.md](QUICK_EVAL.md).
 
 ## 1. BLINK Dataset
 
@@ -140,16 +143,14 @@ python spagent/utils/download_Omni-Perspective.py \
 ## 8. MMSI-Bench Dataset
 
 MMSI-Bench is a multimodal spatial reasoning benchmark dataset.
+Dataset URL: https://huggingface.co/datasets/RunsenXu/MMSI-Bench
 
 ```bash
-# Step 1: Download MMSI_Bench.parquet file
-# Dataset URL: https://huggingface.co/datasets/RunsenXu/MMSI-Bench
-# Need to save the parquet file to local
-
-# Step 2: Convert to JSONL format
+# Auto-download from HuggingFace and convert to JSONL format (recommended,
+# no need to manually download the parquet file)
 python spagent/utils/download_mmsi.py
 
-# Use custom parameters
+# Alternative: convert an already-downloaded parquet file
 python spagent/utils/download_mmsi.py \
     --parquet_path /path/to/MMSI_Bench.parquet \
     --output_dir dataset \
@@ -157,6 +158,52 @@ python spagent/utils/download_mmsi.py \
 ```
 
 **Parameter Description**:
-- `--parquet_path`: MMSI_Bench.parquet file path (default: `/home/ubuntu/datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet`)
+- `--parquet_path`: Local MMSI_Bench.parquet file path; if it doesn't exist, the script
+  auto-downloads from HuggingFace unless `--no_auto_download` is set
+  (default: `datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet`)
 - `--output_dir`: Output directory (default: `dataset`)
 - `--image_folder_name`: Image folder name (default: `MMSI_images`)
+- `--hf_repo`: HuggingFace dataset repo (default: `RunsenXu/MMSI-Bench`)
+- `--no_auto_download`: Disable auto-download; error out if the local parquet file is missing
+
+**Run evaluation** (wired into `scripts/quick_eval.py` as the local dataset `MMSI`):
+
+```bash
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets MMSI --limit 20
+# or via the shell wrappers, e.g.
+DATASETS=MMSI bash scripts/eval/eval_pi3x_only.sh --prompt spatial --per-category 1000
+DATASETS=MMSI bash scripts/eval/eval_no_tools.sh
+```
+
+## 9. OmniSpatial Dataset
+
+OmniSpatial is a comprehensive spatial reasoning benchmark covering four categories
+(dynamic reasoning, complex spatial logic, spatial interaction, perspective-taking).
+Dataset URL: https://huggingface.co/datasets/nv-njb/OmniSpatial-Test
+(a self-contained re-host of the official `qizekun/OmniSpatial` test split, loadable
+directly via `datasets.load_dataset`).
+
+```bash
+# Auto-download from HuggingFace and convert to JSONL format
+python spagent/utils/download_omnispatial.py
+
+# Use custom parameters
+python spagent/utils/download_omnispatial.py \
+    --output_dir dataset \
+    --image_folder_name OmniSpatial_images
+```
+
+**Parameter Description**:
+- `--output_dir`: Output directory (default: `dataset`)
+- `--image_folder_name`: Image folder name (default: `OmniSpatial_images`)
+- `--hf_repo`: HuggingFace dataset repo (default: `nv-njb/OmniSpatial-Test`)
+- `--split`: Dataset split name (default: `test`)
+
+**Run evaluation** (wired into `scripts/quick_eval.py` as the local dataset `OmniSpatial`):
+
+```bash
+python scripts/quick_eval.py --model gpt-4.1-mini --datasets OmniSpatial --limit 20
+# or via the shell wrappers, e.g.
+DATASETS=OmniSpatial bash scripts/eval/eval_pi3x_only.sh --prompt spatial --per-category 1000
+DATASETS=OmniSpatial bash scripts/eval/eval_no_tools.sh
+```

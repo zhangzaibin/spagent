@@ -61,6 +61,16 @@ Local datasets (no VLMEvalKit registration needed):
     Eval:    python scripts/quick_eval.py --model gpt-4.1-mini --datasets VSIBench
     Custom:  ... --vsibench-path /path/to/VSI_Bench.jsonl
 
+  MMSI  — MMSI-Bench, multi-image spatial intelligence
+    Prepare: python spagent/utils/download_mmsi.py   (auto-downloads from HF RunsenXu/MMSI-Bench)
+    Eval:    python scripts/quick_eval.py --model gpt-4.1-mini --datasets MMSI
+    Custom:  ... --mmsi-path /path/to/MMSI_All_Tasks.jsonl
+
+  OmniSpatial  — comprehensive spatial reasoning (dynamic/logic/interaction/perspective)
+    Prepare: python spagent/utils/download_omnispatial.py   (auto-downloads from HF nv-njb/OmniSpatial-Test)
+    Eval:    python scripts/quick_eval.py --model gpt-4.1-mini --datasets OmniSpatial
+    Custom:  ... --omnispatial-path /path/to/OmniSpatial_All.jsonl
+
   Any custom JSONL (same schema):
     python scripts/quick_eval.py --model gpt-4.1-mini --datasets MyDataset --data-path /path/to/data.jsonl
 """
@@ -269,7 +279,7 @@ DEFAULT_LIMIT = {
     "HRBench4K": 200, "HRBench8K": 200, "MathVerse_MINI": 200,
     "WeMath": 200, "LogicVista": 200, "MMMU_Pro_10c": 150, "DynaMath": 200,
     # Local datasets
-    "MindCube": None, "VSIBench": None,
+    "MindCube": None, "VSIBench": None, "MMSI": None, "OmniSpatial": None,
 }
 
 # ── Local JSONL dataset wrapper ───────────────────────────────────────────────
@@ -333,6 +343,8 @@ class _LocalDataset:
 LOCAL_DATASET_PATHS: Dict[str, str] = {
     "MindCube": "dataset/MindCube_data.jsonl",
     "VSIBench":  "dataset/VSI_Bench.jsonl",
+    "MMSI": "dataset/MMSI_All_Tasks.jsonl",
+    "OmniSpatial": "dataset/OmniSpatial_All.jsonl",
 }
 
 
@@ -350,8 +362,10 @@ def load_dataset(
         if not full.exists():
             raise FileNotFoundError(
                 f"Local JSONL for {name!r} not found: {full}\n"
-                f"Prepare it with: python spagent/utils/download_mindcube.py  (MindCube)\n"
-                f"                 python spagent/utils/download_vsibench.py   (VSIBench)"
+                f"Prepare it with: python spagent/utils/download_mindcube.py     (MindCube)\n"
+                f"                 python spagent/utils/download_vsibench.py     (VSIBench)\n"
+                f"                 python spagent/utils/download_mmsi.py         (MMSI)\n"
+                f"                 python spagent/utils/download_omnispatial.py  (OmniSpatial)"
             )
         print(f"  Loading local JSONL: {full}")
         ds = _LocalDataset(name, str(full))
@@ -1166,6 +1180,10 @@ def main():
                         help="Path to the MindCube JSONL file (default: dataset/MindCube_data.jsonl)")
     parser.add_argument("--vsibench-path", default="dataset/VSI_Bench.jsonl",
                         help="Path to the VSIBench JSONL file (default: dataset/VSI_Bench.jsonl)")
+    parser.add_argument("--mmsi-path", default="dataset/MMSI_All_Tasks.jsonl",
+                        help="Path to the MMSI-Bench JSONL file (default: dataset/MMSI_All_Tasks.jsonl)")
+    parser.add_argument("--omnispatial-path", default="dataset/OmniSpatial_All.jsonl",
+                        help="Path to the OmniSpatial JSONL file (default: dataset/OmniSpatial_All.jsonl)")
     parser.add_argument("--debug", action="store_true",
                         help=(
                             "Save full conversation log (system prompt, per-iteration "
@@ -1193,6 +1211,8 @@ def main():
     # Allow overriding local JSONL paths via CLI
     LOCAL_DATASET_PATHS["MindCube"] = args.mindcube_path
     LOCAL_DATASET_PATHS["VSIBench"] = args.vsibench_path
+    LOCAL_DATASET_PATHS["MMSI"] = args.mmsi_path
+    LOCAL_DATASET_PATHS["OmniSpatial"] = args.omnispatial_path
 
     work_dir  = Path(args.work_dir)
     trace_dir = Path(args.trace_dir)

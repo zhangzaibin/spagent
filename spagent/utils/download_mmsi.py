@@ -2,7 +2,14 @@
 下载并转换 MMSI-Bench 数据集
 将 parquet 格式转换为 BLINK 风格的 JSONL 格式
 
+数据来源: HuggingFace RunsenXu/MMSI-Bench (1000 条样本，单个 test split)
+https://huggingface.co/datasets/RunsenXu/MMSI-Bench
+
 使用方法:
+    # 自动从 HuggingFace 下载并转换（推荐，无需手动下载 parquet）
+    python spagent/utils/download_mmsi.py
+
+    # 使用已经手动下载好的 parquet 文件
     python spagent/utils/download_mmsi.py --parquet_path /path/to/MMSI_Bench.parquet
     python spagent/utils/download_mmsi.py --parquet_path /path/to/MMSI_Bench.parquet --output_dir custom_dataset
 """
@@ -15,6 +22,51 @@ from pathlib import Path
 from PIL import Image
 from io import BytesIO
 from tqdm import tqdm
+
+HF_REPO = "RunsenXu/MMSI-Bench"
+
+
+def _extract_image_bytes(image) -> bytes:
+    """把 datasets 里的图片对象（PIL.Image / {"bytes": ...} / 原始 bytes）统一转换成 PNG bytes。"""
+    if isinstance(image, dict) and image.get("bytes") is not None:
+        return image["bytes"]
+    if isinstance(image, (bytes, bytearray)):
+        return bytes(image)
+    if hasattr(image, "save"):  # PIL.Image
+        buf = BytesIO()
+        image.convert("RGB").save(buf, format="PNG")
+        return buf.getvalue()
+    raise TypeError(f"无法识别的图片类型: {type(image)}")
+
+
+def _load_source_dataframe(parquet_path: str, hf_repo: str = HF_REPO, auto_download: bool = True) -> pd.DataFrame:
+    """
+    加载 MMSI-Bench 数据为 DataFrame。
+
+    优先使用本地 parquet 文件（若存在）；否则（当 auto_download=True 时）
+    通过 `datasets.load_dataset` 自动从 HuggingFace 拉取，无需手动下载 parquet。
+    """
+    if parquet_path and Path(parquet_path).exists():
+        print(f"加载本地 parquet 文件: {parquet_path}")
+        return pd.read_parquet(parquet_path)
+
+    if not auto_download:
+        raise FileNotFoundError(f"找不到文件: {parquet_path}")
+
+    print(f"本地未找到 {parquet_path!r}，从 HuggingFace 自动下载 {hf_repo} ...")
+    from datasets import load_dataset
+
+    hf_ds = load_dataset(hf_repo)
+    split_name = "test" if "test" in hf_ds else list(hf_ds.keys())[0]
+    ds = hf_ds[split_name]
+    print(f"✓ HuggingFace 数据集加载成功: split={split_name}, {len(ds)} 条样本")
+
+    df = ds.to_pandas()
+    # `images` 列经 to_pandas() 后一般是 list[{"bytes":..., "path":...}]，统一成 list[bytes]
+    df["images"] = df["images"].apply(
+        lambda imgs: [_extract_image_bytes(img) for img in imgs] if imgs is not None else []
+    )
+    return df
 
 
 def parse_answer_from_question(question: str, answer: str) -> str:
@@ -89,27 +141,25 @@ def format_question_with_choices(question: str) -> str:
 def convert_mmsi_to_blink_format(
     parquet_path: str,
     output_dir: str = "dataset",
-    image_folder_name: str = "MMSI_images"
+    image_folder_name: str = "MMSI_images",
+    hf_repo: str = HF_REPO,
+    auto_download: bool = True,
 ) -> int:
     """
-    将 MMSI-Bench parquet 文件转换为 BLINK 格式的 JSONL
-    
+    将 MMSI-Bench 转换为 BLINK 格式的 JSONL。
+
     Args:
-        parquet_path: MMSI_Bench.parquet 文件路径
+        parquet_path: 本地 MMSI_Bench.parquet 文件路径（若不存在且 auto_download=True，
+            则自动从 HuggingFace 下载）
         output_dir: 输出目录
         image_folder_name: 图片文件夹名称
-    
+        hf_repo: HuggingFace 数据集仓库名（默认: RunsenXu/MMSI-Bench）
+        auto_download: 本地文件不存在时是否自动从 HuggingFace 下载
+
     Returns:
         转换的样本数量
     """
-    print(f"加载 MMSI-Bench 数据集: {parquet_path}")
-    
-    # 检查文件是否存在
-    if not Path(parquet_path).exists():
-        raise FileNotFoundError(f"找不到文件: {parquet_path}")
-    
-    # 加载 parquet 文件
-    df = pd.read_parquet(parquet_path)
+    df = _load_source_dataframe(parquet_path, hf_repo=hf_repo, auto_download=auto_download)
     print(f"✓ 数据集加载成功，共 {len(df)} 条样本")
     
     # 创建输出目录
@@ -248,13 +298,13 @@ def convert_mmsi_to_blink_format(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="将 MMSI-Bench parquet 文件转换为 BLINK 格式的 JSONL"
+        description="下载/转换 MMSI-Bench 为 BLINK 格式的 JSONL（默认自动从 HuggingFace 下载）"
     )
     parser.add_argument(
         '--parquet_path',
         type=str,
         default='datasets/spatial-reasoning/MMSI-Bench/MMSI_Bench.parquet',
-        help='MMSI_Bench.parquet 文件路径'
+        help='本地 MMSI_Bench.parquet 文件路径；不存在时自动从 HuggingFace 下载（除非指定 --no_auto_download）'
     )
     parser.add_argument(
         '--output_dir',
@@ -268,14 +318,27 @@ def main():
         default='MMSI_images',
         help='图片文件夹名称（默认: MMSI_images）'
     )
-    
+    parser.add_argument(
+        '--hf_repo',
+        type=str,
+        default=HF_REPO,
+        help=f'HuggingFace 数据集仓库名（默认: {HF_REPO}）'
+    )
+    parser.add_argument(
+        '--no_auto_download',
+        action='store_true',
+        help='禁用自动下载；本地 parquet 文件不存在时直接报错'
+    )
+
     args = parser.parse_args()
-    
+
     try:
         total = convert_mmsi_to_blink_format(
             parquet_path=args.parquet_path,
             output_dir=args.output_dir,
-            image_folder_name=args.image_folder_name
+            image_folder_name=args.image_folder_name,
+            hf_repo=args.hf_repo,
+            auto_download=not args.no_auto_download,
         )
         print(f"\n🎉 转换成功！共处理 {total} 条样本")
         return 0
