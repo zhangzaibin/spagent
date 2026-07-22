@@ -402,6 +402,15 @@ def load_dataset(
     # ── VLMEvalKit datasets ────────────────────────────────────────────────────
     ds = build_dataset(name)
     df = ds.data
+
+    # Optional category filter (e.g. --task-filter Multi-view_Reasoning for BLINK)
+    if task_filter and "category" in df.columns:
+        allowed = set(task_filter)
+        before = len(df)
+        df = df[df["category"].isin(allowed)].reset_index(drop=True)
+        ds.data = df
+        print(f"  Category filter {sorted(allowed)}: {before} -> {len(df)} rows")
+
     if limit and len(df) > limit:
         if name == "BLINK" and "category" in df.columns:
             cats = df["category"].unique()
@@ -1139,8 +1148,10 @@ def main():
                         ))
     parser.add_argument("--task-filter", nargs="+", default=None, metavar="TASK",
                         help=(
-                            "For local JSONL datasets: keep only the named task categories "
-                            "before applying --per-category or --limit."
+                            "Keep only the named categories before applying --per-category "
+                            "or --limit. For local JSONL datasets filters the 'task' field; "
+                            "for VLMEvalKit datasets with a 'category' column (e.g. BLINK) "
+                            "filters that column instead."
                         ))
     parser.add_argument("--prompt", default="general", choices=["spatial", "general"],
                         help=(
