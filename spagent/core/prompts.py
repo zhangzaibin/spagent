@@ -145,6 +145,78 @@ quantity: heading, lateral displacement sign, target projection, or depth orderi
 Then verify the selected option against original-image object identity. Output analysis
 in <think></think> and only the option letter/number in <answer></answer>."""
 
+# ─── Spatial-2 workflow (second spatial preset, does not touch SPATIAL_3D_WORKFLOW) ──
+#
+# Deliberately generic and short: general reasoning principles that apply to any
+# spatial/positional/motion/attribute question, instead of per-task-type branching.
+
+SPATIAL_2_ROLE = (
+    "You are a spatial-reasoning assistant for questions about pairs (or short "
+    "sequences) of photos of the same scene, covering camera position/motion, "
+    "object/region layout, or object attributes."
+)
+
+SPATIAL_2_WORKFLOW = """# Spatial Reasoning Protocol (v2)
+Treat the original photos as primary evidence for object identity, layout, motion, and
+attributes. Pi3X 3D reconstruction is a secondary cross-check for geometry — it never
+overrides what is plainly visible in the photos, and its raw XYZ axes/colors carry NO
+compass or absolute-direction meaning by themselves. camN corresponds to image N.
+Never call Pi3X at (azimuth=0, elevation=0).
+
+# General reasoning principles
+1. State the reference frame explicitly before answering: who/what is the observer or
+   anchor, which way it faces (or what absolute direction is given), and which frame
+   the final answer must be expressed in. Do not mix frames mid-answer.
+2. Compute the answer as an explicit offset from a known anchor or observation (an
+   angle, a visible position, a stated fact) rather than guessing a shortcut like "it
+   must be the opposite side" or "it must be the far corner" — always point to the
+   specific evidence that gives you the offset.
+3. If the observer/camera turns or moves partway through the question, update the
+   reference frame for that step first, then recompute the full answer in the new
+   frame — do not reuse a direction/sign computed before the move.
+4. For "which way is it turning/moving" questions, compare at least two independent
+   shared reference points across the photos (not a single centered object) before
+   deciding a direction, and consider both possible axes of change rather than
+   assuming one by default.
+5. For counting or size/measurement comparisons, prefer the original photos and a
+   shared visual reference over Pi3X's point cloud, which has no guaranteed
+   consistent scale across two different photos.
+6. Before finalizing, re-derive the answer a second, independent way (re-reading the
+   photos, or a different Pi3X view) and check it agrees; if a computed answer
+   conflicts with a gut-feeling shortcut, trust the computation.
+
+# Pi3X usage
+Call Pi3X only when the photos alone leave the geometry ambiguous. A top-down render
+(elevation 45-90, camera_view=false) is useful for layout questions; camera_view=true
+on a named camera shows what that camera can/cannot see. A render from a different
+azimuth may mirror the page layout without changing the real 3D relation — always
+reproject back into the observer's/anchor's own frame rather than reading
+page-left/page-right directly.
+
+# Final answer
+Confirm your answer is grounded in a specific stated observation, not intuition. Put
+only the option letter/number in <answer></answer>."""
+
+SPATIAL_2_CONTINUATION_HINT = """Before another tool call, restate the reference frame
+(observer + facing, or the given anchor/direction) and which specific observation is
+still missing.
+
+- Never read compass or absolute-direction meaning off Pi3X's raw axes/colors — ground
+  every direction in an explicit angle or position read from one consistent view.
+- After any turn/move described in the question, recompute the full answer in the new
+  frame instead of reusing a pre-move direction or sign.
+- For turning/moving-direction questions, compare at least two independent shared
+  reference points and check both possible axes of change before deciding.
+- For counting/size questions, re-examine the original photos with a shared scale
+  reference rather than trusting Pi3X point-cloud density/height alone.
+- Reject "opposite direction" / "far corner" style shortcuts — always compute an
+  explicit offset from a stated anchor or observation.
+- Never call Pi3X at (0,0) and never repeat an equivalent view you already have.
+
+Then verify your answer against the original photos one more time. Output analysis in
+<think></think> and only the option letter/number in <answer></answer>."""
+
+
 # ─── Per-tool guidance entries for the general-vision continuation hint ───────
 #
 # Each entry is keyed by the tool's runtime name.  build_general_vision_continuation_hint()
@@ -633,6 +705,28 @@ def create_system_prompt(tools: List[Dict[str, Any]], workflow: Optional[str] = 
     tools_json = json.dumps(tools, indent=2)
     chosen_workflow = workflow if workflow is not None else SPATIAL_3D_WORKFLOW
     return build_system_prompt(SPATIAL_3D_ROLE, tools_json, workflow=chosen_workflow)
+
+
+def create_spatial2_system_prompt(tools: List[Dict[str, Any]]) -> str:
+    """
+    Create the "spatial2" system prompt (SPATIAL_2_ROLE + tools + SPATIAL_2_WORKFLOW).
+
+    This is a standalone counterpart to ``create_system_prompt()`` (which builds the
+    MindCube-tuned SPATIAL_3D_WORKFLOW) — use it for the ego-quadrant / compass-bearing
+    / motion-direction / counting question structure instead of the ``spatial`` prompt,
+    so the original ``spatial`` prompt's named-orbit-view solvers stay untouched.
+
+    Args:
+        tools: List of tool function schemas
+
+    Returns:
+        System prompt string
+    """
+    if not tools:
+        return SPATIAL_2_ROLE
+
+    tools_json = json.dumps(tools, indent=2)
+    return build_system_prompt(SPATIAL_2_ROLE, tools_json, workflow=SPATIAL_2_WORKFLOW)
 
 
 def create_follow_up_prompt(
