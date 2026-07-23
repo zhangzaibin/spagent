@@ -108,6 +108,7 @@ _load_dotenv()
 
 # ── SPAgent ───────────────────────────────────────────────────────────────────
 from spagent.core import SPAgent, build_general_vision_continuation_hint
+from spagent.core.prompts import SPATIAL_2_ROLE, SPATIAL_2_WORKFLOW, SPATIAL_2_CONTINUATION_HINT, build_system_prompt
 from spagent.models import GPTModel, QwenModel, QwenVLLMModel
 
 
@@ -1051,32 +1052,59 @@ def run_local_dataset(
     print(f"  Saved results → {xlsx_path}")
 
     # ── Error log: collect wrong-answer records ───────────────────────────────
+    #
+    # NOTE: `question` / `image_paths` are re-derived directly from the dataset
+    # (keyed by stable sample "id") rather than from a `{pos:05d}.json` trace
+    # file. `pos` is only this sample's index within the CURRENT run's result
+    # list; for resumed/skipped samples no trace file is written this run, so
+    # looking it up by `pos` can silently load a stale/unrelated trace left
+    # over from a *different* run that shared the same trace_dir (e.g. a
+    # different --per-category selection), mismatching question/images against
+    # the correct id+prediction+ground_truth. See history for details.
+    raw_by_id: Dict[str, Dict] = {str(it.get("id", i)): it for i, it in enumerate(ds.raw_items)}
     local_error_records: List[Dict] = []
     for r in successful:
         is_c = r.get("is_correct", False)
         if (is_c is True) or (isinstance(is_c, float) and is_c >= 1.0):
             continue
         pos = results.index(r)
+
+        # Re-derive question/image_paths straight from the dataset (always correct).
+        question = r.get("question", "")
+        image_paths: List[str] = []
+        sample = raw_by_id.get(str(r.get("id", "")))
+        if sample is not None:
+            has_image_s = bool(sample.get("image"))
+            has_video_s = bool(sample.get("video"))
+            input_type_s = "image" if has_image_s else "video"
+            ok_s, path_result_s = validate_sample_paths(sample, image_base_path, input_type_s)
+            if ok_s:
+                question = path_result_s["question"]
+                image_paths = path_result_s["path"]
+
+        # Tool/trace metadata is only trustworthy for samples freshly run in
+        # THIS invocation (not resumed from the predictions cache).
         trace_data_local: Dict = {}
-        trace_path_local = td / f"{pos:05d}.json"
-        if trace_path_local.exists():
-            try:
-                with open(trace_path_local, encoding="utf-8") as f:
-                    trace_data_local = json.load(f)
-            except Exception:
-                pass
+        if not r.get("skipped"):
+            trace_path_local = td / f"{pos:05d}.json"
+            if trace_path_local.exists():
+                try:
+                    with open(trace_path_local, encoding="utf-8") as f:
+                        trace_data_local = json.load(f)
+                except Exception:
+                    pass
 
         local_error_records.append({
             "dataset":             ds_name,
             "position":            pos,
             "id":                  r.get("id", ""),
             "task":                r.get("task", ""),
-            "question":            trace_data_local.get("question", r.get("question", "")),
+            "question":            question,
             "ground_truth":        r.get("answer", ""),
             "ground_truth_letter": r.get("normalized_ground_truth", ""),
             "prediction_raw":      r.get("prediction", ""),
             "prediction_letter":   r.get("normalized_prediction", ""),
-            "image_paths":         trace_data_local.get("image_paths", []),
+            "image_paths":         image_paths,
             "system_prompt":       trace_data_local.get("prompts", {}).get("system_prompt", ""),
             "user_prompt":         trace_data_local.get("prompts", {}).get("user_prompt", ""),
             "used_tools":          trace_data_local.get("used_tools", []),
@@ -1084,6 +1112,7 @@ def run_local_dataset(
             "tool_results":        trace_data_local.get("tool_results", {}),
             "iterations":          trace_data_local.get("iterations", 0),
             "elapsed_s":           r.get("elapsed", 0),
+            "resumed_from_cache":  bool(r.get("skipped", False)),
         })
 
     _write_error_log(local_error_records, out_dir, model_tag, ds_name)
@@ -1153,11 +1182,15 @@ def main():
                             "for VLMEvalKit datasets with a 'category' column (e.g. BLINK) "
                             "filters that column instead."
                         ))
-    parser.add_argument("--prompt", default="general", choices=["spatial", "general"],
+    parser.add_argument("--prompt", default="general",
+                        choices=["spatial", "spatial2", "general"],
                         help=(
                             "System prompt style. "
                             "'spatial' uses the built-in SPATIAL_3D_ROLE + SPATIAL_3D_WORKFLOW + "
-                            "SPATIAL_3D_CONTINUATION_HINT (best for 3D reconstruction tools). "
+                            "SPATIAL_3D_CONTINUATION_HINT (MindCube-tuned named-orbit-view solvers). "
+                            "'spatial2' uses the dedicated SPATIAL_2_ROLE + SPATIAL_2_WORKFLOW + "
+                            "SPATIAL_2_CONTINUATION_HINT (ego-quadrant / compass-bearing / "
+                            "motion-direction / counting recipes; does not touch the 'spatial' prompt). "
                             "'general' (default) uses a concise tool-hint prompt."
                         ))
     parser.add_argument("--rl-trained", action="store_true",
@@ -1266,6 +1299,22 @@ def main():
             model=model_instance,
             tools=tools,
             max_workers=4,
+        )
+    elif args.prompt == "spatial2":
+        # Dedicated second spatial prompt: SPATIAL_2_ROLE + SPATIAL_2_WORKFLOW +
+        # SPATIAL_2_CONTINUATION_HINT. Built as a legacy full-template (still containing
+        # the literal "{tools_json}" placeholder) so SPAgent._render_role_prompt
+        # substitutes the real tool schemas while preserving the exact role -> tools ->
+        # workflow ordering, without ever touching SPATIAL_3D_WORKFLOW.
+        spatial2_system_prompt_template = build_system_prompt(
+            SPATIAL_2_ROLE, "{tools_json}", workflow=SPATIAL_2_WORKFLOW
+        )
+        agent = SPAgent(
+            model=model_instance,
+            tools=tools,
+            max_workers=4,
+            system_prompt=spatial2_system_prompt_template,
+            continuation_hint=SPATIAL_2_CONTINUATION_HINT,
         )
     else:
         # ── General prompt: per-tool role hints (original behaviour) ──────────

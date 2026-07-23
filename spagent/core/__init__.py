@@ -40,6 +40,10 @@ from .prompts import (
     ALL_TOOLS_CONTINUATION_HINT,
     TOOL_SELECTION_GUIDE,
     create_all_tools_system_prompt,
+    SPATIAL_2_ROLE,
+    SPATIAL_2_WORKFLOW,
+    SPATIAL_2_CONTINUATION_HINT,
+    create_spatial2_system_prompt,
 )
 
 __all__ = [
@@ -72,4 +76,8 @@ __all__ = [
     'ALL_TOOLS_CONTINUATION_HINT',
     'TOOL_SELECTION_GUIDE',
     'create_all_tools_system_prompt',
+    'SPATIAL_2_ROLE',
+    'SPATIAL_2_WORKFLOW',
+    'SPATIAL_2_CONTINUATION_HINT',
+    'create_spatial2_system_prompt',
 ]
