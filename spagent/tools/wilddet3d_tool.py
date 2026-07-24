@@ -10,8 +10,14 @@ from typing import Any, Dict, List, Optional, Union
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import BOX_XYXY_PIXEL, DetectionPayload, ToolResult
 
 logger = logging.getLogger(__name__)
+
+# Keys owned by the ToolResult envelope: passed as constructor params, never
+# duplicated as extras.
+_ENVELOPE_KEYS = ("success", "description", "error", "category", "payload",
+                  "output_path", "vis_path", "overlay_path", "crop_paths")
 
 
 class WildDet3DTool(Tool):
@@ -113,14 +119,43 @@ class WildDet3DTool(Tool):
                 input_boxes=input_boxes,
                 input_points=input_points,
             )
-            if raw.get("success"):
-                raw["result"] = {
-                    "boxes2d": raw.get("boxes2d", []),
-                    "boxes3d": raw.get("boxes3d", []),
-                    "scores": raw.get("scores", []),
-                    "num_detections": raw.get("num_detections", 0),
-                }
-            return raw
+            if not raw.get("success"):
+                return raw
+
+            raw["result"] = {
+                "boxes2d": raw.get("boxes2d", []),
+                "boxes3d": raw.get("boxes3d", []),
+                "scores": raw.get("scores", []),
+                "num_detections": raw.get("num_detections", 0),
+            }
+
+            # Standardized output: DetectionPayload carries the 2D boxes
+            # (pixel xyxy). Class ids are dropped upstream, so labels are
+            # positional placeholders. The legacy keys (`boxes2d`, `boxes3d`
+            # with the important 3D data, `scores`, `num_detections`, and
+            # the nested `result`) are preserved as extras so existing
+            # consumers see the same dict shape.
+            boxes2d = raw.get("boxes2d", []) or []
+            scores = raw.get("scores", []) or []
+            payload = DetectionPayload(
+                boxes=boxes2d,
+                labels=[f"object_{i}" for i in range(len(boxes2d))],
+                box_format=BOX_XYXY_PIXEL,
+                confidence=scores if len(scores) == len(boxes2d) else None,
+            )
+            description = raw.get("description") or (
+                f"WildDet3D detected {raw.get('num_detections', len(boxes2d))} "
+                f"object(s) for prompt '{prompt_text}'."
+            )
+            extras = {k: v for k, v in raw.items() if k not in _ENVELOPE_KEYS}
+            return ToolResult(
+                success=True,
+                payload=payload,
+                description=description,
+                output_path=raw.get("output_path"),
+                vis_path=raw.get("vis_path"),
+                **extras,
+            )
         except Exception as e:
             logger.exception("WildDet3DTool error")
             return {"success": False, "error": str(e)}

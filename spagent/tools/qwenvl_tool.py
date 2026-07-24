@@ -13,6 +13,7 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import BOX_XYXY_NORM, DetectionPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -107,14 +108,42 @@ class QwenVLTool(Tool):
             )
 
             if result and result.get("success"):
-                logger.info(f"QwenVL detected {len(result.get('boxes', []))} objects")
-                return {
-                    "success": True,
-                    "result": result,
-                    "boxes": result.get("boxes", []),
-                    "labels": result.get("labels", []),
-                    "raw_response": result.get("raw_response", ""),
-                }
+                boxes = result.get("boxes", [])
+                labels = result.get("labels", [])
+                logger.info(f"QwenVL detected {len(boxes)} objects")
+
+                # Standardized output. QwenVL boxes are normalized xyxy in
+                # [0,1] (client parses the model's 0-1000 coords and divides).
+                # This also closes the tool's envelope gap: it previously
+                # returned no description, so the VLM got nothing readable.
+                width = height = None
+                if not image_path.startswith("http"):
+                    try:
+                        from PIL import Image
+                        with Image.open(image_path) as im:
+                            width, height = im.size
+                    except Exception:
+                        pass
+                desc = (
+                    f"QwenVL {task} found {len(boxes)} object(s)"
+                    + (f": {', '.join(labels[:10])}" if labels else "")
+                    + ". Boxes are normalized xyxy in [0,1]."
+                )
+                payload = DetectionPayload(
+                    boxes=boxes,
+                    labels=labels if len(labels) == len(boxes)
+                    else [f"obj_{i}" for i in range(len(boxes))],
+                    box_format=BOX_XYXY_NORM,
+                    image_width=width,
+                    image_height=height,
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=desc,
+                    result=result,
+                    raw_response=result.get("raw_response", ""),
+                )
             else:
                 error_msg = result.get("error", "Unknown error") if result else "No result returned"
                 logger.error(f"QwenVL detection failed: {error_msg}")

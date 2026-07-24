@@ -13,6 +13,7 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import IMAGE_GENERATION, MediaPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -141,17 +142,37 @@ class SanaTool(Tool):
             )
 
             if result and result.get("success"):
-                logger.info("Sana image generated: %s", result.get("output_path"))
-                return {
-                    "success": True,
-                    "result": result,
-                    "output_path": result.get("output_path"),
-                    "image_paths": result.get("image_paths", []),
-                    "file_size_bytes": result.get("file_size_bytes"),
-                    "model": result.get("model"),
-                    "size": result.get("size"),
-                    "seed": result.get("seed"),
-                }
+                output_path = result.get("output_path")
+                image_paths = result.get("image_paths", []) or []
+                logger.info("Sana image generated: %s", output_path)
+
+                # Standardized output: MediaPayload carries the generated
+                # image path(s); the legacy keys (`result`, `image_paths`,
+                # and the flat seed/model/size/file_size_bytes metadata) are
+                # preserved so existing consumers see the same dict shape.
+                payload = MediaPayload(
+                    category=IMAGE_GENERATION,
+                    output_path=output_path,
+                    image_paths=image_paths if n > 1 else None,
+                    metadata={
+                        "seed": result.get("seed"),
+                        "model": result.get("model"),
+                        "size": result.get("size"),
+                        "file_size_bytes": result.get("file_size_bytes"),
+                    },
+                )
+                description = (
+                    f"Sana generated {max(len(image_paths), 1)} image(s) "
+                    f"({result.get('size') or size}) at {output_path}."
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=description,
+                    output_path=output_path,
+                    result=result,
+                    image_paths=image_paths,
+                )
 
             error_msg = result.get("error", "Unknown error") if result else "No result returned"
             logger.error("Sana generation failed: %s", error_msg)

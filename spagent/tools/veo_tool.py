@@ -13,6 +13,7 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import MediaPayload, ToolResult, VIDEO_GENERATION
 
 logger = logging.getLogger(__name__)
 
@@ -96,12 +97,23 @@ class VeoTool(Tool):
             )
 
             if result and result.get("success"):
-                logger.info(f"Veo video generated: {result.get('output_path')}")
-                return {
-                    "success": True,
-                    "result": result,
-                    "output_path": result.get("output_path"),
-                }
+                output_path = result.get("output_path")
+                logger.info(f"Veo video generated: {output_path}")
+                # Standardized output: MediaPayload carries the .mp4 path;
+                # the legacy `result` key is preserved as an extra so
+                # existing consumers see the same dict shape.
+                payload = MediaPayload(
+                    category=VIDEO_GENERATION,
+                    output_path=output_path,
+                    metadata={"duration": result.get("duration", duration)},
+                )
+                return ToolResult(
+                    success=True,
+                    payload=payload,
+                    description=f"Veo video generated at {output_path}.",
+                    output_path=output_path,
+                    result=result,
+                )
             else:
                 error_msg = result.get("error", "Unknown error") if result else "No result returned"
                 logger.error(f"Veo generation failed: {error_msg}")

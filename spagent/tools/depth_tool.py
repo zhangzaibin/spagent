@@ -14,6 +14,7 @@ from typing import Dict, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from core.tool import Tool
+from core.tool_result import DepthPayload, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -111,13 +112,36 @@ class DepthEstimationTool(Tool):
             
             if result and result.get('success'):
                 logger.info("Depth estimation completed successfully")
-                return {
-                    "success": True,
-                    "result": result,
-                    "output_path": result.get('output_path'),
-                    "shape": result.get('shape'),
-                    "depth_data": result.get('depth_data')
-                }
+                # The real DepthClient exposes the raw map as 'depth_array'
+                # and the standalone depth image as 'depth_only_path'; mocks
+                # use 'depth_data'. Resolve whichever carrier is available.
+                depth_data = result.get('depth_data')
+                if depth_data is None:
+                    depth_data = result.get('depth_array')
+                depth_path = result.get('depth_only_path') or result.get('depth_path')
+                if depth_data is None and not depth_path:
+                    depth_path = result.get('output_path')
+                shape = result.get('shape')
+                summary = (
+                    f"Depth estimation completed for {Path(image_path).name}: "
+                    f"relative depth map generated"
+                    + (f" (shape={shape})" if shape else "") + "."
+                )
+                # Standardized output: ToolResult is dict-compatible and the
+                # legacy result/shape/depth_data keys are preserved as extras.
+                return ToolResult(
+                    success=True,
+                    payload=DepthPayload(
+                        depth_data=depth_data,
+                        depth_path=depth_path,
+                        shape=shape,
+                    ),
+                    description=summary,
+                    output_path=result.get('output_path'),
+                    result=result,
+                    shape=shape,
+                    depth_data=depth_data,
+                )
             else:
                 error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
                 logger.error(f"Depth estimation failed: {error_msg}")
