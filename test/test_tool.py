@@ -62,6 +62,19 @@ Usage:
     # Test PaddleOCR-VL-1.5 (mock mode)
     python test/test_tool.py --tool paddleocr_vl --image assets/dog.jpeg --use_mock
 
+    # Test YOLO26 (local, auto-downloads yolo26n.pt, CPU by default)
+    python test/test_tool.py --tool yolo26 --image assets/dog.jpeg
+
+    # Test VGGT / MapAnything 3D reconstruction (server mode)
+    python test/test_tool.py --tool vggt --image assets/dog.jpeg --server_url http://localhost:20032
+    python test/test_tool.py --tool mapanything --image assets/dog.jpeg --server_url http://localhost:20033
+
+    # Test Orient Anything V2 (server mode)
+    python test/test_tool.py --tool orient_anything_v2 --image assets/dog.jpeg --object_category dog
+
+    # Test Sana image generation (server mode; --use_mock for offline)
+    python test/test_tool.py --tool sana --prompt "a red apple on a table" --server_url http://localhost:30000
+
     # Test PaddleOCR-VL-1.5 (local, table mode)
     python test/test_tool.py --tool paddleocr_vl --image assets/doc.png --ocr_task table
 
@@ -893,6 +906,298 @@ def test_paddleocr_vl(
 
 
 # ============================================================
+# YOLO26 Tool Test (local, no server)
+# ============================================================
+
+def test_yolo26(
+    image_path: str,
+    model_path: str = "checkpoints/yolo26/yolo26n.pt",
+    device: str = "cpu",
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test YOLO26 local object detection.
+    """
+    from spagent.tools import YOLO26Tool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("YOLO26 Tool Test (local)")
+    logger.info("=" * 60)
+    logger.info(f"  Input image  : {image_path}")
+    logger.info(f"  Model path   : {model_path}")
+    logger.info(f"  Device       : {device}")
+    logger.info("-" * 60)
+
+    tool = YOLO26Tool(model_path=model_path, device=device)
+    result = tool.call(image_path=image_path)
+
+    if not result.get("success"):
+        logger.error(f"YOLO26 tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    detections = (
+        (result.get("result") or {}).get("detections")
+        or result.get("detections")
+        or []
+    )
+    labels = [d.get("class_name") or d.get("label", "obj") for d in detections]
+    logger.info(f"YOLO26 succeeded!  {len(detections)} object(s): {labels}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    if detections:
+        logger.info("  (no annotated image, but detections are valid)")
+        return "OK"
+    logger.warning("No detections and no annotated image.")
+    return None
+
+
+# ============================================================
+# VGGT Tool Test
+# ============================================================
+
+def test_vggt(
+    image_paths: List[str],
+    azimuth_angle: float = 45,
+    elevation_angle: float = 0,
+    server_url: str = "http://localhost:20032",
+    rotation_reference_camera: int = 1,
+    camera_view: bool = False,
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test VGGT 3D reconstruction.
+    """
+    from spagent.tools import VGGTTool
+
+    for p in image_paths:
+        if not os.path.exists(p):
+            logger.error(f"Image not found: {p}")
+            return None
+
+    logger.info("=" * 60)
+    logger.info("VGGT Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input images : {image_paths}")
+    logger.info(f"  Azim/Elev    : {azimuth_angle} / {elevation_angle}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Use mock     : {use_mock}")
+    logger.info("-" * 60)
+
+    tool = VGGTTool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(
+        image_path=image_paths,
+        azimuth_angle=azimuth_angle,
+        elevation_angle=elevation_angle,
+        rotation_reference_camera=rotation_reference_camera,
+        camera_view=camera_view,
+    )
+
+    if not result.get("success"):
+        logger.error(f"VGGT tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("VGGT reconstruction succeeded!")
+    logger.info(f"  Points count : {result.get('points_count', 'N/A')}")
+    logger.info(f"  PLY file     : {result.get('ply_filename', 'N/A')}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    if result.get("ply_filename"):
+        return str(result["ply_filename"])
+    logger.warning("No rendered view and no point cloud path.")
+    return None
+
+
+# ============================================================
+# MapAnything Tool Test
+# ============================================================
+
+def test_mapanything(
+    image_paths: List[str],
+    azimuth_angle: float = 45,
+    elevation_angle: float = 0,
+    server_url: str = "http://localhost:20033",
+    rotation_reference_camera: int = 1,
+    camera_view: bool = False,
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test MapAnything dense 3D reconstruction.
+    """
+    from spagent.tools import MapAnythingTool
+
+    for p in image_paths:
+        if not os.path.exists(p):
+            logger.error(f"Image not found: {p}")
+            return None
+
+    logger.info("=" * 60)
+    logger.info("MapAnything Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input images : {image_paths}")
+    logger.info(f"  Azim/Elev    : {azimuth_angle} / {elevation_angle}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Use mock     : {use_mock}")
+    logger.info("-" * 60)
+
+    tool = MapAnythingTool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(
+        image_path=image_paths,
+        azimuth_angle=azimuth_angle,
+        elevation_angle=elevation_angle,
+        rotation_reference_camera=rotation_reference_camera,
+        camera_view=camera_view,
+    )
+
+    if not result.get("success"):
+        logger.error(f"MapAnything tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("MapAnything reconstruction succeeded!")
+    logger.info(f"  Points count : {result.get('points_count', 'N/A')}")
+    logger.info(f"  PLY file     : {result.get('ply_filename', 'N/A')}")
+
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    if result.get("ply_filename"):
+        return str(result["ply_filename"])
+    logger.warning("No rendered view and no point cloud path.")
+    return None
+
+
+# ============================================================
+# Orient Anything V2 Tool Test
+# ============================================================
+
+def test_orient_anything_v2(
+    image_path: str,
+    object_category: str = "object",
+    orient_task: str = "orientation",
+    server_url: str = "http://localhost:20034",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test Orient Anything V2 orientation estimation.
+    """
+    from spagent.tools import OrientAnythingV2Tool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("Orient Anything V2 Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Input image  : {image_path}")
+    logger.info(f"  Category     : {object_category}")
+    logger.info(f"  Task         : {orient_task}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Use mock     : {use_mock}")
+    logger.info("-" * 60)
+
+    tool = OrientAnythingV2Tool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(
+        image_path=image_path,
+        object_category=object_category,
+        task=orient_task,
+    )
+
+    if not result.get("success"):
+        logger.error(f"Orient tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    inner = result.get("result") or {}
+
+    def angle(*keys):
+        # real server: azimuth/elevation/rotation; mock: yaw/pitch/roll aliases
+        for k in keys:
+            for src in (inner, result):
+                if src.get(k) is not None:
+                    return src[k]
+        return "N/A"
+
+    azimuth = angle("azimuth", "yaw")
+    logger.info("Orientation estimation succeeded!")
+    logger.info(f"  azimuth   : {azimuth}")
+    logger.info(f"  elevation : {angle('elevation', 'pitch')}")
+    logger.info(f"  rotation  : {angle('rotation', 'roll')}")
+    return f"azimuth={azimuth}"
+
+
+# ============================================================
+# Sana Tool Test (image generation)
+# ============================================================
+
+def test_sana(
+    prompt: str,
+    server_url: str = "http://localhost:30000",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+) -> Optional[str]:
+    """
+    Directly test Sana image generation.
+    """
+    from spagent.tools import SanaTool
+
+    logger.info("=" * 60)
+    logger.info("Sana Image Generation Tool Test")
+    logger.info("=" * 60)
+    logger.info(f"  Prompt       : {prompt}")
+    logger.info(f"  Server URL   : {server_url}")
+    logger.info(f"  Use mock     : {use_mock}")
+    logger.info("-" * 60)
+
+    tool = SanaTool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(prompt=prompt)
+
+    if not result.get("success"):
+        logger.error(f"Sana tool failed: {result.get('error', 'unknown error')}")
+        return None
+
+    logger.info("Sana generation succeeded!")
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst_path = os.path.join(output_dir, os.path.basename(src_path))
+        shutil.copy2(src_path, dst_path)
+        logger.info(f"  Output saved : {dst_path}")
+        return dst_path
+    if src_path:
+        # Mock clients may fabricate a path without writing the file
+        logger.info(f"  Output path  : {src_path} (not on disk — mock mode)")
+        return src_path
+    logger.warning("No output image path in result.")
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -905,7 +1210,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl", "yolo26", "sana", "vggt", "mapanything", "orient_anything_v2"],
         help="Which tool to test. depth/segmentation/detection now run real inference (no longer stubs).",
     )
     parser.add_argument(
@@ -980,6 +1285,14 @@ def parse_args():
         help="PaddleOCR-VL task mode (default: ocr).",
     )
 
+    orient_group = parser.add_argument_group("Orient Anything V2 options")
+    orient_group.add_argument(
+        "--object_category",
+        type=str,
+        default="object",
+        help="Object category for orientation estimation, e.g. 'chair', 'car' (default: object).",
+    )
+
     molmo2_group = parser.add_argument_group("Molmo2 options")
     molmo2_group.add_argument(
         "--task",
@@ -1026,12 +1339,15 @@ def parse_args():
 
 def main():
     args = parse_args()
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek", "yolo26", "vggt", "mapanything", "orient_anything_v2"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
     if args.tool == "vace" and (not args.prompt or not args.prompt.strip()):
         print("Error: --prompt is required for tool 'vace'")
+        sys.exit(1)
+    if args.tool == "sana" and (not args.prompt or not args.prompt.strip()):
+        print("Error: --prompt is required for tool 'sana'")
         sys.exit(1)
 
     if args.tool == "pi3":
@@ -1151,6 +1467,57 @@ def main():
             image_paths=args.image,
             task=args.ocr_task,
             server_url=args.server_url,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "yolo26":
+        result_path = test_yolo26(
+            image_path=args.image[0],
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "vggt":
+        server = args.server_url or "http://localhost:20032"
+        result_path = test_vggt(
+            image_paths=args.image,
+            azimuth_angle=args.azimuth,
+            elevation_angle=args.elevation,
+            server_url=server,
+            rotation_reference_camera=args.ref_camera,
+            camera_view=args.camera_view,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "mapanything":
+        server = args.server_url or "http://localhost:20033"
+        result_path = test_mapanything(
+            image_paths=args.image,
+            azimuth_angle=args.azimuth,
+            elevation_angle=args.elevation,
+            server_url=server,
+            rotation_reference_camera=args.ref_camera,
+            camera_view=args.camera_view,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "orient_anything_v2":
+        server = args.server_url or "http://localhost:20034"
+        result_path = test_orient_anything_v2(
+            image_path=args.image[0],
+            object_category=args.object_category,
+            server_url=server,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+        )
+
+    elif args.tool == "sana":
+        server = args.server_url or "http://localhost:30000"
+        result_path = test_sana(
+            prompt=args.prompt,
+            server_url=server,
             use_mock=args.use_mock,
             output_dir=args.output_dir,
         )
