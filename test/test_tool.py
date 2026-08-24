@@ -74,6 +74,9 @@ Usage:
     # Test OneFormer (mock)
     python test/test_tool.py --tool oneformer --image assets/dog.jpeg --use_mock
 
+    # Test CountGD (mock)
+    python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" --use_mock
+
 """
 
 import sys
@@ -958,6 +961,45 @@ def test_oneformer(
 
 
 # ============================================================
+# CountGD Tool Test
+# ============================================================
+
+def test_countgd(
+    image_paths: List[str],
+    text: str = "object",
+    device: str = "cuda",
+    use_mock: bool = False,
+    output_dir: str = "outputs/tool_test",
+    server_url: Optional[str] = None,
+) -> Optional[str]:
+    """Directly test CountGD text-prompted object counting tool."""
+    from spagent.tools import CountGDTool
+
+    image_path = image_paths[0]
+    if not os.path.exists(image_path):
+        logger.error(f"Image not found: {image_path}")
+        return None
+
+    logger.info("=" * 60)
+    logger.info("CountGD Tool Test")
+    logger.info("=" * 60)
+    tool = CountGDTool(device=device, use_mock=use_mock, server_url=server_url)
+    result = tool.call(image_path=image_path, text=text)
+    if not result.get("success"):
+        logger.error(f"CountGD tool failed: {result.get('error', 'unknown error')}")
+        return None
+    logger.info(f"CountGD counted {result.get('count')} object(s)")
+    src_path = result.get("output_path")
+    if src_path and os.path.exists(src_path):
+        os.makedirs(output_dir, exist_ok=True)
+        import shutil
+        dst = os.path.join(output_dir, f"CountGD_test{Path(src_path).suffix}")
+        shutil.copy2(src_path, dst)
+        return dst
+    return None
+
+
+# ============================================================
 # CLI entry point
 # ============================================================
 
@@ -970,7 +1012,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl", "oneformer"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl", "oneformer", "countgd"],
         help="Which tool to test. depth/segmentation/detection now run real inference (no longer stubs).",
     )
     parser.add_argument(
@@ -1101,7 +1143,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek", "oneformer"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek", "oneformer", "countgd"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -1234,6 +1276,15 @@ def main():
         result_path = test_oneformer(
             image_paths=args.image,
             task=args.seg_task,
+            device=args.device,
+            use_mock=args.use_mock,
+            output_dir=args.output_dir,
+            server_url=args.server_url,
+        )
+    elif args.tool == "countgd":
+        result_path = test_countgd(
+            image_paths=args.image,
+            text=args.prompt or "object",
             device=args.device,
             use_mock=args.use_mock,
             output_dir=args.output_dir,

@@ -29,6 +29,7 @@ Full list of supported external expert models in SPAgent, their default ports, a
 | **FlowSeek** | 2D | Optical Flow Estimation | Local / server (20036) | Dense per-pixel motion between two images; M (ViT-B) or T (ViT-S) variants |
 | **PaddleOCR-VL-1.5** | OCR | Document OCR & Structured Recognition | Local or server (20037) | Plain OCR, table, chart, formula→LaTeX, seal recognition; auto-downloads from HuggingFace |
 | **OneFormer** | 2D | Universal Image Segmentation | Local / server (20038) | semantic / instance / panoptic; HF auto-download; returns mask_path |
+| **CountGD** | 2D | Text-Prompted Object Counting | Local / server (20026) | Requires `COUNTGD_CHECKPOINT`; returns boxes via detection contract |
 
 ## Port Summary
 
@@ -46,6 +47,7 @@ Full list of supported external expert models in SPAgent, their default ports, a
 | 20034 | OrientAnythingV2 |
 | 20035 | VACE |
 | 20027 | WildDet3D |
+| 20026 | CountGD |
 | 20036 | FlowSeek |
 | 20037 | PaddleOCR-VL-1.5 |
 | 20038 | OneFormer |

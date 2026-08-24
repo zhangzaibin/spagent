@@ -34,6 +34,7 @@ external_experts/
 ├── FlowSeek/                      # Optical flow estimation between image pairs (local or server port 20036)
 ├── PaddleOCRVL/                   # Document OCR & structured recognition (PaddleOCR-VL-1.5, port 20037)
 ├── OneFormer/                     # Universal image segmentation semantic/instance/panoptic (port 20038)
+├── CountGD/                       # Text-prompted object counting (local or server port 20026)
 └── supervision/                   # YOLO object detection and annotation tools
 ```
 
@@ -64,6 +65,7 @@ external_experts/
 | **FlowSeek** | `FlowSeekTool` | Optical Flow Estimation | Estimate dense per-pixel motion between two images (consecutive frames or before/after pairs); returns colorized flow visualization; M variant (ViT-B) or T variant (ViT-S); source vendored in repo, requires `FLOWSEEK_CHECKPOINT` and `FLOWSEEK_DAV2_CHECKPOINT` env vars | Local / Server (port 20036) | `image1_path`, `image2_path`, `output_path`(optional) |
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | Document OCR & Structured Recognition | 0.9B VLM for plain OCR, table parsing, chart reading, formula → LaTeX, text spotting, and seal recognition; supports local/server/mock; no checkpoint env var required | Local or Server (port 20037) | `image_path`, `task` ("ocr" / "table" / "chart" / "formula" / "spotting" / "seal") |
 | **OneFormer** | `OneFormerTool` | Universal Image Segmentation | Single model for semantic / instance / panoptic; HF auto-download; returns colorized overlay + mask_path id-map | Local / Server (port 20038) | `image_path`, `task` ("semantic" / "instance" / "panoptic") |
+| **CountGD** | `CountGDTool` | Text-Prompted Object Counting | Count objects matching a text description; returns count + boxes (detection contract) + annotated image; requires `COUNTGD_CHECKPOINT` | Local / Server (port 20026) | `image_path`, `text` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1546,6 +1548,45 @@ python test/test_tool.py --tool oneformer --image assets/dog.jpeg --seg_task pan
 
 **Resources**:
 - [OneFormer GitHub](https://github.com/SHI-Labs/OneFormer)
+
+---
+
+### 18. CountGD - Text-Prompted Object Counting
+
+**Function**: Count objects in an image described by a text prompt; returns count, boxes, and an annotated visualization.
+
+**Setup**:
+
+```bash
+pip install addict yapf timm scipy pycocotools flask gdown
+mkdir -p checkpoints/countgd
+gdown 1RbRcNLsOfeEbx6u39pBehqsgQiexHHrI -O checkpoints/countgd/checkpoint_fsc147_best.pth
+export COUNTGD_CHECKPOINT=/your/path/to/checkpoints/countgd/checkpoint_fsc147_best.pth
+```
+
+**Usage**:
+
+```python
+from spagent.tools import CountGDTool
+tool = CountGDTool(device="cuda")  # or server_url="http://localhost:20026"
+result = tool.call(image_path="parking_lot.jpg", text="car")
+print(result["count"], result.get("boxes"))
+```
+
+**Server**:
+
+```bash
+python spagent/external_experts/CountGD/countgd_server.py --checkpoint $COUNTGD_CHECKPOINT --port 20026
+```
+
+**Test**:
+
+```bash
+python test/test_tool.py --tool countgd --image assets/dog.jpeg --prompt "dog" --use_mock
+```
+
+**Resources**:
+- [CountGD GitHub](https://github.com/niki-amini-naieni/CountGD)
 
 ---
 

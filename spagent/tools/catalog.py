@@ -38,6 +38,7 @@ from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
 from .wilddet3d_tool import WildDet3DTool
 from .oneformer_tool import OneFormerTool
+from .countgd_tool import CountGDTool
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,7 @@ DEFAULT_SERVER_URLS: Dict[str, str] = {
     "supervision": "http://127.0.0.1:8000",
     "oneformer": "http://127.0.0.1:20038",
     "wilddet3d": "http://127.0.0.1:20027",
+    "countgd": "http://127.0.0.1:20026",
 }
 
 
@@ -117,6 +119,14 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "detect_objects_tool",
         {"server_url": DEFAULT_SERVER_URLS["detection"]},
+        category="detection",
+    ),
+    ToolCatalogEntry(
+        "countgd",
+        CountGDTool,
+        "2d_perception",
+        "countgd_tool",
+        {"server_url": DEFAULT_SERVER_URLS["countgd"]},
         category="detection",
     ),
     ToolCatalogEntry(

@@ -32,4 +32,4 @@ third_party/*
 run_good_night.sh
 
 .env_backup
-
+*.zip

@@ -30,6 +30,7 @@ from spagent.tools import (
     WildDet3DTool,
     FlowSeekTool,
     OneFormerTool,
+    CountGDTool,
 )
 from spagent.utils.utils import (
     load_json_data, 
@@ -70,6 +71,9 @@ TOOL_CONFIGS = {
     ],
     "oneformer": [
         OneFormerTool(device="cuda"),
+    ],
+    "countgd": [
+        CountGDTool(device="cuda"),
     ],
 }
 
