@@ -164,6 +164,14 @@ section{padding:5rem 2rem}
   font-size:.6875rem;color:var(--gray-4);margin-top:.5rem;
   font-family:var(--mono);
 }
+.section-actions{
+  display:flex;gap:.75rem;justify-content:center;align-items:center;
+  flex-wrap:wrap;margin-top:1.5rem;
+}
+.section-note{
+  max-width:var(--content);margin:1.25rem auto 0;
+  text-align:center;font-size:.8125rem;color:var(--gray-3);line-height:1.6;
+}
 
 /* CODE */
 .code-block{
@@ -193,7 +201,7 @@ section{padding:5rem 2rem}
   border-right:1px solid var(--gray-5);
 }
 .arch-item:nth-child(2n){border-right:none}
-.arch-item:nth-child(n+3){border-bottom:none}
+.arch-item:nth-child(n+5){border-bottom:none}
 .arch-item h4{font-size:.9375rem;font-weight:600;margin-bottom:.375rem}
 .arch-item p{font-size:.8125rem;color:var(--gray-2);line-height:1.6}
 
@@ -220,6 +228,10 @@ section{padding:5rem 2rem}
 .research-authors sup{font-size:.5625rem;color:var(--gray-3);vertical-align:super;margin-left:1px}
 .research-legend{font-size:.6875rem;color:var(--gray-4);margin-bottom:.5rem}
 .research-desc{font-size:.875rem;color:var(--gray-2);line-height:1.65}
+.resource-links{
+  display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;
+  margin-top:2rem;
+}
 
 /* CONTACT */
 .contact-institutions{
@@ -304,7 +316,7 @@ footer a:hover{color:var(--black)}
 @media(max-width:480px){
   .arch-grid{grid-template-columns:1fr}
   .arch-item{border-right:none !important}
-  .arch-item:nth-child(n+3){border-bottom:1px solid var(--gray-5)}
+  .arch-item:nth-child(n+5){border-bottom:1px solid var(--gray-5)}
   .arch-item:last-child{border-bottom:none}
   .tools-cards{grid-template-columns:1fr}
 }
@@ -335,14 +347,14 @@ footer a:hover{color:var(--black)}
 <!-- HERO -->
 <section class="hero">
   <img src="assets/arts.jpg" alt="SPAgent" class="hero-img">
-  <h1>SPAgent is a foundation agent for the physical & spatial world</h1>
+  <h1>SPAgent is a foundation agent for the physical &amp; spatial world</h1>
   <p class="subtitle">
-    Perception, reasoning, and action in the physical and spatial world, powered by an open-ended multimodal ecosystem of tools spanning 2D, 3D, world models, and beyond.
+    Think3D: perception, reasoning, and action powered by an open-ended multimodal ecosystem spanning 2D vision, 3D reconstruction, generation, and beyond.
   </p>
   <div class="hero-actions">
     <a href="https://github.com/zhangzaibin/spagent" target="_blank" class="btn-pill primary">Get Started</a>
     <a href="https://huggingface.co/collections/jialianjie/spagent" target="_blank" class="btn-pill">Models</a>
-    <a href="https://huggingface.co/datasets/spagent" target="_blank" class="btn-pill">Dataset</a>
+    <a href="https://huggingface.co/datasets/jialianjie/Think3DQA" target="_blank" class="btn-pill">Dataset</a>
     <a href="#research" class="btn-arrow">Research</a>
   </div>
 </section>
@@ -371,7 +383,17 @@ footer a:hover{color:var(--black)}
     <div class="feature-item fade-up">
       <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       <h3>RL Training</h3>
-      <p>Built-in reinforcement learning pipeline. Train agents with tool-calling rewards.</p>
+      <p>GRPO training with multi-turn tool calling and an offline Pi3X cache, powered by ms-swift.</p>
+    </div>
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5M8 17h3"/></svg>
+      <h3>Stateful Multimodal Memory</h3>
+      <p>AgentMemory preserves text, images, tool calls, and results across multi-turn conversations.</p>
+    </div>
+    <div class="feature-item fade-up">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M10.5 10.5l3 3M16 5v5M5 16h5"/></svg>
+      <h3>Parallel &amp; Multi-Model</h3>
+      <p>Run expert tools concurrently with GPT, Qwen, or local OpenAI-compatible model backends.</p>
     </div>
   </div>
 </section>
@@ -381,7 +403,7 @@ footer a:hover{color:var(--black)}
 <!-- TOOLS -->
 <section id="tools">
   <h2 class="section-title fade-up">Supported tools</h2>
-  <p class="tools-subtitle fade-up">An open-ended ecosystem spanning 2D perception, 3D reconstruction, video generation, and beyond.</p>
+  <p class="tools-subtitle fade-up">26 registered tool integrations spanning perception, grounding, 3D understanding, document intelligence, and generation.</p>
   <div class="section-inner">
 
     <div class="tools-group fade-up">
@@ -396,9 +418,9 @@ footer a:hover{color:var(--black)}
           <div class="tool-source">:20019</div>
         </div>
         <div class="tool-card">
-          <h4>SAM 2</h4>
-          <p>Promptable image and video segmentation with fast, precise masks and tracking.</p>
-          <div class="tool-source">:20020</div>
+          <h4>SAM 2 / OneFormer</h4>
+          <p>Promptable and universal semantic, instance, and panoptic image segmentation.</p>
+          <div class="tool-source">:20020 / :20038</div>
         </div>
         <div class="tool-card">
           <h4>Grounding DINO</h4>
@@ -406,21 +428,55 @@ footer a:hover{color:var(--black)}
           <div class="tool-source">:20022</div>
         </div>
         <div class="tool-card">
-          <h4>Moondream</h4>
-          <p>A small, fast vision-language model for captioning, visual Q&amp;A, and lightweight visual reasoning.</p>
-          <div class="tool-source">:20024</div>
+          <h4>YOLO26 / Face Detection</h4>
+          <p>Fast local object detection plus lightweight CPU frontal-face detection.</p>
+          <div class="tool-source">local</div>
         </div>
         <div class="tool-card">
           <h4>YOLO-E / Supervision</h4>
-          <p>Real-time open-vocabulary detection and segmentation with annotation, tracking, and visualization utilities.</p>
-          <div class="tool-source">local</div>
+          <p>Open-vocabulary detection, segmentation, annotation, and visualization.</p>
+          <div class="tool-source">local / :8000</div>
+        </div>
+        <div class="tool-card">
+          <h4>FlowSeek</h4>
+          <p>Dense optical flow estimation between image pairs with raw motion fields.</p>
+          <div class="tool-source">local / :20036</div>
+        </div>
+        <div class="tool-card">
+          <h4>PaddleOCR-VL 1.5</h4>
+          <p>OCR and structured recognition for text, tables, charts, formulas, and seals.</p>
+          <div class="tool-source">local / :20037</div>
         </div>
       </div>
     </div>
 
     <div class="tools-group fade-up">
       <div class="tools-group-header">
-        <span class="tools-group-label">3D Reconstruction</span>
+        <span class="tools-group-label">Vision-Language &amp; Grounding</span>
+        <span class="tools-group-line"></span>
+      </div>
+      <div class="tools-cards">
+        <div class="tool-card">
+          <h4>Moondream</h4>
+          <p>Lightweight visual question answering, captioning, and point grounding.</p>
+          <div class="tool-source">:20024</div>
+        </div>
+        <div class="tool-card">
+          <h4>Molmo2</h4>
+          <p>Multimodal reasoning with QA, captioning, and annotated point outputs.</p>
+          <div class="tool-source">:20025</div>
+        </div>
+        <div class="tool-card">
+          <h4>Qwen2.5-VL</h4>
+          <p>Referring and reasoning-based object detection from image-text prompts.</p>
+          <div class="tool-source">API / local</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tools-group fade-up">
+      <div class="tools-group-header">
+        <span class="tools-group-label">3D Understanding</span>
         <span class="tools-group-line"></span>
       </div>
       <div class="tools-cards">
@@ -439,28 +495,47 @@ footer a:hover{color:var(--black)}
           <p>Universal metric 3D reconstruction for dense point clouds, depth, poses, and multi-view geometry.</p>
           <div class="tool-source">:20033</div>
         </div>
+        <div class="tool-card">
+          <h4>OrientAnything V2</h4>
+          <p>Object orientation, symmetry, and two-image relative rotation estimation.</p>
+          <div class="tool-source">:20034</div>
+        </div>
+        <div class="tool-card">
+          <h4>WildDet3D</h4>
+          <p>Promptable 3D object detection from a single RGB image using text, boxes, or points.</p>
+          <div class="tool-source">local / :20027</div>
+        </div>
       </div>
     </div>
 
     <div class="tools-group fade-up">
       <div class="tools-group-header">
-        <span class="tools-group-label">Video Generation</span>
+        <span class="tools-group-label">Image &amp; Video Generation</span>
         <span class="tools-group-line"></span>
       </div>
       <div class="tools-cards">
         <div class="tool-card">
-          <h4>Veo</h4>
-          <p>Cinematic text-to-video and image-to-video generation with audio and strong creative control.</p>
+          <h4>Sana</h4>
+          <p>Fast text-to-image generation through a local SGLang server.</p>
+          <div class="tool-source">:30000</div>
+        </div>
+        <div class="tool-card">
+          <h4>Veo / Sora / Wan</h4>
+          <p>Text-to-video and image-to-video generation across Google, OpenAI, and DashScope APIs.</p>
           <div class="tool-source">API</div>
         </div>
         <div class="tool-card">
-          <h4>Sora</h4>
-          <p>Text-to-video and image-to-video generation for realistic, dynamic scenes with strong prompt fidelity.</p>
-          <div class="tool-source">API</div>
+          <h4>VACE</h4>
+          <p>Local first-frame video generation from a reference image and motion prompt.</p>
+          <div class="tool-source">local server</div>
         </div>
       </div>
     </div>
 
+  </div>
+  <div class="section-actions fade-up">
+    <a href="https://github.com/zhangzaibin/spagent/blob/main/docs/Tool/TOOL_USING.md" target="_blank" class="btn-pill">Tool Reference</a>
+    <a href="https://github.com/zhangzaibin/spagent/blob/main/docs/Tool/EXTERNAL_EXPERTS.md" target="_blank" class="btn-pill">Deployment &amp; Ports</a>
   </div>
 </section>
 
@@ -477,17 +552,23 @@ footer a:hover{color:var(--black)}
 <span class="cm"># Create model and tools</span>
 model <span class="op">=</span> <span class="fn">GPTModel</span>(model_name<span class="op">=</span><span class="str">"gpt-4o-mini"</span>)
 tools <span class="op">=</span> [
-    <span class="fn">DepthEstimationTool</span>(),
-    <span class="fn">SegmentationTool</span>()
+    <span class="fn">DepthEstimationTool</span>(use_mock<span class="op">=</span><span class="kw">True</span>),
+    <span class="fn">SegmentationTool</span>(use_mock<span class="op">=</span><span class="kw">True</span>)
 ]
 
-<span class="cm"># Create agent and solve</span>
-agent <span class="op">=</span> <span class="fn">SPAgent</span>(model<span class="op">=</span>model, tools<span class="op">=</span>tools)
+<span class="cm"># Mock mode needs no expert servers</span>
+agent <span class="op">=</span> <span class="fn">SPAgent</span>(model<span class="op">=</span>model, tools<span class="op">=</span>tools, max_workers<span class="op">=</span><span class="fn">4</span>)
 result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
     <span class="str">"image.jpg"</span>,
     <span class="str">"Analyze depth relationships and main objects"</span>
 )
 <span class="fn">print</span>(result[<span class="str">'answer'</span>])</pre>
+  </div>
+  <p class="section-note fade-up">Use <code>step()</code> with <code>AgentMemory</code> for stateful multi-turn sessions, or connect real expert servers with <code>use_mock=False</code>.</p>
+  <div class="section-actions fade-up">
+    <a href="https://github.com/zhangzaibin/spagent#-installation--setup" target="_blank" class="btn-pill">Installation</a>
+    <a href="https://github.com/zhangzaibin/spagent/blob/main/docs/Examples/ADVANCED_EXAMPLES.md" target="_blank" class="btn-pill">Advanced Examples</a>
+    <a href="https://github.com/zhangzaibin/spagent/blob/main/docs/Evaluation/QUICK_EVAL.md" target="_blank" class="btn-pill">Evaluation</a>
   </div>
 </section>
 
@@ -499,19 +580,27 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
   <div class="arch-grid fade-up">
     <div class="arch-item">
       <h4>SPAgent Core</h4>
-      <p>Agent logic, tool registry, prompt system, data collection</p>
+      <p>Agent loop, parallel execution, workflow routing, AgentMemory, and data collection.</p>
     </div>
     <div class="arch-item">
-      <h4>Tools</h4>
-      <p>Modular expert implementations with client/server architecture</p>
+      <h4>Tool Contract</h4>
+      <p>Standardized ToolResult envelopes, typed payloads, rendering, and contribution CI.</p>
     </div>
     <div class="arch-item">
-      <h4>Models</h4>
-      <p>Supports leading open-source and closed-source models worldwide.</p>
+      <h4>Expert Tools</h4>
+      <p>26 catalog integrations using local, client/server, and cloud API deployments.</p>
     </div>
     <div class="arch-item">
-      <h4>Training</h4>
-      <p>Reinforcement learning with supervised fine-tuning</p>
+      <h4>Model Backends</h4>
+      <p>GPT, Qwen, and local OpenAI-compatible multimodal models.</p>
+    </div>
+    <div class="arch-item">
+      <h4>GRPO Training</h4>
+      <p>Multi-turn tool-calling rewards with offline Pi3X cache and ms-swift.</p>
+    </div>
+    <div class="arch-item">
+      <h4>Evaluation</h4>
+      <p>Unified quick evaluation across VLMEvalKit and spatial reasoning benchmarks.</p>
     </div>
   </div>
 </section>
@@ -531,6 +620,11 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
       <p class="research-legend">* Equal contribution &nbsp; ◆ Project leader &nbsp; ✉ Corresponding author</p>
       <p class="research-desc">Teaching agents to think in 3D space like humans, through drag-based spatial interaction.</p>
     </a>
+    <div class="resource-links fade-up">
+      <a href="https://arxiv.org/abs/2601.13029" target="_blank" class="btn-pill primary">Paper</a>
+      <a href="https://huggingface.co/collections/jialianjie/spagent" target="_blank" class="btn-pill">Models</a>
+      <a href="https://huggingface.co/datasets/jialianjie/Think3DQA" target="_blank" class="btn-pill">Think3DQA</a>
+    </div>
   </div>
 </section>
 
@@ -541,15 +635,15 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
   <h2 class="section-title fade-up">Institutions</h2>
   <div class="contact-institutions fade-up">
     <a href="https://www.dlut.edu.cn/" target="_blank" class="inst">
-      <img src="assets/DUT-logo.jpg"">
+      <img src="assets/DUT-logo.jpg" alt="Dalian University of Technology">
       <div class="inst-sub" style="color:#003d7c">Dalian University of Technology</div>
     </a>
     <a href="https://ucsd.edu/" target="_blank" class="inst">
-      <img src="assets/UCSD-logo.png"">
+      <img src="assets/UCSD-logo.png" alt="University of California, San Diego">
       <div class="inst-sub" style="color:#C69214">University of California, San Diego</div>
     </a>
     <a href="https://www.ox.ac.uk/" target="_blank" class="inst">
-      <img src="assets/logo-oxford.png">
+      <img src="assets/logo-oxford.png" alt="University of Oxford">
       <div class="inst-sub" style="color:#002147">University of Oxford</div>
     </a>
   </div>
@@ -570,6 +664,7 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
   <p>Open-source and ready to use. Deploy expert tools, connect your model, and reason about the physical world.</p>
   <div class="hero-actions">
     <a href="https://github.com/zhangzaibin/spagent" target="_blank" class="btn-pill primary">View on GitHub</a>
+    <a href="https://github.com/zhangzaibin/spagent/tree/main/docs" target="_blank" class="btn-pill">Documentation</a>
     <a href="#research" class="btn-arrow">Research</a>
   </div>
 </section>
@@ -578,7 +673,7 @@ result <span class="op">=</span> agent.<span class="fn">solve_problem</span>(
   SPAgent &copy; 2026 &middot; Apache 2.0 &middot;
   <a href="https://github.com/zhangzaibin/spagent" target="_blank">GitHub</a> &middot;
   <a href="https://huggingface.co/collections/jialianjie/spagent" target="_blank">Hugging Face</a> &middot;
-  <a href="https://huggingface.co/datasets/spagent" target="_blank">Dataset</a>
+  <a href="https://huggingface.co/datasets/jialianjie/Think3DQA" target="_blank">Dataset</a>
 </footer>
 
 <script>
