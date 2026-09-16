@@ -53,6 +53,7 @@ TOOL_SERVERS = {
     "vggt": "http://0.0.0.0:20022",  # vggt
     "mapanything": "http://0.0.0.0:20022",  # mapanything
     "vace": "http://127.0.0.1:20034",  # vace
+    "wilddet3d": "http://127.0.0.1:20027",  # WildDet3D
 }
 
 TOOL_CONFIGS = {
@@ -63,7 +64,7 @@ TOOL_CONFIGS = {
         VaceTool(use_mock=False, server_url=TOOL_SERVERS["vace"], mode='inference'),
     ],
     "wilddet3d": [
-        WildDet3DTool(device="cuda"),
+        WildDet3DTool(use_mock=False, server_url=TOOL_SERVERS["wilddet3d"]),
     ],
     "flowseek": [
         FlowSeekTool(device="cuda"),

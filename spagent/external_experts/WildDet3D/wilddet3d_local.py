@@ -15,6 +15,7 @@ Setup:
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -84,6 +85,7 @@ class WildDet3DLocalClient:
         input_boxes: Optional[List[float]] = None,
         input_points: Optional[List[List]] = None,
         intrinsics: Optional[List[List[float]]] = None,
+        score_threshold: Optional[float] = None,
     ) -> Dict:
         """
         Run 3D detection on a single image.
@@ -144,22 +146,40 @@ class WildDet3DLocalClient:
                 prompt_kwargs["input_texts"] = [prompt_text]
                 prompt_kwargs["prompt_text"] = "object"
 
+            device_type = getattr(device, "type", str(device).split(":", 1)[0])
             with torch.inference_mode():
-                with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                with torch.autocast(
+                    device_type=device_type,
+                    dtype=torch.bfloat16,
+                    enabled=device_type == "cuda",
+                ):
                     outputs = self._model(**inputs, **prompt_kwargs)
 
             boxes2d, boxes3d, scores, scores_2d, scores_3d, class_ids, depth_maps = outputs
 
-            boxes2d_list = boxes2d[0].float().cpu().numpy().tolist() if len(boxes2d) > 0 else []
-            scores_list = scores[0].float().cpu().numpy().tolist() if len(scores) > 0 else []
+            threshold = self.score_threshold if score_threshold is None else float(score_threshold)
+            keep = scores[0] >= threshold
+            boxes2d_first = boxes2d[0][keep]
+            boxes3d_first = boxes3d[0][keep]
+            scores_first = scores[0][keep]
+            scores_2d_first = scores_2d[0][keep]
+            scores_3d_first = scores_3d[0][keep]
+
+            boxes2d_list = boxes2d_first.float().cpu().numpy().tolist()
+            boxes3d_list = boxes3d_first.float().cpu().numpy().tolist()
+            scores_list = scores_first.float().cpu().numpy().tolist()
+            scores_2d_list = scores_2d_first.float().cpu().numpy().tolist()
+            scores_3d_list = scores_3d_first.float().cpu().numpy().tolist()
 
             output_path = self._visualize(image_path, boxes2d_list, scores_list, prompt_text)
 
             return {
                 "success": True,
                 "boxes2d": boxes2d_list,
-                "boxes3d": boxes3d[0].float().cpu().numpy().tolist() if len(boxes3d) > 0 else [],
+                "boxes3d": boxes3d_list,
                 "scores": scores_list,
+                "scores_2d": scores_2d_list,
+                "scores_3d": scores_3d_list,
                 "num_detections": len(boxes2d_list),
                 "output_path": output_path,
                 "description": (
@@ -196,6 +216,6 @@ class WildDet3DLocalClient:
 
         os.makedirs("outputs", exist_ok=True)
         stem = Path(image_path).stem
-        output_path = f"outputs/wilddet3d_{stem}.png"
+        output_path = f"outputs/wilddet3d_{stem}_{uuid.uuid4().hex[:8]}.png"
         cv2.imwrite(output_path, img)
         return output_path

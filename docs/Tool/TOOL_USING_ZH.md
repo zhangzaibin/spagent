@@ -16,6 +16,7 @@ external_experts/
 │   └──pi3
 │   └──pi3x
 │   └──sam2
+│   └──wilddet3d
 │   └──vggt
 │   └──Wan2.1-VACE-1.3B
 ├── GroundingDINO/                  # 开放词汇目标检测
@@ -32,7 +33,8 @@ external_experts/
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
 ├── PaddleOCRVL/                   # 文档 OCR 与结构化识别（PaddleOCR-VL-1.5，端口 20037）
 ├── supervision/                   # YOLO目标检测和标注工具
-└── QwenImageEdit/                 # Qwen 指令式图像编辑（DashScope API）
+├── QwenImageEdit/                 # Qwen 指令式图像编辑（DashScope API）
+└── WildDet3D/                     # 可提示单目3D目标检测（服务端口 20027）
 ```
 
 ## 🛠️ 工具概览
@@ -58,6 +60,7 @@ external_experts/
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | 文档 OCR 与结构化识别 | 0.9B 视觉语言模型，支持纯文本 OCR、表格解析、图表读取、公式转 LaTeX、文本定位与印章识别；支持本地/服务器/mock 模式；无需额外 checkpoint 环境变量 | 本地或服务器（20037） | `image_path`, `task`（`"ocr"` / `"table"` / `"chart"` / `"formula"` / `"spotting"` / `"seal"`） |
 | **Qwen Image Edit** | `QwenImageEditTool` | 指令式图像编辑 | 编辑基础图像、增加或替换内容、修改风格或文字，并支持融合最多两张参考图像 | DashScope API（无需服务器） | `image_path`, `prompt`, `reference_image_paths`(可选), `size`(可选), `n`(可选), `seed`(可选) |
+| **WildDet3D** | `WildDet3DTool` | 可提示3D目标检测 | 根据文本、框或点提示，从单张图像中检测并定位3D物体 | 本地服务器（20027） | `image_path`, `text_prompt`(可选), `boxes`(可选), `points`(可选), `score_threshold` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1312,6 +1315,68 @@ print(result["image_paths"])
 
 ---
 
+### 16. WildDet3D - 可提示3D目标检测
+
+**功能**: 使用文本、框或点提示，从单张图像中检测并定位3D物体。
+
+**特点**:
+- 支持开放词汇文本提示3D检测
+- 支持2D框提示和点提示
+- 返回2D框、3D框、scores、类别名、深度输出和可视化输出
+- 每个3D框格式为 `[center_xyz(3), dimensions(3), quaternion_wxyz(4)]`
+- `scores` 是官方2D/3D组合排序分数；`scores_2d` 和 `scores_3d` 分别返回对应置信度
+
+**文件结构**:
+```
+WildDet3D/
+├── wilddet3d_server.py
+├── wilddet3d_client.py
+├── mock_wilddet3d_service.py
+└── __init__.py
+```
+
+**安装并下载权重**:
+```bash
+git clone --recurse-submodules https://github.com/allenai/WildDet3D.git third_party/WildDet3D
+pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu121
+pip install vis4d==1.0.0
+pip install git+https://github.com/SysCV/vis4d_cuda_ops.git --no-build-isolation --no-cache-dir
+pip install -r third_party/WildDet3D/requirements.txt flask
+mkdir -p checkpoints/wilddet3d
+hf download allenai/WildDet3D wilddet3d_alldata_all_prompt_v1.0.pt \
+  --local-dir checkpoints/wilddet3d
+```
+
+**启动服务**:
+```bash
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --repo_path third_party/WildDet3D \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20027
+```
+
+**Python 用法**:
+```python
+from spagent.tools import WildDet3DTool
+
+tool = WildDet3DTool(use_mock=False, server_url="http://127.0.0.1:20027")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    text_prompt="dog",
+    score_threshold=0.3,
+)
+print(result["boxes_3d"], result["scores"], result["output_path"])
+```
+
+使用 `boxes=[[x1, y1, x2, y2], ...]` 传入一个或多个像素坐标框，或使用
+`points=[[x, y, label], ...]` 传入点提示，其中 `1` 表示前景，`0` 表示背景。
+
+**资源链接**:
+- [官方仓库](https://github.com/allenai/WildDet3D)
+- [模型权重](https://huggingface.co/allenai/WildDet3D)
+
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
@@ -1327,7 +1392,7 @@ pip install ai2-molmo2 accelerate sentencepiece
 
 创建checkpoints目录：
 ```bash
-mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2}
+mkdir -p checkpoints/{grounding_dino,depth_anything,pi3,pi3x,sam2,wilddet3d}
 ```
 ### 2. 下载模型权重
 
@@ -1354,6 +1419,12 @@ export HF_ENDPOINT=https://hf-mirror.com
 python spagent/external_experts/GroundingDINO/grounding_dino_server.py \
   --checkpoint_path checkpoints/grounding_dino/groundingdino_swinb_cogcoor.pth \
   --port 20022
+
+# WildDet3D 可提示3D目标检测服务
+python spagent/external_experts/WildDet3D/wilddet3d_server.py \
+  --repo_path third_party/WildDet3D \
+  --checkpoint_path checkpoints/wilddet3d/wilddet3d_alldata_all_prompt_v1.0.pt \
+  --port 20027
 
 # 3D重建服务（Pi3）
 python spagent/external_experts/Pi3/pi3_server.py \

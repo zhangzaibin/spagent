@@ -68,7 +68,7 @@ CALL_KW = {
     "flowseek":     dict(image1_path=IMG, image2_path=IMG,
                          output_path="outputs/vflow.png"),
     "paddleocr_vl": dict(image_path=IMG),
-    "wilddet3d":    dict(image_path=IMG, prompt_text="dog"),
+    "wilddet3d":    dict(image_path=IMG, text_prompt="dog"),
 }
 
 CHECKS = ["build", "schema", "call", "toolresult", "contract", "render", "boxes", "failpath", "docs"]

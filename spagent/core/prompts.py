@@ -524,6 +524,11 @@ _TSG_CATEGORIES: List[Dict[str, Any]] = [
                 "- **mapanything_tool**: Use for dense multi-view 3D point clouds via depth + "
                 "pose fusion."
             ),
+            "wilddet3d_tool": (
+                "- **wilddet3d_tool**: Use for promptable monocular 3D object detection "
+                "from one image when text, 2D box, or point prompts should produce 2D/3D "
+                "boxes. Do not use it for multi-view scene reconstruction."
+            ),
             "orient_anything_v2_tool": (
                 "- **orient_anything_v2_tool**: Use for object orientation "
                 "(azimuth/elevation/rotation) or relative pose between two views."
