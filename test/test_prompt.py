@@ -28,6 +28,7 @@ from spagent.core.prompts import (
     SPATIAL_3D_SYSTEM_PROMPT,
     GENERAL_VISION_SYSTEM_PROMPT,
     TOOL_SELECTION_GUIDE,
+    build_tool_selection_guide,
     create_system_prompt,
     create_all_tools_system_prompt,
 )
@@ -172,11 +173,14 @@ def test_all_tools_prompt():
 
     print_section("CASE: All-Tools Prompt  (create_all_tools_system_prompt)", prompt[:4000] + "\n...[truncated]...")
 
-    assert TOOL_SELECTION_GUIDE.strip() in prompt, "Expected tool selection guide"
+    registered_names = {schema["function"]["name"] for schema in schemas}
+    assert build_tool_selection_guide(registered_names).strip() in prompt, "Expected tool selection guide"
     assert "Tool Selection Guide" in prompt
-    assert "depth_estimation_tool" in prompt
-    assert "pi3x_tool" in prompt
-    assert "image_generation_sana_tool" in prompt
+    # Optional heavyweight tools may be skipped when their dependencies are
+    # absent; the prompt should describe exactly the tools that were built.
+    for tool_name in ("depth_estimation_tool", "pi3x_tool", "image_generation_sana_tool"):
+        if tool_name in registered_names:
+            assert tool_name in prompt
     assert "azimuth=0, elevation=0" in prompt
     if skipped:
         print(f"  (skipped during catalog build: {skipped})")

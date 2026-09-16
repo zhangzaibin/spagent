@@ -1500,6 +1500,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
             ('DepthEstimationTool', 'depth_estimation_tool'),
             ('SegmentationTool', 'segmentation_tool'),
             ('ObjectDetectionTool', 'object_detection_tool'),
+            ('LingBotMapTool', 'lingbot_map_tool'),
             ('Molmo2Tool', 'molmo2_tool'),
             ('VeoTool', 'video_generation_veo_tool'),
             ('SoraTool', 'video_generation_sora_tool'),

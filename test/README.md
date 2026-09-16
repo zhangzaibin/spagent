@@ -12,6 +12,7 @@ Unit tests and integration smoke tests for SPAgent.
 | `test_pi3_llm.py` | End-to-end agent test: video → frame extraction → Pi3 tool → LLM answer |
 | `test_prompt.py` | Verify system prompt construction for all configurations (3D spatial / general vision / custom) |
 | `test_qwen_image_edit_tool.py` | Qwen Image Edit schema, mock editing, multi-image rendering, validation, and DashScope protocol tests |
+| `test_lingbot_map_tool.py` | LingBot-Map tool mock tests and optional live server smoke test |
 
 ---
 
@@ -43,6 +44,9 @@ python test/test_tool.py --tool sam --image assets/dog.jpeg
 
 # Test Qwen Image Edit without an API key
 pytest -q test/test_qwen_image_edit_tool.py
+
+# Test LingBot-Map mock tests
+python -m pytest -q test/test_lingbot_map_tool.py
 ```
 
 ---

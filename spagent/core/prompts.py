@@ -524,6 +524,12 @@ _TSG_CATEGORIES: List[Dict[str, Any]] = [
                 "- **mapanything_tool**: Use for dense multi-view 3D point clouds via depth + "
                 "pose fusion."
             ),
+            "lingbot_map_tool": (
+                "- **lingbot_map_tool**: Use for long-sequence 3D scene mapping from an "
+                "ordered folder or list of at least eight images; returns a point cloud and "
+                "camera trajectory. Unlike vggt_tool or mapanything_tool, use it when the "
+                "input is a chronological sequence and a LingBot-Map reconstruction is needed."
+            ),
             "orient_anything_v2_tool": (
                 "- **orient_anything_v2_tool**: Use for object orientation "
                 "(azimuth/elevation/rotation) or relative pose between two views."

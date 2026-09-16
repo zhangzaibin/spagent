@@ -32,7 +32,8 @@ external_experts/
 ├── vace/                          # VACE 本地视频生成（首帧驱动流水线，服务端口 20034）
 ├── PaddleOCRVL/                   # 文档 OCR 与结构化识别（PaddleOCR-VL-1.5，端口 20037）
 ├── supervision/                   # YOLO目标检测和标注工具
-└── QwenImageEdit/                 # Qwen 指令式图像编辑（DashScope API）
+├── QwenImageEdit/                 # Qwen 指令式图像编辑（DashScope API）
+└── LingBotMap/                    # 长序列3D场景建图（服务端口 20040）
 ```
 
 ## 🛠️ 工具概览
@@ -58,6 +59,7 @@ external_experts/
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | 文档 OCR 与结构化识别 | 0.9B 视觉语言模型，支持纯文本 OCR、表格解析、图表读取、公式转 LaTeX、文本定位与印章识别；支持本地/服务器/mock 模式；无需额外 checkpoint 环境变量 | 本地或服务器（20037） | `image_path`, `task`（`"ocr"` / `"table"` / `"chart"` / `"formula"` / `"spotting"` / `"seal"`） |
 | **Qwen Image Edit** | `QwenImageEditTool` | 指令式图像编辑 | 编辑基础图像、增加或替换内容、修改风格或文字，并支持融合最多两张参考图像 | DashScope API（无需服务器） | `image_path`, `prompt`, `reference_image_paths`(可选), `size`(可选), `n`(可选), `seed`(可选) |
+| **LingBot-Map** | `LingBotMapTool` | 长序列3D场景建图 | 从有序图片文件夹或图片列表重建点云和相机轨迹 | 本地服务器（20040） | `image_folder` 或 `image_paths`, `mask_sky`, `keyframe_interval`, `max_frames` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1309,6 +1311,61 @@ print(result["image_paths"])
 **资源链接**：
 - [Qwen-Image GitHub](https://github.com/QwenLM/Qwen-Image)
 - [Qwen Image Edit API](https://help.aliyun.com/zh/model-studio/qwen-image-edit-api)
+### 16. LingBot-Map - 长序列3D场景建图
+
+**功能**：使用 LingBot-Map 从有序图片序列构建3D场景地图。
+
+**特点**：
+- 支持图片文件夹和显式图片路径列表
+- 完成重建后返回非空 RGB 点云、相机轨迹、预览图和点数量
+- 支持 sky masking 和 keyframe 采样
+
+**权重下载**：
+```bash
+mkdir -p checkpoints/lingbot_map
+hf download robbyant/lingbot-map lingbot-map-long.pt \
+  --local-dir checkpoints/lingbot_map
+```
+
+**安装依赖**：
+```bash
+git clone https://github.com/Robbyant/lingbot-map.git third_party/lingbot-map
+git -C third_party/lingbot-map checkout 4cd986009b9adeded8a4e740919221940dedeffe
+cd third_party/lingbot-map
+pip install -e ".[vis]"
+pip install flask
+```
+
+**启动服务**：
+```bash
+python spagent/external_experts/LingBotMap/lingbot_map_server.py \
+  --repo_path third_party/lingbot-map \
+  --model_path checkpoints/lingbot_map/lingbot-map-long.pt \
+  --port 20040
+```
+
+**Python 调用示例**：
+```python
+from spagent.tools import LingBotMapTool
+
+tool = LingBotMapTool(use_mock=False, server_url="http://127.0.0.1:20040")
+result = tool.call(
+    image_folder="example/courthouse",
+    mask_sky=True,
+    keyframe_interval=1,
+    max_frames=128,
+)
+print(result["point_cloud_path"])
+print(result["trajectory_path"])
+print(result["preview_path"])
+print(result["points_count"])
+```
+
+必须在 `image_folder` 和 `image_paths` 中二选一，且有序序列至少包含 8 张图像。如果点云或相机轨迹文件缺失，工具会返回失败结果。
+
+**资源链接**：
+- [官方仓库](https://github.com/Robbyant/lingbot-map)
+- [HuggingFace 权重](https://huggingface.co/robbyant/lingbot-map)
 
 ---
 

@@ -39,6 +39,7 @@ from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
 from .wilddet3d_tool import WildDet3DTool
 from .oneformer_tool import OneFormerTool
+from .lingbot_map_tool import LingBotMapTool
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ DEFAULT_SERVER_URLS: Dict[str, str] = {
     "supervision": "http://127.0.0.1:8000",
     "oneformer": "http://127.0.0.1:20038",
     "wilddet3d": "http://127.0.0.1:20027",
+    "lingbot_map": "http://127.0.0.1:20040",
 }
 
 
@@ -308,6 +310,14 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "wilddet3d_tool",
         {"server_url": DEFAULT_SERVER_URLS["wilddet3d"]},
         category="detection",
+    ),
+    ToolCatalogEntry(
+        "lingbot_map",
+        LingBotMapTool,
+        "3d",
+        "lingbot_map_tool",
+        {"server_url": DEFAULT_SERVER_URLS["lingbot_map"]},
+        category="3d_reconstruction",
     ),
 ]
 
