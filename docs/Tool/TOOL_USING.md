@@ -35,7 +35,8 @@ external_experts/
 ├── PaddleOCRVL/                   # Document OCR & structured recognition (PaddleOCR-VL-1.5, port 20037)
 ├── OneFormer/                     # Universal image segmentation semantic/instance/panoptic (port 20038)
 ├── supervision/                   # YOLO object detection and annotation tools
-└── QwenImageEdit/                 # Qwen instruction-based image editing (DashScope API)
+├── QwenImageEdit/                 # Qwen instruction-based image editing (DashScope API)
+└── InfiniDepth/                   # High-resolution depth estimation (server port 20039)
 ```
 
 ## 🛠️ Tool Overview
@@ -66,6 +67,7 @@ external_experts/
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | Document OCR & Structured Recognition | 0.9B VLM for plain OCR, table parsing, chart reading, formula → LaTeX, text spotting, and seal recognition; supports local/server/mock; no checkpoint env var required | Local or Server (port 20037) | `image_path`, `task` ("ocr" / "table" / "chart" / "formula" / "spotting" / "seal") |
 | **OneFormer** | `OneFormerTool` | Universal Image Segmentation | Single model for semantic / instance / panoptic; HF auto-download; returns colorized overlay + mask_path id-map | Local / Server (port 20038) | `image_path`, `task` ("semantic" / "instance" / "panoptic") |
 | **Qwen Image Edit** | `QwenImageEditTool` | Instruction-based Image Editing | Edit a base image, replace or add content, change style or text, and fuse up to two reference images | DashScope API (no server) | `image_path`, `prompt`, `reference_image_paths`(optional), `size`(optional), `n`(optional), `seed`(optional) |
+| **InfiniDepth** | `InfiniDepthTool` | High-resolution Depth Estimation | Estimate relative depth from a single RGB image with optional point cloud export | Server (port 20039) | `image_path`, `task`, `save_pcd`, `output_resolution_mode`, `upsample_ratio` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1594,6 +1596,65 @@ The default model is `qwen-image-2.0`. `image_path` and reference images may be 
 **Resources**:
 - [Qwen-Image GitHub](https://github.com/QwenLM/Qwen-Image)
 - [Qwen Image Edit API](https://help.aliyun.com/en/model-studio/qwen-image-edit-api)
+
+---
+
+### 19. InfiniDepth - High-resolution Depth Estimation
+
+**Function**: Estimate relative depth from a single RGB image using InfiniDepth.
+
+**Features**:
+- Single-image relative depth estimation
+- Original-resolution output by default, with optional high-resolution upsampling
+- Optional point cloud export
+- Uses the official InfiniDepth inference script through a local server
+
+**Official Source**:
+```bash
+git clone https://github.com/zju3dv/InfiniDepth.git third_party/InfiniDepth
+git -C third_party/InfiniDepth checkout 36c6e0c31887fafc210184ee43ca475230704095
+pip install -r third_party/InfiniDepth/requirements.txt
+pip install git+https://github.com/microsoft/MoGe.git
+```
+
+**Weight Download**:
+```bash
+mkdir -p checkpoints/infinidepth
+hf download ritianyu/InfiniDepth infinidepth.ckpt \
+  --local-dir checkpoints/infinidepth
+mkdir -p checkpoints/infinidepth/moge-2-vitl-normal
+hf download Ruicheng/moge-2-vitl-normal model.pt \
+  --local-dir checkpoints/infinidepth/moge-2-vitl-normal
+```
+
+**Start Server**:
+```bash
+python spagent/external_experts/InfiniDepth/infinidepth_server.py \
+  --repo_path third_party/InfiniDepth \
+  --depth_model_path checkpoints/infinidepth/infinidepth.ckpt \
+  --moge2_model_path checkpoints/infinidepth/moge-2-vitl-normal/model.pt \
+  --port 20039
+```
+
+**Python Usage**:
+```python
+from spagent.tools import InfiniDepthTool
+
+tool = InfiniDepthTool(use_mock=False, server_url="http://127.0.0.1:20039")
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    save_pcd=False,
+    output_resolution_mode="original",
+    upsample_ratio=2,
+)
+print(result["depth_path"], result["colored_depth_path"])
+```
+
+For a higher-resolution result, set `output_resolution_mode="upsample"`; the returned
+`shape` always describes the actual depth artifact and `source_shape` describes the input.
+
+**Resources**:
+- [Official Repository](https://github.com/zju3dv/InfiniDepth)
 
 ---
 

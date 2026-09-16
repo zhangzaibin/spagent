@@ -69,6 +69,7 @@ CALL_KW = {
                          output_path="outputs/vflow.png"),
     "paddleocr_vl": dict(image_path=IMG),
     "wilddet3d":    dict(image_path=IMG, prompt_text="dog"),
+    "infinidepth":  dict(image_path=IMG),
 }
 
 CHECKS = ["build", "schema", "call", "toolresult", "contract", "render", "boxes", "failpath", "docs"]

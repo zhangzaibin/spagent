@@ -1498,6 +1498,7 @@ class SPAgentToolCallingScheduler(MultiTurnScheduler):
 
         tool_classes = [
             ('DepthEstimationTool', 'depth_estimation_tool'),
+            ('InfiniDepthTool', 'infinidepth_tool'),
             ('SegmentationTool', 'segmentation_tool'),
             ('ObjectDetectionTool', 'object_detection_tool'),
             ('Molmo2Tool', 'molmo2_tool'),

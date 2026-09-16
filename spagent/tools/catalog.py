@@ -39,6 +39,7 @@ from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
 from .wilddet3d_tool import WildDet3DTool
 from .oneformer_tool import OneFormerTool
+from .infinidepth_tool import InfiniDepthTool
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ DEFAULT_SERVER_URLS: Dict[str, str] = {
     "supervision": "http://127.0.0.1:8000",
     "oneformer": "http://127.0.0.1:20038",
     "wilddet3d": "http://127.0.0.1:20027",
+    "infinidepth": "http://127.0.0.1:20039",
 }
 
 
@@ -308,6 +310,14 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "wilddet3d_tool",
         {"server_url": DEFAULT_SERVER_URLS["wilddet3d"]},
         category="detection",
+    ),
+    ToolCatalogEntry(
+        "infinidepth",
+        InfiniDepthTool,
+        "2d_perception",
+        "infinidepth_tool",
+        {"server_url": DEFAULT_SERVER_URLS["infinidepth"]},
+        category="depth",
     ),
 ]
 

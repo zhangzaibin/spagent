@@ -451,6 +451,11 @@ _TSG_CATEGORIES: List[Dict[str, Any]] = [
                 "relationships, or occlusion ordering in a single image. Do not use for "
                 "object labels or segmentation masks."
             ),
+            "infinidepth_tool": (
+                "- **infinidepth_tool**: Use when you need high-resolution relative depth "
+                "from one RGB image or an optional depth-derived point cloud. Prefer it "
+                "for detailed depth output; it does not perform object detection."
+            ),
             "segment_image_tool": (
                 "- **segment_image_tool**: Use when you need precise pixel masks for objects "
                 "or regions (SAM2). Provide points/boxes when possible."
