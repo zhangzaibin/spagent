@@ -78,7 +78,7 @@ export GOOGLE_API_KEY="your_google_api_key"
 
 ### 3. Deploy Expert Servers
 
-See **[Tool Reference](docs/Tool/TOOL_USING.md)** for per-tool deployment instructions (Depth, SAM2, GroundingDINO, Pi3, Molmo2, OrientAnythingV2, WildDet3D, FlowSeek, PaddleOCR-VL, OneFormer, Sana, Qwen Image Edit, VACE, …).
+See **[Tool Reference](docs/Tool/TOOL_USING.md)** for per-tool deployment instructions (Depth, SAM2, SAM3, GroundingDINO, Pi3, Molmo2, OrientAnythingV2, WildDet3D, FlowSeek, PaddleOCR-VL, OneFormer, Sana, Qwen Image Edit, VACE, …).
 
 ## 🚀 Quick Start
 

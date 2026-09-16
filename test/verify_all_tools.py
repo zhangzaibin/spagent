@@ -17,6 +17,7 @@ IMG = "assets/dog.jpeg"
 CALL_KW = {
     "depth":        dict(image_path=IMG),
     "segmentation": dict(image_path=IMG),
+    "sam3":        dict(image_path=IMG, text_prompt="dog", task="image"),
     "detection":    dict(image_path=IMG, text_prompt="dog"),
     "zoom":         dict(image_path=IMG, text_prompt="dog"),
     "localize":     dict(image_path=IMG, text_prompt="dog"),

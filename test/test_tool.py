@@ -375,6 +375,34 @@ def test_segmentation(
 
 
 # ============================================================
+# SAM3 Tool Test
+# ============================================================
+
+def test_sam3(
+    image_path: str,
+    prompt: str = "object",
+    task: str = "auto",
+    server_url: str = "http://localhost:20035",
+    use_mock: bool = False,
+) -> Optional[str]:
+    """Directly test SAM3 image/video text-prompt segmentation."""
+    from spagent.tools import SAM3Tool
+
+    if not os.path.exists(image_path):
+        logger.error(f"Input not found: {image_path}")
+        return None
+
+    tool = SAM3Tool(use_mock=use_mock, server_url=server_url)
+    result = tool.call(image_path=image_path, text_prompt=prompt, task=task)
+    if not result.get("success"):
+        logger.error(f"SAM3 tool failed: {result.get('error', 'unknown error')}")
+        return None
+    output_path = result.get("output_path") or result.get("video_path")
+    logger.info(f"SAM3 output saved: {output_path}")
+    return output_path or "OK"
+
+
+# ============================================================
 # Detection Tool Test
 # ============================================================
 
@@ -970,7 +998,7 @@ def parse_args():
         "--tool",
         type=str,
         required=True,
-        choices=["pi3", "pi3x", "depth", "segmentation", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl", "oneformer"],
+        choices=["pi3", "pi3x", "depth", "segmentation", "sam3", "detection", "veo", "sora", "vace", "molmo2", "wilddet3d", "flowseek", "paddleocr_vl", "oneformer"],
         help="Which tool to test. depth/segmentation/detection now run real inference (no longer stubs).",
     )
     parser.add_argument(
@@ -1025,7 +1053,16 @@ def parse_args():
         "--prompt",
         type=str,
         default="object",
-        help="Text prompt for object detection (default: 'object'). Also used as the video prompt for veo/sora.",
+        help="Text prompt for object detection, SAM3, or video generation (default: 'object').",
+    )
+
+    sam3_group = parser.add_argument_group("SAM3 options")
+    sam3_group.add_argument(
+        "--sam3_task",
+        type=str,
+        default="auto",
+        choices=["auto", "image", "video"],
+        help="SAM3 task mode (default: auto).",
     )
 
     wilddet3d_group = parser.add_argument_group("WildDet3D options")
@@ -1101,7 +1138,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek", "oneformer"}
+    image_required_tools = {"pi3", "pi3x", "depth", "segmentation", "sam3", "detection", "vace", "molmo2", "wilddet3d", "paddleocr_vl", "flowseek", "oneformer"}
     if args.tool in image_required_tools and not args.image:
         print(f"Error: --image is required for tool '{args.tool}'")
         sys.exit(1)
@@ -1147,6 +1184,16 @@ def main():
             image_path=args.image[0],
             server_url=server,
             output_dir=args.output_dir,
+        )
+
+    elif args.tool == "sam3":
+        server = args.server_url or "http://localhost:20035"
+        result_path = test_sam3(
+            image_path=args.image[0],
+            prompt=args.prompt,
+            task=args.sam3_task,
+            server_url=server,
+            use_mock=args.use_mock,
         )
 
     elif args.tool == "detection":
@@ -1251,4 +1298,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

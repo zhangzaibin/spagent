@@ -7,6 +7,7 @@ for the SPAgent system.
 
 from .depth_tool import DepthEstimationTool
 from .segmentation_tool import SegmentationTool
+from .sam3_tool import SAM3Tool
 from .detection_tool import ObjectDetectionTool, ZoomObjectTool, LocalizeObjectTool
 from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
@@ -44,6 +45,7 @@ from .catalog import (
 __all__ = [
     'DepthEstimationTool',
     'SegmentationTool',
+    'SAM3Tool',
     'ObjectDetectionTool',
     'ZoomObjectTool',
     'LocalizeObjectTool',

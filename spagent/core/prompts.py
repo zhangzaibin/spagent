@@ -455,6 +455,11 @@ _TSG_CATEGORIES: List[Dict[str, Any]] = [
                 "- **segment_image_tool**: Use when you need precise pixel masks for objects "
                 "or regions (SAM2). Provide points/boxes when possible."
             ),
+            "sam3_concept_segmentation_tool": (
+                "- **sam3_concept_segmentation_tool**: Use for natural-language concept "
+                "segmentation in an image or video (for example, all people or red cars). "
+                "Prefer this when the target is specified by text rather than a point or box."
+            ),
             "zoom_object_tool": (
                 "- **zoom_object_tool**: Detect an object and return cropped close-up image(s) "
                 "for fine-grained attribute inspection (GroundingDINO). Use when the question "

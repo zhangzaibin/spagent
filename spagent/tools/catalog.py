@@ -16,6 +16,7 @@ from core.tool_result import ALL_CATEGORIES
 
 from .depth_tool import DepthEstimationTool
 from .segmentation_tool import SegmentationTool
+from .sam3_tool import SAM3Tool
 from .detection_tool import ObjectDetectionTool, ZoomObjectTool, LocalizeObjectTool
 from .supervision_tool import SupervisionTool
 from .yoloe_tool import YOLOETool
@@ -69,6 +70,7 @@ class ToolCatalogEntry:
 DEFAULT_SERVER_URLS: Dict[str, str] = {
     "depth": "http://127.0.0.1:20019",
     "segmentation": "http://127.0.0.1:20020",
+    "sam3": "http://127.0.0.1:20035",
     "detection": "http://127.0.0.1:20022",
     "moondream": "http://127.0.0.1:20024",
     "molmo2": "http://127.0.0.1:20025",
@@ -102,6 +104,14 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "2d_perception",
         "segment_image_tool",
         {"server_url": DEFAULT_SERVER_URLS["segmentation"]},
+        category="segmentation",
+    ),
+    ToolCatalogEntry(
+        "sam3",
+        SAM3Tool,
+        "2d_perception",
+        "sam3_concept_segmentation_tool",
+        {"server_url": DEFAULT_SERVER_URLS["sam3"]},
         category="segmentation",
     ),
     ToolCatalogEntry(
