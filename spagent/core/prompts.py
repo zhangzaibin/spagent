@@ -455,6 +455,11 @@ _TSG_CATEGORIES: List[Dict[str, Any]] = [
                 "- **segment_image_tool**: Use when you need precise pixel masks for objects "
                 "or regions (SAM2). Provide points/boxes when possible."
             ),
+            "crop_tool": (
+                "- **crop_tool**: Use when the region is already known by a box, mask, or "
+                "polygon and you need a close-up crop for inspection. It transforms the "
+                "image region; it does not discover or classify objects."
+            ),
             "zoom_object_tool": (
                 "- **zoom_object_tool**: Detect an object and return cropped close-up image(s) "
                 "for fine-grained attribute inspection (GroundingDINO). Use when the question "

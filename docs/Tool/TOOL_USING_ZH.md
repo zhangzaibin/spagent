@@ -58,6 +58,7 @@ external_experts/
 | **VACE** | `VaceTool` | 本地视频生成 | 基于单张参考图 + 文本提示词，通过本地 Wan2.1-VACE 首帧流水线生成短视频，返回 `.mp4` 路径 | 本地服务器（20034） | `image_path`, `prompt`, `base`(可选), `task`(可选), `mode`(可选) |
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | 文档 OCR 与结构化识别 | 0.9B 视觉语言模型，支持纯文本 OCR、表格解析、图表读取、公式转 LaTeX、文本定位与印章识别；支持本地/服务器/mock 模式；无需额外 checkpoint 环境变量 | 本地或服务器（20037） | `image_path`, `task`（`"ocr"` / `"table"` / `"chart"` / `"formula"` / `"spotting"` / `"seal"`） |
 | **Qwen Image Edit** | `QwenImageEditTool` | 指令式图像编辑 | 编辑基础图像、增加或替换内容、修改风格或文字，并支持融合最多两张参考图像 | DashScope API（无需服务器） | `image_path`, `prompt`, `reference_image_paths`(可选), `size`(可选), `n`(可选), `seed`(可选) |
+| **Crop** | `CropTool` | 图像裁剪 | 使用框、mask 或多边形从图像中提取感兴趣区域 | 本地 | `image_path`, `box`/`boxes`/`mask_path`/`polygon`, `padding`, `relative_coords` |
 
 **使用示例**:
 - 详细使用示例请参考：[Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1309,6 +1310,39 @@ print(result["image_paths"])
 **资源链接**：
 - [Qwen-Image GitHub](https://github.com/QwenLM/Qwen-Image)
 - [Qwen Image Edit API](https://help.aliyun.com/zh/model-studio/qwen-image-edit-api)
+
+---
+
+### 16. Crop - 图像区域裁剪
+
+**功能**: 使用框、mask 或多边形从图像中提取感兴趣区域。
+
+**特点**:
+- 支持单框裁剪和多框批量裁剪
+- 支持 mask 裁剪和多边形裁剪，并输出带透明通道的 PNG
+- 支持像素坐标和相对坐标
+
+**Python 用法**:
+```python
+from spagent.tools import CropTool
+
+tool = CropTool()
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    box=[40, 30, 260, 220],
+    padding=8,
+)
+print(result["output_path"], result["crop_size"])
+```
+
+**多框用法**:
+```python
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    boxes=[[40, 30, 160, 180], [170, 40, 280, 210]],
+)
+print(result["output_paths"])
+```
 
 ---
 

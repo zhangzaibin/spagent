@@ -87,7 +87,7 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 
 | # | Category | Tools (registered) | Required raw payload — **ONE OF** | Common optional (per-tool) |
 |---|----------|--------------------|-----------------------------------|----------------------------|
-| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det)*, wilddet3d | accepted carriers (normative, **one of**): (a) `detections: [{bbox, label, confidence?}]` **or** (b) parallel `boxes` + `labels` arrays; each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
+| 1 | Detection | detect_objects, zoom_object, localize_object, yolo26, qwenvl_detection, yoloe_detection, supervision (det)*, wilddet3d, crop | accepted carriers (normative, **one of**): (a) `detections: [{bbox, label, confidence?}]` **or** (b) parallel `boxes` + `labels` arrays; each box **one of** {pixel `xyxy`, normalized `xyxy`, normalized `cxcywh`} | `confidence`, `image_width`/`height`, `class_id`, `crop_paths`, `masks`, `3d_coords` |
 | 2 | Segmentation | segment_image, supervision (seg)* | a mask **one of** {binary array, mask file path, `polygon` coords, RLE} | `area`, `bbox`, `class_name`, `shape` |
 | 3 | Image Generation | image_generation_sana | image path **one of** {`output_path`, `image_paths[]`} | `seed`, `model`, `size`, `file_size_bytes` |
 | 4 | Video Generation | video_generation_{veo,sora,wan,vace} | `output_path` (.mp4 path) | `duration`, `resolution`, `fps`, `codec`, `result_dir`, `frame_paths` |
@@ -101,6 +101,8 @@ Two required layers on top of the envelope: the **raw payload** (required; pick 
 The rendered visualization (envelope) is additionally expected for every visual category above.
 
 \* **Dual-category tools** (supervision): the tool's static registry `category` is its primary one (`detection`); the **effective category is resolved per call** from the `task` argument, and the result carries a `category` field so validation/rendering key off the *result*, not the static registry entry.
+
+`crop` is registered under `detection` for compatibility with the existing box-based tool family. Its `boxes` and `labels` describe the requested source regions (`label="crop"`), not newly detected objects; `crop_paths` and `crops` are the informative output artifacts.
 
 > **This registry table is normative.** The Tool Configuration Table at the top of this doc and the per-category blocks below are explanatory reference; where they disagree with this table, this table wins.
 

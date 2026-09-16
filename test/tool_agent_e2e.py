@@ -78,6 +78,7 @@ TOOL_EPISODE_PROMPTS = {
         "Edit this image so the dog wears blue sunglasses. Preserve the dog, "
         "pose, and background, and use the available tool."
     ),
+    "crop": "Crop the main subject tightly from this image using the available tool and report where the crop was saved.",
 }
 
 
@@ -219,11 +220,7 @@ def run_episode(entry, model, url, prompt):
         return False, [f"tool build failed: {'; '.join(errs)}"[:150]]
     tool = tools[0]
 
-    prompt = (
-        prompt
-        or TOOL_EPISODE_PROMPTS.get(entry.key)
-        or EPISODE_PROMPTS.get(entry.category)
-    )
+    prompt = prompt or TOOL_EPISODE_PROMPTS.get(entry.key) or EPISODE_PROMPTS.get(entry.category)
     if not prompt:
         return False, [f"no default episode prompt for category {entry.category!r} "
                        "(e.g. video_generation is paid) — pass --prompt to run anyway"]
@@ -231,10 +228,7 @@ def run_episode(entry, model, url, prompt):
     images = IMG
     if entry.category == "optical_flow":
         images = [IMG, IMG]
-    if (
-        entry.category == "image_generation"
-        and entry.key not in TOOL_EPISODE_PROMPTS
-    ):
+    if entry.category == "image_generation":
         images = None
 
     agent = SPAgent(model=model, tools=[tool])

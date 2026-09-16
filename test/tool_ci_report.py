@@ -45,6 +45,7 @@ CALL_KW = {
     "segmentation": dict(image_path=IMG),
     "oneformer":    dict(image_path=IMG),
     "detection":    dict(image_path=IMG, text_prompt="dog"),
+    "crop":         dict(image_path=IMG, box=[69, 248, 630, 926]),
     "zoom":         dict(image_path=IMG, text_prompt="dog"),
     "localize":     dict(image_path=IMG, text_prompt="dog"),
     "supervision":  dict(image_path=IMG, task="image_det"),

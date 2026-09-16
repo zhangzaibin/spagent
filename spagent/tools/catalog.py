@@ -39,6 +39,7 @@ from .flowseek_tool import FlowSeekTool
 from .paddleocr_vl_tool import PaddleOCRVLTool
 from .wilddet3d_tool import WildDet3DTool
 from .oneformer_tool import OneFormerTool
+from .crop_tool import CropTool
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +308,15 @@ TOOL_CATALOG: List[ToolCatalogEntry] = [
         "3d",
         "wilddet3d_tool",
         {"server_url": DEFAULT_SERVER_URLS["wilddet3d"]},
+        category="detection",
+    ),
+    ToolCatalogEntry(
+        "crop",
+        CropTool,
+        "2d_perception",
+        "crop_tool",
+        {},
+        accepts_use_mock=False,
         category="detection",
     ),
 ]

@@ -14,6 +14,7 @@ from .yolo26_tool import YOLO26Tool
 from .face_detection_tool import FaceDetectionTool
 from .moondream_tool import MoondreamTool
 from .molmo2_tool import Molmo2Tool
+from .crop_tool import CropTool
 from .pi3_tool import Pi3Tool
 from .pi3x_tool import Pi3XTool
 from .vggt_tool import VGGTTool
@@ -53,6 +54,7 @@ __all__ = [
     'FaceDetectionTool',
     'MoondreamTool',
     'Molmo2Tool',
+    'CropTool',
     'Pi3Tool',
     'Pi3XTool',
     'VGGTTool',

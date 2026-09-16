@@ -42,6 +42,7 @@ CALL_KW = {
                          output_path="outputs/vflow.png"),
     "paddleocr_vl": dict(image_path=IMG),
     "wilddet3d":    dict(image_path=IMG, prompt_text="dog"),
+    "crop":         dict(image_path=IMG, box=[0, 0, 100, 100]),
 }
 
 rows = []

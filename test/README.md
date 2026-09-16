@@ -12,6 +12,7 @@ Unit tests and integration smoke tests for SPAgent.
 | `test_pi3_llm.py` | End-to-end agent test: video → frame extraction → Pi3 tool → LLM answer |
 | `test_prompt.py` | Verify system prompt construction for all configurations (3D spatial / general vision / custom) |
 | `test_qwen_image_edit_tool.py` | Qwen Image Edit schema, mock editing, multi-image rendering, validation, and DashScope protocol tests |
+| `test_crop_tool.py` | CropTool tests for box, multi-box, mask, and polygon crops |
 
 ---
 
@@ -37,6 +38,9 @@ python test/test_tool.py --tool pi3x --image assets/dog.jpeg --azimuth 45 --elev
 
 # Test GroundingDINO tool directly
 python test/test_tool.py --tool grounding_dino --image assets/dog.jpeg --text_prompt "dog"
+
+# Test CropTool
+python -m pytest -q test/test_crop_tool.py
 
 # Test SAM2 tool directly
 python test/test_tool.py --tool sam --image assets/dog.jpeg

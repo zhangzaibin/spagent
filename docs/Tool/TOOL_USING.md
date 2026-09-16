@@ -66,6 +66,7 @@ external_experts/
 | **PaddleOCR-VL-1.5** | `PaddleOCRVLTool` | Document OCR & Structured Recognition | 0.9B VLM for plain OCR, table parsing, chart reading, formula → LaTeX, text spotting, and seal recognition; supports local/server/mock; no checkpoint env var required | Local or Server (port 20037) | `image_path`, `task` ("ocr" / "table" / "chart" / "formula" / "spotting" / "seal") |
 | **OneFormer** | `OneFormerTool` | Universal Image Segmentation | Single model for semantic / instance / panoptic; HF auto-download; returns colorized overlay + mask_path id-map | Local / Server (port 20038) | `image_path`, `task` ("semantic" / "instance" / "panoptic") |
 | **Qwen Image Edit** | `QwenImageEditTool` | Instruction-based Image Editing | Edit a base image, replace or add content, change style or text, and fuse up to two reference images | DashScope API (no server) | `image_path`, `prompt`, `reference_image_paths`(optional), `size`(optional), `n`(optional), `seed`(optional) |
+| **Crop** | `CropTool` | Image Cropping | Extract regions of interest from images using boxes, masks, or polygons | Local | `image_path`, `box`/`boxes`/`mask_path`/`polygon`, `padding`, `relative_coords` |
 
 **Usage Examples**:
 - For detailed usage examples, please refer to: [Advanced Examples](../Examples/ADVANCED_EXAMPLES.md)
@@ -1594,6 +1595,39 @@ The default model is `qwen-image-2.0`. `image_path` and reference images may be 
 **Resources**:
 - [Qwen-Image GitHub](https://github.com/QwenLM/Qwen-Image)
 - [Qwen Image Edit API](https://help.aliyun.com/en/model-studio/qwen-image-edit-api)
+
+---
+
+### 19. Crop - Image Region Cropping
+
+**Function**: Extract regions of interest from images using boxes, masks, or polygons.
+
+**Features**:
+- Supports single box crop and multi-box batch crop
+- Supports mask crop and polygon crop with transparent PNG output
+- Supports pixel coordinates and relative coordinates
+
+**Python Usage**:
+```python
+from spagent.tools import CropTool
+
+tool = CropTool()
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    box=[40, 30, 260, 220],
+    padding=8,
+)
+print(result["output_path"], result["crop_size"])
+```
+
+**Multi-box Usage**:
+```python
+result = tool.call(
+    image_path="assets/dog.jpeg",
+    boxes=[[40, 30, 160, 180], [170, 40, 280, 210]],
+)
+print(result["output_paths"])
+```
 
 ---
 
